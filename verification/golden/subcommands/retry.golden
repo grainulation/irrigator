@@ -1,0 +1,7 @@
+Usage of retry:
+  -allow-uncertain
+    	explicitly permit replay of uncertain external actions
+  -confirm-stopped
+    	attest surviving provider/validator processes have been stopped
+  -recursive
+    	include descendants

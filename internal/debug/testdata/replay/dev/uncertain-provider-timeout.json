@@ -1,0 +1,60 @@
+{
+  "schema": "irrigator.replay-fixture/v1",
+  "scenario": "uncertain-provider-timeout",
+  "backend": "haiku",
+  "tasks": [
+    {
+      "id": "t1",
+      "depends_on": [],
+      "status": "uncertain",
+      "attempt": 1,
+      "generation": 1,
+      "cancel_requested": false,
+      "error_code": "outcome_uncertain_deadline",
+      "diagnostic_code": "",
+      "cost_reported": true,
+      "cost_unknown": true
+    },
+    {
+      "id": "t2",
+      "depends_on": [
+        "t1"
+      ],
+      "status": "pending",
+      "attempt": 0,
+      "generation": 1,
+      "cancel_requested": false,
+      "error_code": "",
+      "diagnostic_code": "",
+      "cost_reported": false,
+      "cost_unknown": false
+    }
+  ],
+  "events": [
+    {
+      "kind": "started",
+      "task": "t1"
+    },
+    {
+      "kind": "legacy_cost_unknown",
+      "task": "t1"
+    },
+    {
+      "kind": "outcome_uncertain",
+      "task": "t1"
+    }
+  ],
+  "recovery": {
+    "attention": [
+      {
+        "id": "t1",
+        "classification": "uncertain_reconcile_externally",
+        "error_code": "outcome_uncertain_deadline"
+      }
+    ],
+    "next_steps": [
+      "irrigator inspect RUN_DIR NODE and irrigator logs RUN_DIR --task NODE are read-only follow-ups",
+      "uncertain: reconcile the external outcome first; resolve or retry --allow-uncertain needs an explicit user decision"
+    ]
+  }
+}

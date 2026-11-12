@@ -1,0 +1,11 @@
+Usage of update-check:
+  -artifact string
+    	local artifact to verify
+  -installed-sequence uint
+    	trusted installed release sequence (required)
+  -manifest string
+    	canonical signed update manifest
+  -public-key string
+    	independently pinned raw 32-byte Ed25519 public key
+  -signature string
+    	raw 64-byte Ed25519 signature

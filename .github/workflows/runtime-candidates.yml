@@ -1,0 +1,69 @@
+name: CLI release candidates
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: runtime-candidates-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  package:
+    name: Package and install / ${{ matrix.target }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-24.04
+            target: linux/amd64
+            artifact: linux-amd64
+          - os: ubuntu-24.04-arm
+            target: linux/arm64
+            artifact: linux-arm64
+          - os: macos-15-intel
+            target: darwin/amd64
+            artifact: darwin-amd64
+          - os: macos-15
+            target: darwin/arm64
+            artifact: darwin-arm64
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: '1.27.2'
+          cache: false
+      - name: Verify native target and fast contracts
+        env:
+          EXPECTED_TARGET: ${{ matrix.target }}
+        run: |
+          test "$(go env GOOS)/$(go env GOARCH)" = "$EXPECTED_TARGET"
+          make check-fast
+          python3 -I tools/test_package_runtime.py
+          python3 -I tools/test_check_runtime_archive.py
+      - name: Package committed source and test isolated installation
+        id: candidate
+        env:
+          EXPECTED_TARGET: ${{ matrix.target }}
+        run: |
+          candidate_parent=$(cd "$RUNNER_TEMP" && pwd -P)
+          candidate_output="$candidate_parent/irrigator-candidate"
+          python3 -I tools/package_runtime.py --go "$(command -v go)" --revision "$GITHUB_SHA" --target "$EXPECTED_TARGET" --out "$candidate_output"
+          set -- "$candidate_output"/irrigator-*.tar.gz
+          test "$#" -eq 1
+          python3 -I tools/check_runtime_archive.py "$1"
+          echo "directory=$candidate_output" >> "$GITHUB_OUTPUT"
+      - name: Upload verified candidate archives
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: irrigator-cli-${{ matrix.artifact }}-${{ github.sha }}
+          path: ${{ steps.candidate.outputs.directory }}/*
+          if-no-files-found: error
+          retention-days: 30
+          compression-level: 0

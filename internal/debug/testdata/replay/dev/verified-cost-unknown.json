@@ -1,0 +1,73 @@
+{
+  "schema": "irrigator.replay-fixture/v1",
+  "scenario": "verified-cost-unknown",
+  "backend": "haiku",
+  "tasks": [
+    {
+      "id": "t1",
+      "depends_on": [],
+      "status": "verified",
+      "attempt": 1,
+      "generation": 1,
+      "cancel_requested": false,
+      "error_code": "",
+      "diagnostic_code": "",
+      "cost_reported": false,
+      "cost_unknown": true
+    },
+    {
+      "id": "t2",
+      "depends_on": [
+        "t1"
+      ],
+      "status": "verified",
+      "attempt": 1,
+      "generation": 1,
+      "cancel_requested": false,
+      "error_code": "",
+      "diagnostic_code": "",
+      "cost_reported": false,
+      "cost_unknown": true
+    }
+  ],
+  "events": [
+    {
+      "kind": "started",
+      "task": "t1"
+    },
+    {
+      "kind": "legacy_cost_unknown",
+      "task": "t1"
+    },
+    {
+      "kind": "produced",
+      "task": "t1"
+    },
+    {
+      "kind": "verified",
+      "task": "t1"
+    },
+    {
+      "kind": "started",
+      "task": "t2"
+    },
+    {
+      "kind": "legacy_cost_unknown",
+      "task": "t2"
+    },
+    {
+      "kind": "produced",
+      "task": "t2"
+    },
+    {
+      "kind": "verified",
+      "task": "t2"
+    }
+  ],
+  "recovery": {
+    "attention": [],
+    "next_steps": [
+      "irrigator inspect RUN_DIR NODE and irrigator logs RUN_DIR --task NODE are read-only follow-ups"
+    ]
+  }
+}

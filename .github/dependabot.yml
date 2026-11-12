@@ -1,0 +1,37 @@
+# Keeps the SHA-pinned GitHub Actions and the Go modules from rotting.
+# Actions are pinned by commit with a `# vN` comment; Dependabot updates both together.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      actions:
+        patterns: ["*"]
+    commit-message:
+      prefix: "ci"
+  - package-ecosystem: gomod
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      go-minor-patch:
+        update-types: [minor, patch]
+    commit-message:
+      prefix: "deps"
+  - package-ecosystem: gomod
+    directory: /tools/exportcheck
+    schedule:
+      interval: monthly
+    commit-message:
+      prefix: "deps"
+  - package-ecosystem: npm
+    directory: /examples/acp
+    schedule:
+      interval: weekly
+    groups:
+      acp-minor-patch:
+        update-types: [minor, patch]
+    commit-message:
+      prefix: "deps"

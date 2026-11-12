@@ -1,0 +1,9 @@
+Usage of logs:
+  -follow
+    	follow events until interrupted
+  -json
+    	JSONL events
+  -since int
+    	last event sequence already consumed
+  -task string
+    	node filter

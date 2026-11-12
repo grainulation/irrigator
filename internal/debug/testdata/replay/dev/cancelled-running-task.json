@@ -1,0 +1,60 @@
+{
+  "schema": "irrigator.replay-fixture/v1",
+  "scenario": "cancelled-running-task",
+  "backend": "mock",
+  "tasks": [
+    {
+      "id": "t1",
+      "depends_on": [],
+      "status": "cancelled",
+      "attempt": 1,
+      "generation": 1,
+      "cancel_requested": true,
+      "error_code": "cancelled",
+      "diagnostic_code": "",
+      "cost_reported": false,
+      "cost_unknown": false
+    },
+    {
+      "id": "t2",
+      "depends_on": [
+        "t1"
+      ],
+      "status": "pending",
+      "attempt": 0,
+      "generation": 1,
+      "cancel_requested": false,
+      "error_code": "",
+      "diagnostic_code": "",
+      "cost_reported": false,
+      "cost_unknown": false
+    }
+  ],
+  "events": [
+    {
+      "kind": "started",
+      "task": "t1"
+    },
+    {
+      "kind": "cancel_requested",
+      "task": "t1"
+    },
+    {
+      "kind": "cancelled",
+      "task": "t1"
+    }
+  ],
+  "recovery": {
+    "attention": [
+      {
+        "id": "t1",
+        "classification": "cancelled_operator_decision",
+        "error_code": "cancelled"
+      }
+    ],
+    "next_steps": [
+      "irrigator inspect RUN_DIR NODE and irrigator logs RUN_DIR --task NODE are read-only follow-ups",
+      "cancelled: operator decision to retry or revise"
+    ]
+  }
+}

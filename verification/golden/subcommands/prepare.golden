@@ -1,0 +1,15 @@
+Usage of prepare:
+  -backend string
+    	required for legacy plans: mock, haiku (paid), or named provider
+  -budget float
+    	alias for --call-budget (per call, not graph-wide) (default 0.25)
+  -call-budget float
+    	budget USD per call, not a graph-wide hard cap (default 0.25)
+  -executor string
+    	how workers are launched: herdr or local or tmux (default: the run's recorded executor, then IRRIGATOR_EXECUTOR, then local)
+  -run string
+    	new run directory
+  -timeout duration
+    	timeout per call (default 2m0s)
+  -workers int
+    	maximum concurrent workers (default 2)

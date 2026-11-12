@@ -1,0 +1,5 @@
+Usage of export:
+  -dir string
+    	new directory for mapped output files
+  -out string
+    	new JSON bundle file

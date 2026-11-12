@@ -1,0 +1,9 @@
+{
+  "version": "sizing.v1",
+  "capacity": 16,
+  "budget_usd": 10,
+  "reliability_floor": 0.9,
+  "provider_balance_usd": { "haiku": 10 },
+  "overhead": { "residual_s": 2, "provenance": "assumed" },
+  "defaults": { "service_s": 15, "service_var_s2": 9, "cost_usd": 0.007, "retry_p": 0.001, "calls": 1, "provenance": "assumed" }
+}

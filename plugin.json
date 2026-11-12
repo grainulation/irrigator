@@ -1,0 +1,28 @@
+{
+  "name": "irrigator",
+  "version": "1.0.0-rc.4",
+  "description": "Durable local agent graphs. Plan, run, observe, resume and budget Irrigator swarms through the local irrigator CLI.",
+  "extensions": {
+    "com.openai": {
+      "requires_local_executor": true,
+      "interface": {
+        "displayName": "Irrigator",
+        "shortDescription": "Run durable local agent graphs",
+        "longDescription": "Turn bounded task graphs into parallel agent work with the local irrigator CLI. Size A\u00d7D\u00d7S shapes before launch, keep immutable plans, recover without blind replay, and accept results independently.",
+        "category": "Productivity",
+        "capabilities": [
+          "Read",
+          "Write"
+        ],
+        "defaultPrompt": [
+          "Use Irrigator to size and plan this work as a bounded agent graph.",
+          "Show the status of my Irrigator run and the safe next action."
+        ],
+        "developerName": "Grainulation"
+      }
+    }
+  },
+  "author": {
+    "name": "Grainulation"
+  }
+}

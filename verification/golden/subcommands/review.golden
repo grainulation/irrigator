@@ -1,0 +1,8 @@
+Usage of review list:
+  -base string
+    	branch or commit to compare against (default: the remote default branch, then main or master)
+  -json
+    	print structured output
+  -workspace string
+    	Git repository to review (default ".")
+error: flag: help requested

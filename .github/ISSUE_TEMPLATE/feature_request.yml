@@ -1,0 +1,22 @@
+name: Feature request
+description: Propose a concrete improvement to a workflow.
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem to solve
+      description: Describe the workflow and what prevents you from completing it today.
+    validations:
+      required: true
+  - type: textarea
+    id: outcome
+    attributes:
+      label: Desired outcome
+      description: What observable behavior would make this useful?
+    validations:
+      required: true
+  - type: textarea
+    id: constraints
+    attributes:
+      label: Constraints and alternatives
+      description: Include relevant platform, compatibility, privacy, or operational constraints.

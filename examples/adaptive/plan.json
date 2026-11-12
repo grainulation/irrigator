@@ -1,0 +1,8 @@
+{
+  "api_version": "swarm/v1",
+  "name": "Recover a failed branch with parallel helpers",
+  "tasks": [
+    {"id":"retained","prompt":"Produce a prerequisite","requires":["answer"],"mock_delay":0.02,"mock_result":{"answer":"accepted prerequisite"}},
+    {"id":"implementation","prompt":"Implement the result","depends_on":["retained"],"requires":["answer"],"checks":[{"kind":"contains","field":"answer","value":"ACCEPTED"}],"outputs":{"answer":"result.txt"},"mock_delay":0.02,"mock_result":{"answer":"deliberately failing first attempt"}}
+  ]
+}

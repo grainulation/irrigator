@@ -1,0 +1,132 @@
+{
+  "schema": "irrigator.replay-fixture/v1",
+  "scenario": "spawn-waiting-parent-failed-child",
+  "backend": "mock",
+  "tasks": [
+    {
+      "id": "t1",
+      "depends_on": [],
+      "spawn": true,
+      "status": "waiting",
+      "attempt": 1,
+      "generation": 1,
+      "cancel_requested": false,
+      "error_code": "",
+      "diagnostic_code": "",
+      "cost_reported": false,
+      "cost_unknown": false
+    },
+    {
+      "id": "t2",
+      "depends_on": [],
+      "parent": "t1",
+      "status": "verified",
+      "attempt": 1,
+      "generation": 1,
+      "cancel_requested": false,
+      "error_code": "",
+      "diagnostic_code": "",
+      "cost_reported": false,
+      "cost_unknown": false
+    },
+    {
+      "id": "t3",
+      "depends_on": [],
+      "parent": "t1",
+      "status": "failed",
+      "attempt": 1,
+      "generation": 1,
+      "cancel_requested": false,
+      "error_code": "failed_error_not_projected",
+      "diagnostic_code": "",
+      "failure_phase": "validation",
+      "cost_reported": false,
+      "cost_unknown": false
+    },
+    {
+      "id": "t4",
+      "depends_on": [
+        "t3"
+      ],
+      "parent": "t1",
+      "status": "pending",
+      "attempt": 0,
+      "generation": 1,
+      "cancel_requested": false,
+      "error_code": "",
+      "diagnostic_code": "",
+      "cost_reported": false,
+      "cost_unknown": false
+    }
+  ],
+  "events": [
+    {
+      "kind": "started",
+      "task": "t1"
+    },
+    {
+      "kind": "produced",
+      "task": "t1"
+    },
+    {
+      "kind": "expanded",
+      "task": "t1"
+    },
+    {
+      "kind": "started",
+      "task": "t3"
+    },
+    {
+      "kind": "started",
+      "task": "t2"
+    },
+    {
+      "kind": "produced",
+      "task": "t3"
+    },
+    {
+      "kind": "produced",
+      "task": "t2"
+    },
+    {
+      "kind": "failed",
+      "task": "t3"
+    },
+    {
+      "kind": "verified",
+      "task": "t2"
+    }
+  ],
+  "recovery": {
+    "attention": [
+      {
+        "id": "t1",
+        "classification": "failed_review_before_retry",
+        "error_code": "",
+        "lifecycle": {
+          "activity": "active_work_remaining",
+          "blockers": [
+            "t3"
+          ],
+          "blockers_total": 1,
+          "active": [
+            "t4"
+          ],
+          "active_total": 1,
+          "uncertain_total": 0,
+          "failed_total": 1,
+          "cancelled_total": 0
+        }
+      },
+      {
+        "id": "t3",
+        "classification": "failed_review_before_retry",
+        "error_code": "failed_error_not_projected"
+      }
+    ],
+    "next_steps": [
+      "irrigator inspect RUN_DIR NODE and irrigator logs RUN_DIR --task NODE are read-only follow-ups",
+      "failed: status alone does not establish external effects; review before an explicit retry"
+    ]
+  }
+}

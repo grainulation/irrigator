@@ -1,0 +1,3 @@
+Usage of billing reconcile:
+  -attest-external-billing
+    	attest the receipt comes from external billing evidence

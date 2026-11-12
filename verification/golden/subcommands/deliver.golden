@@ -1,0 +1,27 @@
+Usage of deliver:
+  -backend string
+    	required for legacy plans: mock, haiku (paid), or named provider
+  -budget float
+    	alias for --call-budget (per call, not graph-wide) (default 0.25)
+  -call-budget float
+    	budget USD per call, not a graph-wide hard cap (default 0.25)
+  -check string
+    	acceptance argv as JSON; runs in delivery directory
+  -check-timeout duration
+    	acceptance deadline (default 1m0s)
+  -dir string
+    	delivery directory
+  -executor string
+    	how workers are launched: herdr or local or tmux (default: the run's recorded executor, then IRRIGATOR_EXECUTOR, then local)
+  -field string
+    	result field containing a JSON path-to-content map (default "files")
+  -nodes string
+    	comma-separated verified nodes to assemble
+  -recheck
+    	explicitly rerun failed or interrupted acceptance
+  -run string
+    	durable run directory; matching runs resume
+  -timeout duration
+    	timeout per call (default 2m0s)
+  -workers int
+    	maximum concurrent workers (default 2)

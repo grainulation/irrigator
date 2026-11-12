@@ -1,0 +1,13 @@
+{
+  "name": "irrigator",
+  "version": "1.0.0-rc.4",
+  "description": "Plan, run, observe and recover durable local Irrigator agent graphs with explicit shape, budget and acceptance discipline.",
+  "author": {
+    "name": "Irrigator contributors"
+  },
+  "keywords": ["irrigator", "agent-graphs", "swarm", "orchestration", "local-first"],
+  "skills": "./skills/",
+  "mcpServers": {
+    "irrigator": {"command": "irrigator", "args": ["mcp"]}
+  }
+}

@@ -1,0 +1,27 @@
+Usage of resume:
+  -budget float
+    	alias for --call-budget (per call, not graph-wide) (default 0.25)
+  -call-budget float
+    	budget USD per call, not a graph-wide hard cap (default 0.25)
+  -executor string
+    	how workers are launched: herdr or local or tmux (default: the run's recorded executor, then IRRIGATOR_EXECUTOR, then local)
+  -legacy-unbudgeted string
+    	allow unbudgeted legacy runs to proceed without budget enforcement ('allow')
+  -notify string
+    	notify a phone or webhook when the run blocks, completes or a cell becomes uncertain or failed: ntfy, webhook or off (default: the run's recorded choice, then IRRIGATOR_NOTIFY_VIA, then off)
+  -notify-topic string
+    	ntfy topic for --notify ntfy (default IRRIGATOR_NTFY_TOPIC; the token is only read from IRRIGATOR_NTFY_TOKEN)
+  -notify-url string
+    	webhook URL for --notify webhook (default IRRIGATOR_APPROVALS_WEBHOOK)
+  -retry-failed
+    	retry replay-safe failed nodes
+  -schedule string
+    	opt-in ready order: breadth (roots before descendants) or depth (default); omitted keeps the run's saved order
+  -session-registry string
+    	absolute shared session registry v2 path (v1 migrates on next actual start; default ./.irrigator/current-session.json)
+  -sizing string
+    	opt-in sizing.v1 JSON enforced at admission; saved as RUN/sizing.json
+  -timeout duration
+    	timeout per call (default 2m0s)
+  -workers int
+    	maximum concurrent workers (default 2)

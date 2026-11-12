@@ -1,0 +1,7 @@
+Usage of plan:
+  -context-file value
+    	import named UTF-8 context KEY=PATH (repeatable; requires --out)
+  -json
+    	JSON plan
+  -out string
+    	write a new validated plan without overwriting

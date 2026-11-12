@@ -1,0 +1,12 @@
+irrigator debug RUN_DIR [--json] [--node ID]
+irrigator debug fixture export RUN_DIR --out FILE [--scenario NAME]   (experimental)
+
+Read-only diagnosis of one durable run: control state, node counts, nodes that
+need attention with safe classifications, and recent allowlisted events.
+Starts no provider, retries nothing, and never prints error text, prompts or
+results. Use status, inspect and logs for more detail.
+
+fixture export (experimental; the format may change before it is stable) writes
+a redacted replay fixture of the run: fixed status and error codes, anonymous
+task IDs, event kinds and the recovery decision. It refuses to overwrite FILE,
+writes it 0600, and writes nothing if its own redaction check rejects the result.

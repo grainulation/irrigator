@@ -1,0 +1,95 @@
+{
+  "schema": "irrigator.replay-fixture/v1",
+  "scenario": "turn-failed-helper-blocks-waited-continuation",
+  "backend": "mock",
+  "tasks": [
+    {
+      "id": "t1",
+      "depends_on": [],
+      "turn_role": "main",
+      "turn_index": 1,
+      "status": "verified",
+      "attempt": 1,
+      "generation": 1,
+      "cancel_requested": false,
+      "error_code": "",
+      "diagnostic_code": "",
+      "cost_reported": false,
+      "cost_unknown": false
+    },
+    {
+      "id": "t2",
+      "depends_on": [
+        "t1"
+      ],
+      "parent": "t1",
+      "turn_role": "helper",
+      "turn_index": 1,
+      "status": "failed",
+      "attempt": 1,
+      "generation": 1,
+      "cancel_requested": false,
+      "error_code": "failed_error_not_projected",
+      "diagnostic_code": "",
+      "failure_phase": "validation",
+      "cost_reported": false,
+      "cost_unknown": false
+    },
+    {
+      "id": "t3",
+      "depends_on": [
+        "t1",
+        "t2"
+      ],
+      "turn_role": "main",
+      "turn_index": 2,
+      "status": "pending",
+      "attempt": 0,
+      "generation": 1,
+      "cancel_requested": false,
+      "error_code": "",
+      "diagnostic_code": "",
+      "cost_reported": false,
+      "cost_unknown": false
+    }
+  ],
+  "events": [
+    {
+      "kind": "started",
+      "task": "t1"
+    },
+    {
+      "kind": "produced",
+      "task": "t1"
+    },
+    {
+      "kind": "turn_verified",
+      "task": "t1"
+    },
+    {
+      "kind": "started",
+      "task": "t2"
+    },
+    {
+      "kind": "produced",
+      "task": "t2"
+    },
+    {
+      "kind": "failed",
+      "task": "t2"
+    }
+  ],
+  "recovery": {
+    "attention": [
+      {
+        "id": "t2",
+        "classification": "failed_review_before_retry",
+        "error_code": "failed_error_not_projected"
+      }
+    ],
+    "next_steps": [
+      "irrigator inspect RUN_DIR NODE and irrigator logs RUN_DIR --task NODE are read-only follow-ups",
+      "failed: status alone does not establish external effects; review before an explicit retry"
+    ]
+  }
+}

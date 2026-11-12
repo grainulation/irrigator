@@ -1,0 +1,1372 @@
+{
+  "schema": "irrigator.cli/v1",
+  "version": "1.0.0-rc.4",
+  "commands": [
+    {
+      "name": "agents",
+      "flags": [
+        {
+          "name": "json",
+          "default": "false",
+          "usage": "print structured output",
+          "boolean": true
+        }
+      ]
+    },
+    {
+      "name": "apply",
+      "flags": [
+        {
+          "name": "backend",
+          "default": "",
+          "usage": "required for legacy plans: mock, haiku (paid), or named provider",
+          "boolean": false
+        },
+        {
+          "name": "budget",
+          "default": "0.25",
+          "usage": "alias for --call-budget (per call, not graph-wide)",
+          "boolean": false
+        },
+        {
+          "name": "call-budget",
+          "default": "0.25",
+          "usage": "budget USD per call, not a graph-wide hard cap",
+          "boolean": false
+        },
+        {
+          "name": "executor",
+          "default": "",
+          "usage": "how workers are launched: herdr or local or tmux (default: the run's recorded executor, then IRRIGATOR_EXECUTOR, then local)",
+          "boolean": false
+        },
+        {
+          "name": "notify",
+          "default": "",
+          "usage": "notify a phone or webhook when the run blocks, completes or a cell becomes uncertain or failed: ntfy, webhook or off (default: the run's recorded choice, then IRRIGATOR_NOTIFY_VIA, then off)",
+          "boolean": false
+        },
+        {
+          "name": "notify-topic",
+          "default": "",
+          "usage": "ntfy topic for --notify ntfy (default IRRIGATOR_NTFY_TOPIC; the token is only read from IRRIGATOR_NTFY_TOKEN)",
+          "boolean": false
+        },
+        {
+          "name": "notify-url",
+          "default": "",
+          "usage": "webhook URL for --notify webhook (default IRRIGATOR_APPROVALS_WEBHOOK)",
+          "boolean": false
+        },
+        {
+          "name": "run",
+          "default": "",
+          "usage": "new run directory",
+          "boolean": false
+        },
+        {
+          "name": "schedule",
+          "default": "",
+          "usage": "opt-in ready order: breadth (roots before descendants) or depth (default); omitted keeps the run's saved order",
+          "boolean": false
+        },
+        {
+          "name": "session-registry",
+          "default": "",
+          "usage": "absolute shared session registry v2 path (v1 migrates on next actual start; default ./.irrigator/current-session.json)",
+          "boolean": false
+        },
+        {
+          "name": "sizing",
+          "default": "",
+          "usage": "opt-in sizing.v1 JSON enforced at admission; saved as RUN/sizing.json",
+          "boolean": false
+        },
+        {
+          "name": "timeout",
+          "default": "2m0s",
+          "usage": "timeout per call",
+          "boolean": false
+        },
+        {
+          "name": "workers",
+          "default": "2",
+          "usage": "maximum concurrent workers",
+          "boolean": false
+        }
+      ]
+    },
+    {
+      "name": "approvals",
+      "flags": [
+        {
+          "name": "action",
+          "default": "",
+          "usage": "approve or deny",
+          "boolean": false
+        },
+        {
+          "name": "addr",
+          "default": "127.0.0.1:8787",
+          "usage": "loopback listen address",
+          "boolean": false
+        },
+        {
+          "name": "cf-hostname",
+          "default": "",
+          "usage": "public hostname of the named tunnel",
+          "boolean": false
+        },
+        {
+          "name": "cf-tunnel",
+          "default": "",
+          "usage": "run this named cloudflared tunnel instead of a quick tunnel (needs --cf-hostname)",
+          "boolean": false
+        },
+        {
+          "name": "expose",
+          "default": "none",
+          "usage": "expose the listener through none|cloudflare|tailscale",
+          "boolean": false
+        },
+        {
+          "name": "json",
+          "default": "false",
+          "usage": "print approve_url, deny_url, approve_nonce, deny_nonce and expires_at as JSON after sending (the links are capabilities; use only from a trusted caller)",
+          "boolean": true
+        },
+        {
+          "name": "message",
+          "default": "",
+          "usage": "notification message",
+          "boolean": false
+        },
+        {
+          "name": "path-only",
+          "default": "false",
+          "usage": "print only /action/token even when a public URL is known (for scripts)",
+          "boolean": true
+        },
+        {
+          "name": "public-url",
+          "default": "",
+          "usage": "public https base URL of the approvals listener (origin only)",
+          "boolean": false
+        },
+        {
+          "name": "request",
+          "default": "",
+          "usage": "blocked request id (a task id of the run)",
+          "boolean": false
+        },
+        {
+          "name": "run",
+          "default": "",
+          "usage": "run directory",
+          "boolean": false
+        },
+        {
+          "name": "title",
+          "default": "",
+          "usage": "notification title (default names the request)",
+          "boolean": false
+        },
+        {
+          "name": "topic",
+          "default": "",
+          "usage": "ntfy topic (default IRRIGATOR_NTFY_TOPIC)",
+          "boolean": false
+        },
+        {
+          "name": "ttl",
+          "default": "5m0s",
+          "usage": "link lifetime (at most 24h)",
+          "boolean": false
+        },
+        {
+          "name": "url",
+          "default": "",
+          "usage": "webhook URL (default IRRIGATOR_APPROVALS_WEBHOOK)",
+          "boolean": false
+        },
+        {
+          "name": "via",
+          "default": "",
+          "usage": "notifier: ntfy or webhook",
+          "boolean": false
+        }
+      ],
+      "subcommands": [
+        "link",
+        "serve",
+        "notify"
+      ]
+    },
+    {
+      "name": "artifacts",
+      "flags": [],
+      "hidden": true
+    },
+    {
+      "name": "backup",
+      "flags": [
+        {
+          "name": "in",
+          "default": "",
+          "usage": "bundle",
+          "boolean": false
+        },
+        {
+          "name": "out",
+          "default": "",
+          "usage": "new destination",
+          "boolean": false
+        },
+        {
+          "name": "run",
+          "default": "",
+          "usage": "source run",
+          "boolean": false
+        }
+      ],
+      "subcommands": [
+        "create",
+        "verify",
+        "restore"
+      ]
+    },
+    {
+      "name": "billing",
+      "flags": [
+        {
+          "name": "attest-external-billing",
+          "default": "false",
+          "usage": "attest the receipt comes from external billing evidence",
+          "boolean": true
+        }
+      ],
+      "subcommands": [
+        "reconcile"
+      ]
+    },
+    {
+      "name": "campaign",
+      "flags": [
+        {
+          "name": "budget",
+          "default": "",
+          "usage": "aggregate admission USD",
+          "boolean": false
+        },
+        {
+          "name": "run",
+          "default": "",
+          "usage": "new run directory",
+          "boolean": false
+        }
+      ],
+      "subcommands": [
+        "init",
+        "admit",
+        "status",
+        "close"
+      ]
+    },
+    {
+      "name": "cancel",
+      "flags": []
+    },
+    {
+      "name": "channel",
+      "flags": [
+        {
+          "name": "json",
+          "default": "false",
+          "usage": "print structured output",
+          "boolean": true
+        }
+      ],
+      "subcommands": [
+        "list",
+        "approve"
+      ]
+    },
+    {
+      "name": "cleanup",
+      "flags": [
+        {
+          "name": "all-finished",
+          "default": "false",
+          "usage": "treat RUN as a directory of runs and clean every run in it (live terminals and windows are still never touched)",
+          "boolean": true
+        },
+        {
+          "name": "dry-run",
+          "default": "false",
+          "usage": "list what would be removed and change nothing",
+          "boolean": true
+        }
+      ]
+    },
+    {
+      "name": "compose",
+      "flags": [
+        {
+          "name": "out",
+          "default": "",
+          "usage": "new plan path (required)",
+          "boolean": false
+        }
+      ]
+    },
+    {
+      "name": "connect",
+      "flags": []
+    },
+    {
+      "name": "context",
+      "flags": [
+        {
+          "name": "file",
+          "default": "",
+          "usage": "existing capsule path",
+          "boolean": false
+        },
+        {
+          "name": "out",
+          "default": "",
+          "usage": "new capsule path",
+          "boolean": false
+        },
+        {
+          "name": "registry",
+          "default": "",
+          "usage": "workspace-contained registry",
+          "boolean": false
+        },
+        {
+          "name": "workspace",
+          "default": "",
+          "usage": "canonical workspace",
+          "boolean": false
+        }
+      ],
+      "subcommands": [
+        "create",
+        "inspect"
+      ]
+    },
+    {
+      "name": "contracts",
+      "flags": [],
+      "subcommands": [
+        "plan",
+        "receipt",
+        "git"
+      ]
+    },
+    {
+      "name": "cost",
+      "flags": [
+        {
+          "name": "json",
+          "default": "false",
+          "usage": "JSON cost statement",
+          "boolean": true
+        }
+      ]
+    },
+    {
+      "name": "debug",
+      "flags": [
+        {
+          "name": "json",
+          "default": "false",
+          "usage": "JSON diagnosis",
+          "boolean": true
+        },
+        {
+          "name": "node",
+          "default": "",
+          "usage": "also project one node by ID",
+          "boolean": false
+        },
+        {
+          "name": "out",
+          "default": "",
+          "usage": "fixture file to create (must not exist)",
+          "boolean": false
+        },
+        {
+          "name": "scenario",
+          "default": "exported-run",
+          "usage": "lowercase scenario label [a-z0-9-]",
+          "boolean": false
+        }
+      ],
+      "subcommands": [
+        "fixture"
+      ]
+    },
+    {
+      "name": "decisions",
+      "flags": []
+    },
+    {
+      "name": "deliver",
+      "flags": [
+        {
+          "name": "backend",
+          "default": "",
+          "usage": "required for legacy plans: mock, haiku (paid), or named provider",
+          "boolean": false
+        },
+        {
+          "name": "budget",
+          "default": "0.25",
+          "usage": "alias for --call-budget (per call, not graph-wide)",
+          "boolean": false
+        },
+        {
+          "name": "call-budget",
+          "default": "0.25",
+          "usage": "budget USD per call, not a graph-wide hard cap",
+          "boolean": false
+        },
+        {
+          "name": "check",
+          "default": "",
+          "usage": "acceptance argv as JSON; runs in delivery directory",
+          "boolean": false
+        },
+        {
+          "name": "check-timeout",
+          "default": "1m0s",
+          "usage": "acceptance deadline",
+          "boolean": false
+        },
+        {
+          "name": "dir",
+          "default": "",
+          "usage": "delivery directory",
+          "boolean": false
+        },
+        {
+          "name": "executor",
+          "default": "",
+          "usage": "how workers are launched: herdr or local or tmux (default: the run's recorded executor, then IRRIGATOR_EXECUTOR, then local)",
+          "boolean": false
+        },
+        {
+          "name": "field",
+          "default": "files",
+          "usage": "result field containing a JSON path-to-content map",
+          "boolean": false
+        },
+        {
+          "name": "nodes",
+          "default": "",
+          "usage": "comma-separated verified nodes to assemble",
+          "boolean": false
+        },
+        {
+          "name": "recheck",
+          "default": "false",
+          "usage": "explicitly rerun failed or interrupted acceptance",
+          "boolean": true
+        },
+        {
+          "name": "run",
+          "default": "",
+          "usage": "durable run directory; matching runs resume",
+          "boolean": false
+        },
+        {
+          "name": "timeout",
+          "default": "2m0s",
+          "usage": "timeout per call",
+          "boolean": false
+        },
+        {
+          "name": "workers",
+          "default": "2",
+          "usage": "maximum concurrent workers",
+          "boolean": false
+        }
+      ]
+    },
+    {
+      "name": "delivery-status",
+      "flags": []
+    },
+    {
+      "name": "demo",
+      "flags": [
+        {
+          "name": "run",
+          "default": "",
+          "usage": "new run directory; defaults inside the launch-context workspace or a retained temporary directory",
+          "boolean": false
+        },
+        {
+          "name": "schedule",
+          "default": "breadth",
+          "usage": "demo ready order: breadth (demo default) or depth",
+          "boolean": false
+        },
+        {
+          "name": "session-registry",
+          "default": "",
+          "usage": "shared session registry path; inherits IRRIGATOR_SESSION_REGISTRY; omitted headless demos do not publish",
+          "boolean": false
+        }
+      ]
+    },
+    {
+      "name": "doctor",
+      "flags": []
+    },
+    {
+      "name": "down",
+      "flags": []
+    },
+    {
+      "name": "events",
+      "flags": [],
+      "hidden": true
+    },
+    {
+      "name": "experiments",
+      "flags": [
+        {
+          "name": "json",
+          "default": "false",
+          "usage": "print structured output",
+          "boolean": true
+        }
+      ]
+    },
+    {
+      "name": "export",
+      "flags": [
+        {
+          "name": "dir",
+          "default": "",
+          "usage": "new directory for mapped output files",
+          "boolean": false
+        },
+        {
+          "name": "out",
+          "default": "",
+          "usage": "new JSON bundle file",
+          "boolean": false
+        }
+      ]
+    },
+    {
+      "name": "gc",
+      "flags": [
+        {
+          "name": "apply",
+          "default": "false",
+          "usage": "delete the listed obsolete files",
+          "boolean": true
+        },
+        {
+          "name": "dry-run",
+          "default": "false",
+          "usage": "preview only (default)",
+          "boolean": true
+        },
+        {
+          "name": "keep",
+          "default": "1",
+          "usage": "raw attempts to retain per node",
+          "boolean": false
+        }
+      ]
+    },
+    {
+      "name": "graph",
+      "flags": []
+    },
+    {
+      "name": "help",
+      "flags": [
+        {
+          "name": "json",
+          "default": "false",
+          "usage": "machine-readable command and flag definitions",
+          "boolean": true
+        }
+      ]
+    },
+    {
+      "name": "helpers",
+      "flags": [
+        {
+          "name": "attempt",
+          "default": "0",
+          "usage": "exact running owner attempt",
+          "boolean": false
+        },
+        {
+          "name": "operation",
+          "default": "",
+          "usage": "exact running owner operation ID",
+          "boolean": false
+        },
+        {
+          "name": "request",
+          "default": "",
+          "usage": "bounded JSON {id,helpers} request",
+          "boolean": false
+        }
+      ]
+    },
+    {
+      "name": "init",
+      "flags": [
+        {
+          "name": "managed",
+          "default": "false",
+          "usage": "create a managed plan with an explicit local CLI profile",
+          "boolean": true
+        },
+        {
+          "name": "out",
+          "default": "irrigator.json",
+          "usage": "new plan file",
+          "boolean": false
+        },
+        {
+          "name": "profile",
+          "default": "",
+          "usage": "managed profile selector: claude:MODEL or codex:MODEL",
+          "boolean": false
+        }
+      ]
+    },
+    {
+      "name": "inspect",
+      "flags": []
+    },
+    {
+      "name": "logs",
+      "flags": [
+        {
+          "name": "follow",
+          "default": "false",
+          "usage": "follow events until interrupted",
+          "boolean": true
+        },
+        {
+          "name": "json",
+          "default": "false",
+          "usage": "JSONL events",
+          "boolean": true
+        },
+        {
+          "name": "since",
+          "default": "0",
+          "usage": "last event sequence already consumed",
+          "boolean": false
+        },
+        {
+          "name": "task",
+          "default": "",
+          "usage": "node filter",
+          "boolean": false
+        }
+      ]
+    },
+    {
+      "name": "mailbox",
+      "flags": [],
+      "subcommands": [
+        "enqueue",
+        "process",
+        "outbox",
+        "ack"
+      ]
+    },
+    {
+      "name": "mcp",
+      "flags": [
+        {
+          "name": "allow-control",
+          "default": "false",
+          "usage": "also register tools that change runs: apply, pause, resume, retry_cell, decide_approval",
+          "boolean": true
+        },
+        {
+          "name": "runs",
+          "default": "",
+          "usage": "directory whose subdirectories are runs (repeatable)",
+          "boolean": false
+        },
+        {
+          "name": "workspace",
+          "default": ".",
+          "usage": "Git repository for review_list and base for relative plan paths",
+          "boolean": false
+        }
+      ]
+    },
+    {
+      "name": "otel",
+      "flags": [
+        {
+          "name": "endpoint",
+          "default": "",
+          "usage": "OTLP/HTTP collector base URL; overrides OTEL_EXPORTER_OTLP_ENDPOINT (must not contain credentials)",
+          "boolean": false
+        },
+        {
+          "name": "follow",
+          "default": "false",
+          "usage": "follow events until interrupted",
+          "boolean": true
+        },
+        {
+          "name": "since",
+          "default": "0",
+          "usage": "last event sequence already exported",
+          "boolean": false
+        }
+      ],
+      "subcommands": [
+        "export"
+      ]
+    },
+    {
+      "name": "pause",
+      "flags": []
+    },
+    {
+      "name": "plan",
+      "flags": [
+        {
+          "name": "context-file",
+          "default": "",
+          "usage": "import named UTF-8 context KEY=PATH (repeatable; requires --out)",
+          "boolean": false
+        },
+        {
+          "name": "json",
+          "default": "false",
+          "usage": "JSON plan",
+          "boolean": true
+        },
+        {
+          "name": "out",
+          "default": "",
+          "usage": "write a new validated plan without overwriting",
+          "boolean": false
+        }
+      ]
+    },
+    {
+      "name": "policy",
+      "flags": []
+    },
+    {
+      "name": "prepare",
+      "flags": [
+        {
+          "name": "backend",
+          "default": "",
+          "usage": "required for legacy plans: mock, haiku (paid), or named provider",
+          "boolean": false
+        },
+        {
+          "name": "budget",
+          "default": "0.25",
+          "usage": "alias for --call-budget (per call, not graph-wide)",
+          "boolean": false
+        },
+        {
+          "name": "call-budget",
+          "default": "0.25",
+          "usage": "budget USD per call, not a graph-wide hard cap",
+          "boolean": false
+        },
+        {
+          "name": "executor",
+          "default": "",
+          "usage": "how workers are launched: herdr or local or tmux (default: the run's recorded executor, then IRRIGATOR_EXECUTOR, then local)",
+          "boolean": false
+        },
+        {
+          "name": "run",
+          "default": "",
+          "usage": "new run directory",
+          "boolean": false
+        },
+        {
+          "name": "timeout",
+          "default": "2m0s",
+          "usage": "timeout per call",
+          "boolean": false
+        },
+        {
+          "name": "workers",
+          "default": "2",
+          "usage": "maximum concurrent workers",
+          "boolean": false
+        }
+      ]
+    },
+    {
+      "name": "profiles",
+      "flags": [
+        {
+          "name": "approve",
+          "default": "",
+          "usage": "exact proposal digest",
+          "boolean": false
+        },
+        {
+          "name": "catalog",
+          "default": "",
+          "usage": "absolute catalog file",
+          "boolean": false
+        },
+        {
+          "name": "confirm-stopped",
+          "default": "false",
+          "usage": "attest all provider work has stopped; active markers still reject",
+          "boolean": true
+        },
+        {
+          "name": "executable",
+          "default": "",
+          "usage": "replacement executable; resolved and hashed without launching",
+          "boolean": false
+        },
+        {
+          "name": "out",
+          "default": "",
+          "usage": "new proposal file",
+          "boolean": false
+        },
+        {
+          "name": "profile",
+          "default": "",
+          "usage": "profile name (resolve only; default from catalog)",
+          "boolean": false
+        },
+        {
+          "name": "proposal",
+          "default": "",
+          "usage": "reviewed proposal file",
+          "boolean": false
+        },
+        {
+          "name": "run",
+          "default": "",
+          "usage": "paused managed run",
+          "boolean": false
+        }
+      ],
+      "subcommands": [
+        "inspect",
+        "resolve",
+        "migrate-prepare",
+        "migrate-apply"
+      ]
+    },
+    {
+      "name": "propose",
+      "flags": []
+    },
+    {
+      "name": "recover",
+      "flags": [
+        {
+          "name": "in",
+          "default": "",
+          "usage": "exact source backup",
+          "boolean": false
+        },
+        {
+          "name": "migrate-to",
+          "default": "0",
+          "usage": "explicit checkpoint version (5 supports exact v4 migration)",
+          "boolean": false
+        },
+        {
+          "name": "out",
+          "default": "",
+          "usage": "new private target directory",
+          "boolean": false
+        },
+        {
+          "name": "run",
+          "default": "",
+          "usage": "reachable quiescent source",
+          "boolean": false
+        }
+      ]
+    },
+    {
+      "name": "resolve",
+      "flags": [
+        {
+          "name": "confirm-stopped",
+          "default": "false",
+          "usage": "attest surviving provider/validator processes have been stopped",
+          "boolean": true
+        },
+        {
+          "name": "result",
+          "default": "",
+          "usage": "JSON result reconciled from external system",
+          "boolean": false
+        }
+      ]
+    },
+    {
+      "name": "resume",
+      "flags": [
+        {
+          "name": "budget",
+          "default": "0.25",
+          "usage": "alias for --call-budget (per call, not graph-wide)",
+          "boolean": false
+        },
+        {
+          "name": "call-budget",
+          "default": "0.25",
+          "usage": "budget USD per call, not a graph-wide hard cap",
+          "boolean": false
+        },
+        {
+          "name": "executor",
+          "default": "",
+          "usage": "how workers are launched: herdr or local or tmux (default: the run's recorded executor, then IRRIGATOR_EXECUTOR, then local)",
+          "boolean": false
+        },
+        {
+          "name": "legacy-unbudgeted",
+          "default": "",
+          "usage": "allow unbudgeted legacy runs to proceed without budget enforcement ('allow')",
+          "boolean": false
+        },
+        {
+          "name": "notify",
+          "default": "",
+          "usage": "notify a phone or webhook when the run blocks, completes or a cell becomes uncertain or failed: ntfy, webhook or off (default: the run's recorded choice, then IRRIGATOR_NOTIFY_VIA, then off)",
+          "boolean": false
+        },
+        {
+          "name": "notify-topic",
+          "default": "",
+          "usage": "ntfy topic for --notify ntfy (default IRRIGATOR_NTFY_TOPIC; the token is only read from IRRIGATOR_NTFY_TOKEN)",
+          "boolean": false
+        },
+        {
+          "name": "notify-url",
+          "default": "",
+          "usage": "webhook URL for --notify webhook (default IRRIGATOR_APPROVALS_WEBHOOK)",
+          "boolean": false
+        },
+        {
+          "name": "retry-failed",
+          "default": "false",
+          "usage": "retry replay-safe failed nodes",
+          "boolean": true
+        },
+        {
+          "name": "schedule",
+          "default": "",
+          "usage": "opt-in ready order: breadth (roots before descendants) or depth (default); omitted keeps the run's saved order",
+          "boolean": false
+        },
+        {
+          "name": "session-registry",
+          "default": "",
+          "usage": "absolute shared session registry v2 path (v1 migrates on next actual start; default ./.irrigator/current-session.json)",
+          "boolean": false
+        },
+        {
+          "name": "sizing",
+          "default": "",
+          "usage": "opt-in sizing.v1 JSON enforced at admission; saved as RUN/sizing.json",
+          "boolean": false
+        },
+        {
+          "name": "timeout",
+          "default": "2m0s",
+          "usage": "timeout per call",
+          "boolean": false
+        },
+        {
+          "name": "workers",
+          "default": "2",
+          "usage": "maximum concurrent workers",
+          "boolean": false
+        }
+      ]
+    },
+    {
+      "name": "retire",
+      "flags": [
+        {
+          "name": "reason",
+          "default": "",
+          "usage": "why the run is retired (required, 1-160 characters)",
+          "boolean": false
+        },
+        {
+          "name": "session-registry",
+          "default": "",
+          "usage": "absolute session registry path (same as apply/resume; default ./.irrigator/current-session.json)",
+          "boolean": false
+        },
+        {
+          "name": "superseded-by",
+          "default": "",
+          "usage": "optional registered, non-retired run that replaces this one",
+          "boolean": false
+        },
+        {
+          "name": "superseded_by",
+          "default": "",
+          "usage": "alias of --superseded-by",
+          "boolean": false
+        }
+      ]
+    },
+    {
+      "name": "retry",
+      "flags": [
+        {
+          "name": "allow-uncertain",
+          "default": "false",
+          "usage": "explicitly permit replay of uncertain external actions",
+          "boolean": true
+        },
+        {
+          "name": "confirm-stopped",
+          "default": "false",
+          "usage": "attest surviving provider/validator processes have been stopped",
+          "boolean": true
+        },
+        {
+          "name": "recursive",
+          "default": "false",
+          "usage": "include descendants",
+          "boolean": true
+        }
+      ]
+    },
+    {
+      "name": "review",
+      "flags": [
+        {
+          "name": "apply",
+          "default": "false",
+          "usage": "delete the listed items (default: preview only)",
+          "boolean": true
+        },
+        {
+          "name": "base",
+          "default": "",
+          "usage": "branch or commit to compare against (default: the remote default branch, then main or master)",
+          "boolean": false
+        },
+        {
+          "name": "baseline",
+          "default": "",
+          "usage": "compare against an earlier snapshot's exact workspace contents",
+          "boolean": false
+        },
+        {
+          "name": "body",
+          "default": "",
+          "usage": "summary for the agent or plan author",
+          "boolean": false
+        },
+        {
+          "name": "body-file",
+          "default": "",
+          "usage": "UTF-8 document inside workspace; relative paths resolve from workspace; at most 1 MiB",
+          "boolean": false
+        },
+        {
+          "name": "change",
+          "default": "",
+          "usage": "branch under review; omit to comment on SNAPSHOT_DIR",
+          "boolean": false
+        },
+        {
+          "name": "commit",
+          "default": "",
+          "usage": "show only this commit of the change",
+          "boolean": false
+        },
+        {
+          "name": "file",
+          "default": "",
+          "usage": "show only this file",
+          "boolean": false
+        },
+        {
+          "name": "json",
+          "default": "false",
+          "usage": "print structured review snapshot and comments",
+          "boolean": true
+        },
+        {
+          "name": "kind",
+          "default": "",
+          "usage": "review document kind: plan, direction or decision",
+          "boolean": false
+        },
+        {
+          "name": "line",
+          "default": "0",
+          "usage": "new-file line, or old-file line for deletions; 0 for file comment",
+          "boolean": false
+        },
+        {
+          "name": "older-than",
+          "default": "30",
+          "usage": "days after which saved review snapshots are removed",
+          "boolean": false
+        },
+        {
+          "name": "out",
+          "default": "",
+          "usage": "also write the feedback to this new file",
+          "boolean": false
+        },
+        {
+          "name": "snapshot",
+          "default": "",
+          "usage": "plan, direction or decision snapshot to decide instead of a branch",
+          "boolean": false
+        },
+        {
+          "name": "title",
+          "default": "",
+          "usage": "review title (1–200 UTF-8 bytes)",
+          "boolean": false
+        },
+        {
+          "name": "uncommitted",
+          "default": "false",
+          "usage": "describe working-tree edits against HEAD instead of a branch (saves nothing)",
+          "boolean": true
+        },
+        {
+          "name": "workspace",
+          "default": ".",
+          "usage": "Git repository to review",
+          "boolean": false
+        }
+      ],
+      "subcommands": [
+        "list",
+        "change",
+        "diff",
+        "viewed",
+        "unviewed",
+        "approve",
+        "request-changes",
+        "prune",
+        "tui",
+        "capture",
+        "request",
+        "show",
+        "comment",
+        "feedback"
+      ]
+    },
+    {
+      "name": "schema",
+      "flags": []
+    },
+    {
+      "name": "serve",
+      "flags": [
+        {
+          "name": "budget",
+          "default": "1",
+          "usage": "total service admission budget USD; unknown charges retain reservations",
+          "boolean": false
+        },
+        {
+          "name": "claude",
+          "default": "claude",
+          "usage": "Claude CLI executable",
+          "boolean": false
+        },
+        {
+          "name": "dir",
+          "default": "",
+          "usage": "durable service state directory (required)",
+          "boolean": false
+        },
+        {
+          "name": "listen",
+          "default": "127.0.0.1:0",
+          "usage": "loopback listening address",
+          "boolean": false
+        },
+        {
+          "name": "model",
+          "default": "haiku",
+          "usage": "Claude model",
+          "boolean": false
+        },
+        {
+          "name": "workers",
+          "default": "4",
+          "usage": "maximum reusable sessions",
+          "boolean": false
+        }
+      ]
+    },
+    {
+      "name": "session",
+      "flags": [
+        {
+          "name": "host",
+          "default": "",
+          "usage": "hook host: claude, codex, gemini, or agy",
+          "boolean": false
+        },
+        {
+          "name": "json",
+          "default": "false",
+          "usage": "print structured output",
+          "boolean": true
+        },
+        {
+          "name": "workspace",
+          "default": ".",
+          "usage": "workspace whose sessions to read",
+          "boolean": false
+        }
+      ],
+      "subcommands": [
+        "list",
+        "show",
+        "delete",
+        "enable",
+        "disable",
+        "record"
+      ]
+    },
+    {
+      "name": "size",
+      "flags": [
+        {
+          "name": "backend",
+          "default": "haiku",
+          "usage": "backend assumed for tasks without a provider (reservation estimate)",
+          "boolean": false
+        },
+        {
+          "name": "budget",
+          "default": "0.25",
+          "usage": "per-call budget USD used for the reservation estimate",
+          "boolean": false
+        },
+        {
+          "name": "json",
+          "default": "false",
+          "usage": "JSON report",
+          "boolean": true
+        },
+        {
+          "name": "shape",
+          "default": "",
+          "usage": "AxDxS ownership shape (or WxD) to size without a PLAN",
+          "boolean": false
+        },
+        {
+          "name": "sizing",
+          "default": "",
+          "usage": "sizing.v1 calibration JSON",
+          "boolean": false
+        }
+      ]
+    },
+    {
+      "name": "status",
+      "flags": [
+        {
+          "name": "interval",
+          "default": "250ms",
+          "usage": "refresh interval",
+          "boolean": false
+        },
+        {
+          "name": "json",
+          "default": "false",
+          "usage": "JSON state",
+          "boolean": true
+        },
+        {
+          "name": "watch",
+          "default": "false",
+          "usage": "watch until run stops",
+          "boolean": true
+        }
+      ]
+    },
+    {
+      "name": "turn-shape",
+      "flags": [
+        {
+          "name": "json",
+          "default": "false",
+          "usage": "JSON capacity preview",
+          "boolean": true
+        }
+      ]
+    },
+    {
+      "name": "update-check",
+      "flags": [
+        {
+          "name": "artifact",
+          "default": "",
+          "usage": "local artifact to verify",
+          "boolean": false
+        },
+        {
+          "name": "installed-sequence",
+          "default": "0",
+          "usage": "trusted installed release sequence (required)",
+          "boolean": false
+        },
+        {
+          "name": "manifest",
+          "default": "",
+          "usage": "canonical signed update manifest",
+          "boolean": false
+        },
+        {
+          "name": "public-key",
+          "default": "",
+          "usage": "independently pinned raw 32-byte Ed25519 public key",
+          "boolean": false
+        },
+        {
+          "name": "signature",
+          "default": "",
+          "usage": "raw 64-byte Ed25519 signature",
+          "boolean": false
+        }
+      ]
+    },
+    {
+      "name": "version",
+      "flags": []
+    }
+  ]
+}
