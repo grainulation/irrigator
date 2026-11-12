@@ -71,5 +71,7 @@ jobs:
       - name: Runtime race suite and vet (untagged)
         run: cd ~/irrigator && make check
 
-      - name: Integration race suite (build tag integration)
-        run: cd ~/irrigator && make check-integration
+      # Without -race: the integration tests use fixed 5-10s deadlines, and the race detector on
+      # a WSL 2 runner overruns them. Race coverage comes from the native Linux and macOS jobs.
+      - name: Integration suite (build tag integration)
+        run: cd ~/irrigator && go test -tags integration -count=1 -timeout 30m ./...
