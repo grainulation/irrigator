@@ -158,7 +158,7 @@ jobs:
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           # Must equal the "go" directive in go.mod (checked by tools/test_repo_consistency.py).
-          go-version: '1.26.0'
+          go-version: '1.26.7'
           cache: false
       - name: Build complete runtime with minimum supported toolchain
         run: |

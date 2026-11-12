@@ -29,11 +29,11 @@ Host authentication and real provider behavior need separate verification from m
 
 ## Toolchain requirements
 
-Go 1.26.0 is the minimum supported version for every runtime feature; it is the
+Go 1.26.7 is the minimum supported version for every runtime feature; it is the
 `go` directive in `go.mod`. The module pins the Go 1.27.2 toolchain used by
 development and CI. Older toolchains must upgrade before building; there is no
 reduced-feature fallback build with weaker or unavailable filesystem confinement.
-The CI "Minimum Go" job builds with Go 1.26.0 and `GOTOOLCHAIN=local`.
+The CI "Minimum Go" job builds with Go 1.26.7 and `GOTOOLCHAIN=local`.
 
 The minimum covers workflow composition, launch contexts, confined
 backup/campaign/recovery, and billing registry operations. To verify the minimum
