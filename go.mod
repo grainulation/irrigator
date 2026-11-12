@@ -1,13 +1,13 @@
 module github.com/grainulation/irrigator
 
-go 1.26.0
+go 1.26.7
 
 toolchain go1.27.2
 
 require (
 	charm.land/bubbles/v2 v2.2.1
 	charm.land/bubbletea/v2 v2.1.1
-	charm.land/lipgloss/v2 v2.0.6
+	charm.land/lipgloss/v2 v2.1.0
 	github.com/charmbracelet/x/term v0.2.2
 	github.com/go-logr/logr v1.4.4
 	github.com/modelcontextprotocol/go-sdk v1.8.0
