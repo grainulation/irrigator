@@ -92,7 +92,7 @@ is empty while computing SHA256 over Go's JSON encoding. Neither digest is a
 signature or a permission grant. Managed admission persists bindings transactionally; `profiles resolve` only
 prints them.
 
-The shared pinned-file reader is part of the complete runtime (Go 1.26+, the
+The shared pinned-file reader is part of the complete runtime (Go 1.26.7+, the
 module minimum) and is used to open catalogs. Catalogs are capped
 at 256 KiB with bounded entry counts. Duplicate/case-aliased keys, omitted required
 fields, nulls, trailing objects, nonregular files and symlink paths are rejected.

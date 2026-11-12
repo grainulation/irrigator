@@ -1,13 +1,13 @@
 # Linux: terminal dashboard and skills
 
 Linux users can run and observe swarms directly in their terminal; macOS uses
-the same interface. Windows is not currently supported;
-deferred/planned. See [platform support](platform-support.md) for exact tested architectures
+the same interface. On Windows, follow these steps inside WSL 2 (see
+[Windows (WSL)](windows-wsl.md)); native Windows is not currently supported; planned. See [platform support](platform-support.md) for exact tested architectures
 and the distinction between builds, execution checks and graphical acceptance.
 
 ## Build and try it
 
-Install Go 1.26 or newer and use a POSIX shell. The release checks pin Go 1.27.2.
+Install Go 1.26.7 or newer and use a POSIX shell. The release checks pin Go 1.27.2.
 From the directory containing `go.mod`:
 
 ```sh

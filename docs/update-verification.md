@@ -36,7 +36,7 @@ size and SHA-256. Manifests are bounded to 4 KiB and artifacts to 512 MiB.
 
 Inputs must be regular files. The shared pinned-directory reader rejects symlinks
 in any path component and nonregular inputs such as FIFOs. The reader is part of
-the complete runtime (Go 1.26+, the module minimum).
+the complete runtime (Go 1.26.7+, the module minimum).
 No filesystem path is an authorization grant. A successful check covers the
 bytes read during that check, not a path that could later be replaced: an eventual
 installer must consume the same verified bytes or reverify its staged artifact.

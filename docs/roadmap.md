@@ -1,8 +1,9 @@
 # Roadmap boundaries
 
 Current development focuses on reliable local execution and terminal workflows
-on macOS and Linux. Windows support is deferred/planned and needs validation on
-actual Windows systems.
+on macOS and Linux. Windows users run the Linux build in
+[WSL 2](windows-wsl.md), checked in CI. Native Windows support is deferred/planned
+and needs validation on actual Windows systems.
 
 ## Remote executors
 

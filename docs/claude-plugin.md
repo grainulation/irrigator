@@ -9,7 +9,7 @@ is not a claim of public marketplace publication.
 
 ## Requirements
 
-Build the CLI with Go 1.26 or newer for the complete runtime, or supply a trusted
+Build the CLI with Go 1.26.7 or newer for the complete runtime, or supply a trusted
 binary. Make it available on `PATH` or use its absolute path in commands. Skills
 alone do not build, download, or install an executable.
 

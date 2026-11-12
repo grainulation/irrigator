@@ -42,7 +42,7 @@ There is no manual price guessing or unknown-cost settlement command.
 
 Limits: 1,024 retained grants per campaign; per-run ceilings still apply; a
 campaign does not grant extra workers, tools, helpers or model capabilities.
-The ledger is private mode0600 in a mode0700 directory. Go 1.26+ (the module
+The ledger is private mode0600 in a mode0700 directory. Go 1.26.7+ (the module
 minimum) is required for the confined storage implementation.
 
 Workflow compilation, campaign admission and backup restore produce new

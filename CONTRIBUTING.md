@@ -7,7 +7,7 @@ large dependency.
 
 ## Development setup
 
-Go 1.26 or newer is the module minimum; development and CI checks pin the Go 1.27.2 toolchain. You also need `make` and a POSIX shell. Python 3
+Go 1.26.7 or newer is the module minimum; development and CI checks pin the Go 1.27.2 toolchain. You also need `make` and a POSIX shell. Python 3
 is needed for the workflow metadata checks. Third-party Go
 module dependencies are allowed when they are clearly the better tool: prefer
 mature, maintained libraries, pin exact versions, review what they pull in,

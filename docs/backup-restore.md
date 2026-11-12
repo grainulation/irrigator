@@ -5,7 +5,7 @@ creates a private local evidence bundle. `backup verify --in BUNDLE` checks it;
 `backup restore --in BUNDLE --out NEW_DIRECTORY` restores evidence offline.
 Use canonical paths without symlink ancestors (on macOS, `/private/tmp` rather
 than `/tmp`). Secure backup publication and restore require a runtime built with
-Go 1.26 or newer; older builds fail closed.
+Go 1.26.7 or newer; older builds fail closed.
 
 Creation excludes controllers, delivery, state writers and every existing task
 lease with nonblocking locks. Busy sources fail; stop the original controller and
