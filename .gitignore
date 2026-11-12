@@ -1,0 +1,18 @@
+/irrigator
+/build/
+/dist/
+/runs/
+.irrigator/
+coverage.out
+*.test
+.DS_Store
+__pycache__/
+*.py[cod]
+.env
+.env.*
+!.env.example
+
+
+# Binaries from `go build` inside a package directory.
+/cmd/*/irrigator
+/cmd/*/*.exe

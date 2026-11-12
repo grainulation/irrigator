@@ -1,0 +1,59 @@
+Irrigator — durable local agent graphs
+
+  billing reconcile RUN RECEIPT --attest-external-billing  Record externally verified cost
+  campaign init|admit|status|close          Reserve admission across managed runs
+  experiments [--json]                    List opt-in experiments and their risks
+  channel list|approve CAMPAIGN CHANNEL    Inspect or approve verified cross-run notes
+  mailbox enqueue|process|outbox|ack           Durable fenced local cell commands
+  approvals link|serve|notify --run DIR    Decide a blocked request from a phone via a single-use link
+  contracts plan FILE|receipt RUN         Inspect runtime guarantees or export redacted run evidence
+  recover --run RUN --in FILE --out NEW_DIRECTORY  Exclusive resumable transfer
+  backup create|verify|restore             Private quiescent evidence snapshots
+  compose CONFIG --out PLAN                Compile pinned reusable workflows offline
+  init --out plan.json                    Create a starter plan
+  update-check --manifest FILE --signature FILE --artifact FILE --public-key FILE --installed-sequence N  Verify an update offline
+  profiles inspect|resolve --catalog FILE  Inspect or resolve offline execution profiles
+  profiles migrate-prepare|migrate-apply    Review and approve a stopped-run provider migration
+  context create --workspace DIR --out FILE [--registry FILE]  Create validated launch context
+  turn-shape XxYxZ [--json]              Preview turn/helper capacity; does not launch
+  demo [--run DIR]                        Watch a credential-free animated swarm
+  schema                                Print the editor JSON Schema for plans
+  plan PLAN [--json]                      Validate and preview dependencies
+  prepare PLAN --run DIR                  Save a run without starting workers
+  apply PLAN --run DIR [--workers 2]       Create and execute a run (PLAN may be -)
+  deliver PLAN --run DIR --dir NEW_DIR --nodes IDS  Execute, assemble, and check
+  resume DIR [--retry-failed]             Recover and continue unfinished work
+  retire RUN_ID --reason TEXT [--superseded-by RUN_ID] [--session-registry REG]  Explicitly retire a stopped registered run (registry only)
+  status DIR [--json] [--watch]           Inspect overall state
+  cost RUN [--json]                       Cost statement per cell with totals
+  inspect DIR NODE                       Inspect a node, operation, and attempts
+  graph DIR                              Print dependency/ownership Mermaid graph
+  helpers DIR NODE --operation OP --attempt N --request FILE  Admit bounded helpers during a running turn
+  propose DIR FILE                       Queue a bounded graph revision proposal
+  decisions DIR                          Inspect adaptive decisions and revisions
+  policy DIR FILE                        Set validated graph adaptation bounds
+  logs DIR [--follow] [--since N]          Read sequenced events
+  otel export RUN [--follow] [--since N] [--endpoint URL]  Send run events to an OpenTelemetry collector
+  debug DIR [--json] [--node ID]          Read-only run diagnosis; no model call
+  debug fixture export DIR --out FILE     (experimental) Write a redacted replay fixture of a run
+  review [list|change|diff|approve|...]    Review local changes, plans and decisions before pushing
+  session [list|show|enable]              Big-picture feed of agent sessions (prompts, tool activity, replies)
+  mcp [--runs DIR]... [--workspace DIR] [--allow-control]  Serve runs to MCP hosts over stdio (read-only unless allowed)
+  agents                                  Which agents can be the main agent or swarm workers here
+  delivery-status RUN_DIR                 Read-only delivery stage/acceptance/recovery; no model call
+  pause DIR | down DIR                    Drain or stop compute; retain state
+  cancel DIR NODE                         Cancel a node and its descendants
+  retry DIR NODE [--recursive]            Retry failed/cancelled work explicitly
+  resolve DIR NODE --result FILE          Reconcile an uncertain outcome
+  export DIR [--out FILE | --dir NEW_DIR]  Export accepted artifacts
+  gc DIR [--apply] [--keep 1]              Preview/delete obsolete attempt logs
+  cleanup RUN [--dry-run] [--all-finished]  Remove finished herdr terminals and dead tmux sessions a run left
+  serve --dir DIR [--workers 4 --budget 1] Reuse bounded local model sessions
+  connect FILE                           Provider bridge using connection.json
+  doctor | version                        Inspect the local installation
+
+Also: irrigator size PLAN --sizing FILE [--budget USD --backend NAME] [--json] explains opt-in sizing; apply/resume --sizing enforces it.
+
+Scheduling: apply/resume --schedule breadth is opt-in and starts ready plan roots before their descendants; default stays dependency-depth (docs/scheduling-order.md).
+
+Use irrigator COMMAND --help for flags, or irrigator help --json [COMMAND] for machine-readable definitions. Runs and plans are ordinary local files.

@@ -1,0 +1,1221 @@
+{
+  "$defs": {
+    "ArtifactContract": {
+      "additionalProperties": false,
+      "properties": {
+        "items": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ArtifactContract"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "x-go-omitempty": true
+        },
+        "max_bytes": {
+          "type": "integer",
+          "x-go-omitempty": false
+        },
+        "max_items": {
+          "type": "integer",
+          "x-go-omitempty": true
+        },
+        "properties": {
+          "anyOf": [
+            {
+              "additionalProperties": {
+                "$ref": "#/$defs/ArtifactContract"
+              },
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "x-go-omitempty": true
+        },
+        "type": {
+          "type": "string",
+          "x-go-omitempty": false
+        }
+      },
+      "type": "object"
+    },
+    "CampaignBinding": {
+      "additionalProperties": false,
+      "properties": {
+        "campaign_id": {
+          "type": "string",
+          "x-go-omitempty": false
+        },
+        "directory": {
+          "type": "string",
+          "x-go-omitempty": false
+        },
+        "grant_id": {
+          "type": "string",
+          "x-go-omitempty": false
+        }
+      },
+      "type": "object"
+    },
+    "ChannelPublish": {
+      "additionalProperties": false,
+      "properties": {
+        "channel": {
+          "type": "string",
+          "x-go-omitempty": false
+        },
+        "field": {
+          "type": "string",
+          "x-go-omitempty": false
+        },
+        "task": {
+          "type": "string",
+          "x-go-omitempty": false
+        }
+      },
+      "type": "object"
+    },
+    "ChannelSub": {
+      "additionalProperties": false,
+      "properties": {
+        "channel": {
+          "type": "string",
+          "x-go-omitempty": false
+        },
+        "task": {
+          "type": "string",
+          "x-go-omitempty": false
+        }
+      },
+      "type": "object"
+    },
+    "Check": {
+      "additionalProperties": false,
+      "properties": {
+        "command": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "x-go-omitempty": true
+        },
+        "env": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "x-go-omitempty": true
+        },
+        "field": {
+          "type": "string",
+          "x-go-omitempty": true
+        },
+        "kind": {
+          "type": "string",
+          "x-go-omitempty": false
+        },
+        "minimum": {
+          "type": "integer",
+          "x-go-omitempty": true
+        },
+        "timeout_seconds": {
+          "type": "number",
+          "x-go-omitempty": true
+        },
+        "value": {
+          "type": "string",
+          "x-go-omitempty": true
+        }
+      },
+      "type": "object"
+    },
+    "CommandSpec": {
+      "additionalProperties": false,
+      "properties": {
+        "command": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "x-go-omitempty": false
+        },
+        "env": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "x-go-omitempty": true
+        },
+        "replay": {
+          "type": "string",
+          "x-go-omitempty": true
+        },
+        "sandbox": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SandboxSpec"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "x-go-omitempty": true
+        }
+      },
+      "type": "object"
+    },
+    "ExecutionAdapter": {
+      "additionalProperties": false,
+      "properties": {
+        "command": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "x-go-omitempty": true
+        },
+        "endpoint": {
+          "type": "string",
+          "x-go-omitempty": true
+        },
+        "executable_sha256": {
+          "type": "string",
+          "x-go-omitempty": true
+        },
+        "kind": {
+          "type": "string",
+          "x-go-omitempty": false
+        },
+        "protocol": {
+          "type": "string",
+          "x-go-omitempty": false
+        }
+      },
+      "type": "object"
+    },
+    "ExecutionCatalog": {
+      "additionalProperties": false,
+      "properties": {
+        "adapters": {
+          "anyOf": [
+            {
+              "additionalProperties": {
+                "$ref": "#/$defs/ExecutionAdapter"
+              },
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "x-go-omitempty": false
+        },
+        "default_profile": {
+          "type": "string",
+          "x-go-omitempty": false
+        },
+        "instances": {
+          "anyOf": [
+            {
+              "additionalProperties": {
+                "$ref": "#/$defs/ExecutionInstance"
+              },
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "x-go-omitempty": false
+        },
+        "profiles": {
+          "anyOf": [
+            {
+              "additionalProperties": {
+                "$ref": "#/$defs/ExecutionProfile"
+              },
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "x-go-omitempty": false
+        },
+        "schema": {
+          "type": "string",
+          "x-go-omitempty": false
+        }
+      },
+      "type": "object"
+    },
+    "ExecutionCredentialRef": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "type": "string",
+          "x-go-omitempty": false
+        },
+        "name": {
+          "type": "string",
+          "x-go-omitempty": false
+        }
+      },
+      "type": "object"
+    },
+    "ExecutionInstance": {
+      "additionalProperties": false,
+      "properties": {
+        "adapter": {
+          "type": "string",
+          "x-go-omitempty": false
+        },
+        "credential_refs": {
+          "anyOf": [
+            {
+              "items": {
+                "$ref": "#/$defs/ExecutionCredentialRef"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "x-go-omitempty": false
+        }
+      },
+      "type": "object"
+    },
+    "ExecutionLimits": {
+      "additionalProperties": false,
+      "properties": {
+        "input_bytes": {
+          "type": "integer",
+          "x-go-omitempty": false
+        },
+        "max_output_tokens": {
+          "type": "integer",
+          "x-go-omitempty": true
+        },
+        "output_bytes": {
+          "type": "integer",
+          "x-go-omitempty": false
+        }
+      },
+      "type": "object"
+    },
+    "ExecutionProfile": {
+      "additionalProperties": false,
+      "properties": {
+        "effort": {
+          "type": "string",
+          "x-go-omitempty": false
+        },
+        "instance": {
+          "type": "string",
+          "x-go-omitempty": false
+        },
+        "limits": {
+          "$ref": "#/$defs/ExecutionLimits",
+          "x-go-omitempty": false
+        },
+        "model": {
+          "type": "string",
+          "x-go-omitempty": false
+        },
+        "model_digest": {
+          "type": "string",
+          "x-go-omitempty": true
+        },
+        "operation_budget_usd": {
+          "type": "string",
+          "x-go-omitempty": false
+        },
+        "required_capabilities": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "x-go-omitempty": false
+        },
+        "timeout_seconds": {
+          "type": "integer",
+          "x-go-omitempty": true
+        },
+        "tools": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "x-go-omitempty": false
+        }
+      },
+      "type": "object"
+    },
+    "HelperAdmission": {
+      "additionalProperties": false,
+      "properties": {
+        "attempt": {
+          "type": "integer",
+          "x-go-omitempty": false
+        },
+        "count": {
+          "type": "integer",
+          "x-go-omitempty": false
+        },
+        "id": {
+          "type": "string",
+          "x-go-omitempty": false
+        },
+        "operation_id": {
+          "type": "string",
+          "x-go-omitempty": false
+        },
+        "request_hash": {
+          "type": "string",
+          "x-go-omitempty": false
+        },
+        "spec_hash": {
+          "type": "string",
+          "x-go-omitempty": false
+        }
+      },
+      "type": "object"
+    },
+    "ManagedExecutionPlan": {
+      "additionalProperties": false,
+      "properties": {
+        "allowed_profiles": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "x-go-omitempty": false
+        },
+        "catalog": {
+          "$ref": "#/$defs/ExecutionCatalog",
+          "x-go-omitempty": false
+        },
+        "cost_policy": {
+          "type": "string",
+          "x-go-omitempty": true
+        },
+        "run_budget_usd": {
+          "type": "string",
+          "x-go-omitempty": false
+        }
+      },
+      "type": "object"
+    },
+    "MessageEdge": {
+      "additionalProperties": false,
+      "properties": {
+        "field": {
+          "type": "string",
+          "x-go-omitempty": false
+        },
+        "from": {
+          "type": "string",
+          "x-go-omitempty": false
+        },
+        "to": {
+          "type": "string",
+          "x-go-omitempty": false
+        }
+      },
+      "type": "object"
+    },
+    "MessagingExperiment": {
+      "additionalProperties": false,
+      "properties": {
+        "cross_swarm_gate": {
+          "type": "string",
+          "x-go-omitempty": true
+        },
+        "edges": {
+          "anyOf": [
+            {
+              "items": {
+                "$ref": "#/$defs/MessageEdge"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "x-go-omitempty": true
+        },
+        "enabled": {
+          "type": "boolean",
+          "x-go-omitempty": false
+        },
+        "max_bytes": {
+          "type": "integer",
+          "x-go-omitempty": true
+        },
+        "max_hops": {
+          "type": "integer",
+          "x-go-omitempty": true
+        },
+        "max_per_run": {
+          "type": "integer",
+          "x-go-omitempty": true
+        },
+        "max_per_task": {
+          "type": "integer",
+          "x-go-omitempty": true
+        },
+        "publish": {
+          "anyOf": [
+            {
+              "items": {
+                "$ref": "#/$defs/ChannelPublish"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "x-go-omitempty": true
+        },
+        "subscribe": {
+          "anyOf": [
+            {
+              "items": {
+                "$ref": "#/$defs/ChannelSub"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "x-go-omitempty": true
+        }
+      },
+      "type": "object"
+    },
+    "ObserverShape": {
+      "additionalProperties": false,
+      "properties": {
+        "levels": {
+          "type": "integer",
+          "x-go-omitempty": false
+        },
+        "max_children": {
+          "type": "integer",
+          "x-go-omitempty": false
+        },
+        "roots": {
+          "type": "integer",
+          "x-go-omitempty": false
+        }
+      },
+      "type": "object"
+    },
+    "Plan": {
+      "additionalProperties": false,
+      "properties": {
+        "api_version": {
+          "enum": [
+            "",
+            "swarm/v1",
+            "swarm/v2",
+            "swarm/v3",
+            "swarm/v4",
+            "swarm/v5",
+            "swarm/v6"
+          ],
+          "type": "string",
+          "x-go-omitempty": true
+        },
+        "campaign": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/CampaignBinding"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "x-go-omitempty": true
+        },
+        "context": {
+          "anyOf": [
+            {
+              "additionalProperties": {
+                "type": "string"
+              },
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "x-go-omitempty": true
+        },
+        "display": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PlanDisplay"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "x-go-omitempty": true
+        },
+        "execution": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ManagedExecutionPlan"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "x-go-omitempty": true
+        },
+        "experiments": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PlanExperiments"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "x-go-omitempty": true
+        },
+        "guardrails": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/RuntimeGuardrails"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "x-go-omitempty": true
+        },
+        "max_depth": {
+          "type": "integer",
+          "x-go-omitempty": true
+        },
+        "max_tasks": {
+          "type": "integer",
+          "x-go-omitempty": true
+        },
+        "name": {
+          "type": "string",
+          "x-go-omitempty": false
+        },
+        "observer_shape": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ObserverShape"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "x-go-omitempty": true
+        },
+        "providers": {
+          "anyOf": [
+            {
+              "additionalProperties": {
+                "$ref": "#/$defs/CommandSpec"
+              },
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "x-go-omitempty": true
+        },
+        "tasks": {
+          "anyOf": [
+            {
+              "items": {
+                "$ref": "#/$defs/Task"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "x-go-omitempty": false
+        },
+        "turn_shape": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TurnShape"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "x-go-omitempty": true
+        }
+      },
+      "type": "object"
+    },
+    "PlanDisplay": {
+      "additionalProperties": false,
+      "properties": {
+        "publish": {
+          "type": "boolean",
+          "x-go-omitempty": true
+        },
+        "purpose": {
+          "type": "string",
+          "x-go-omitempty": true
+        },
+        "title": {
+          "type": "string",
+          "x-go-omitempty": true
+        },
+        "version": {
+          "type": "integer",
+          "x-go-omitempty": false
+        }
+      },
+      "type": "object"
+    },
+    "PlanExperiments": {
+      "additionalProperties": false,
+      "properties": {
+        "messaging": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/MessagingExperiment"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "x-go-omitempty": true
+        }
+      },
+      "type": "object"
+    },
+    "RuntimeGuardrails": {
+      "additionalProperties": false,
+      "properties": {
+        "max_inflight": {
+          "type": "integer",
+          "x-go-omitempty": true
+        },
+        "require": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "x-go-omitempty": true
+        },
+        "schema": {
+          "type": "string",
+          "x-go-omitempty": false
+        }
+      },
+      "type": "object"
+    },
+    "SandboxMount": {
+      "additionalProperties": false,
+      "properties": {
+        "read_only": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "x-go-omitempty": true
+        },
+        "source": {
+          "type": "string",
+          "x-go-omitempty": false
+        },
+        "target": {
+          "type": "string",
+          "x-go-omitempty": false
+        }
+      },
+      "type": "object"
+    },
+    "SandboxResources": {
+      "additionalProperties": false,
+      "properties": {
+        "cpu_millis": {
+          "type": "integer",
+          "x-go-omitempty": false
+        },
+        "memory_bytes": {
+          "type": "integer",
+          "x-go-omitempty": false
+        },
+        "pids_limit": {
+          "type": "integer",
+          "x-go-omitempty": true
+        }
+      },
+      "type": "object"
+    },
+    "SandboxSpec": {
+      "additionalProperties": false,
+      "properties": {
+        "env": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "x-go-omitempty": true
+        },
+        "image": {
+          "type": "string",
+          "x-go-omitempty": false
+        },
+        "mounts": {
+          "anyOf": [
+            {
+              "items": {
+                "$ref": "#/$defs/SandboxMount"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "x-go-omitempty": true
+        },
+        "network": {
+          "type": "string",
+          "x-go-omitempty": true
+        },
+        "read_only_root": {
+          "type": "boolean",
+          "x-go-omitempty": true
+        },
+        "resources": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SandboxResources"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "x-go-omitempty": true
+        },
+        "runtime": {
+          "type": "string",
+          "x-go-omitempty": true
+        },
+        "workdir": {
+          "type": "string",
+          "x-go-omitempty": true
+        }
+      },
+      "type": "object"
+    },
+    "SpawnPolicy": {
+      "additionalProperties": false,
+      "properties": {
+        "field": {
+          "type": "string",
+          "x-go-omitempty": false
+        },
+        "max_children": {
+          "type": "integer",
+          "x-go-omitempty": true
+        }
+      },
+      "type": "object"
+    },
+    "Task": {
+      "additionalProperties": false,
+      "properties": {
+        "artifact_contracts": {
+          "anyOf": [
+            {
+              "additionalProperties": {
+                "$ref": "#/$defs/ArtifactContract"
+              },
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "x-go-omitempty": true
+        },
+        "checks": {
+          "anyOf": [
+            {
+              "items": {
+                "$ref": "#/$defs/Check"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "x-go-omitempty": true
+        },
+        "context": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "x-go-omitempty": true
+        },
+        "depends_on": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "x-go-omitempty": true
+        },
+        "display": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TaskDisplay"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "x-go-omitempty": true
+        },
+        "effort": {
+          "type": "string",
+          "x-go-omitempty": true
+        },
+        "equals": {
+          "anyOf": [
+            {
+              "additionalProperties": {
+                "type": "string"
+              },
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "x-go-omitempty": true
+        },
+        "file_fields": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "x-go-omitempty": true
+        },
+        "id": {
+          "type": "string",
+          "x-go-omitempty": false
+        },
+        "input_fields": {
+          "anyOf": [
+            {
+              "additionalProperties": {
+                "anyOf": [
+                  {
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "x-go-omitempty": true
+        },
+        "mock_delay": {
+          "type": "number",
+          "x-go-omitempty": true
+        },
+        "mock_result": {
+          "anyOf": [
+            {
+              "additionalProperties": {
+                "type": "string"
+              },
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "x-go-omitempty": true
+        },
+        "outputs": {
+          "anyOf": [
+            {
+              "additionalProperties": {
+                "type": "string"
+              },
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "x-go-omitempty": true
+        },
+        "parent": {
+          "type": "string",
+          "x-go-omitempty": true
+        },
+        "profile": {
+          "type": "string",
+          "x-go-omitempty": true
+        },
+        "prompt": {
+          "type": "string",
+          "x-go-omitempty": false
+        },
+        "provider": {
+          "type": "string",
+          "x-go-omitempty": true
+        },
+        "requires": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "x-go-omitempty": false
+        },
+        "spawn": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SpawnPolicy"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "x-go-omitempty": true
+        },
+        "turn": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TurnIdentity"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "x-go-omitempty": true
+        }
+      },
+      "type": "object"
+    },
+    "TaskDisplay": {
+      "additionalProperties": false,
+      "properties": {
+        "done_when": {
+          "type": "string",
+          "x-go-omitempty": true
+        },
+        "outcome_field": {
+          "type": "string",
+          "x-go-omitempty": true
+        },
+        "title": {
+          "type": "string",
+          "x-go-omitempty": true
+        },
+        "why_spawned": {
+          "type": "string",
+          "x-go-omitempty": true
+        }
+      },
+      "type": "object"
+    },
+    "TurnIdentity": {
+      "additionalProperties": false,
+      "properties": {
+        "agent_id": {
+          "type": "string",
+          "x-go-omitempty": false
+        },
+        "async": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/HelperAdmission"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "x-go-omitempty": true
+        },
+        "index": {
+          "type": "integer",
+          "x-go-omitempty": false
+        },
+        "owner_agent_id": {
+          "type": "string",
+          "x-go-omitempty": true
+        },
+        "owner_turn": {
+          "type": "integer",
+          "x-go-omitempty": true
+        },
+        "previous_task": {
+          "type": "string",
+          "x-go-omitempty": true
+        },
+        "role": {
+          "type": "string",
+          "x-go-omitempty": false
+        }
+      },
+      "type": "object"
+    },
+    "TurnShape": {
+      "additionalProperties": false,
+      "properties": {
+        "helpers_per_turn": {
+          "type": "integer",
+          "x-go-omitempty": false
+        },
+        "max_turns_per_agent": {
+          "type": "integer",
+          "x-go-omitempty": false
+        },
+        "root_agents": {
+          "type": "integer",
+          "x-go-omitempty": false
+        }
+      },
+      "type": "object"
+    }
+  },
+  "$ref": "#/$defs/Plan",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "Generated from the runtime Go Plan types for editor completion and structural checks. Run irrigator plan FILE for authoritative required-field, version, ownership, dependency, budget, artifact, and cross-field validation. x-go-omitempty describes encoding only. Interface and raw JSON fields are unconstrained.",
+  "title": "Irrigator plan"
+}

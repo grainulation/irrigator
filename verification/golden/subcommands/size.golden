@@ -1,0 +1,11 @@
+Usage of size:
+  -backend string
+    	backend assumed for tasks without a provider (reservation estimate) (default "haiku")
+  -budget float
+    	per-call budget USD used for the reservation estimate (default 0.25)
+  -json
+    	JSON report
+  -shape string
+    	AxDxS ownership shape (or WxD) to size without a PLAN
+  -sizing string
+    	sizing.v1 calibration JSON

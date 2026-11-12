@@ -1,0 +1,17 @@
+{
+  "name": "irrigator-acp-worker",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Irrigator command worker that drives an ACP agent in a git worktree",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "test": "node --test 'test/*.test.mjs'"
+  },
+  "dependencies": {
+    "@agentclientprotocol/claude-agent-acp": "0.101.0",
+    "@agentclientprotocol/sdk": "2.4.0"
+  }
+}

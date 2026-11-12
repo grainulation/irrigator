@@ -1,0 +1,2 @@
+# Runtime golden help preserves Go's flag indentation verbatim.
+verification/golden/subcommands/*.golden -whitespace

@@ -1,0 +1,7 @@
+Usage of demo:
+  -run string
+    	new run directory; defaults inside the launch-context workspace or a retained temporary directory
+  -schedule string
+    	demo ready order: breadth (demo default) or depth (default "breadth")
+  -session-registry string
+    	shared session registry path; inherits IRRIGATOR_SESSION_REGISTRY; omitted headless demos do not publish

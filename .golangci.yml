@@ -1,0 +1,63 @@
+# golangci-lint v2 configuration for irrigator. Run with `make lint` (also a CI job).
+# Pin: golangci-lint v2.15.0, built with go1.27.2; keep the Makefile and the CI job on the same version.
+# The tree is lint-clean with this config (0 findings, default and --build-tags=integration), so no
+# baseline is needed. LINT_NEW_FROM_REV (environment variable for `make lint`, repository variable
+# of the same name in CI) stays available as an optional safety net: set it to a commit to report
+# only findings introduced after it. Leave it unset normally.
+version: "2"
+
+run:
+  timeout: 5m
+  # Integration-tagged files are linted in a second pass (make lint, CI):
+  #   golangci-lint run --build-tags=integration ./...
+
+linters:
+  default: none
+  enable:
+    - errcheck
+    - govet
+    - staticcheck
+    - unused
+    - ineffassign
+  settings:
+    errcheck:
+      # Best-effort calls whose error carries no actionable information here.
+      exclude-functions:
+        - fmt.Fprint
+        - fmt.Fprintf
+        - fmt.Fprintln
+        - (*os.File).Close
+        - (*os.Root).Close
+        - os.RemoveAll
+        - os.Remove
+        - (*os.Root).Remove
+        - (io.ReadCloser).Close
+        - (net.Listener).Close
+    staticcheck:
+      # Keep the SA (bugs), S (simplify) classes. Drop style/quickfix classes that would
+      # drown a fresh baseline: ST1005 flags product names (Docker, Ollama, Codex) that start
+      # error strings; QF1001/QF1003 are rewrite suggestions; ST1020/ST1021 want doc-comment wording.
+      checks:
+        - all
+        - -ST1000
+        - -ST1003
+        - -ST1005
+        - -ST1013
+        - -ST1020
+        - -ST1021
+        - -QF1001
+        - -QF1003
+  exclusions:
+    rules:
+      # Test setup helpers routinely ignore errors from os.WriteFile/Mkdir/Unmarshal.
+      - path: _test\.go
+        linters:
+          - errcheck
+
+formatters:
+  enable:
+    - goimports
+
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0

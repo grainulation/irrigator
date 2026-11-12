@@ -1,0 +1,104 @@
+{
+  "schema": "irrigator.replay-fixture/v1",
+  "scenario": "cancelled-pending-subtree",
+  "backend": "mock",
+  "tasks": [
+    {
+      "id": "t1",
+      "depends_on": [],
+      "status": "verified",
+      "attempt": 1,
+      "generation": 1,
+      "cancel_requested": false,
+      "error_code": "",
+      "diagnostic_code": "",
+      "cost_reported": false,
+      "cost_unknown": false
+    },
+    {
+      "id": "t2",
+      "depends_on": [
+        "t1"
+      ],
+      "status": "cancelled",
+      "attempt": 0,
+      "generation": 1,
+      "cancel_requested": true,
+      "error_code": "cancelled",
+      "diagnostic_code": "",
+      "cost_reported": false,
+      "cost_unknown": false
+    },
+    {
+      "id": "t3",
+      "depends_on": [
+        "t2"
+      ],
+      "status": "pending",
+      "attempt": 0,
+      "generation": 1,
+      "cancel_requested": false,
+      "error_code": "",
+      "diagnostic_code": "",
+      "cost_reported": false,
+      "cost_unknown": false
+    },
+    {
+      "id": "t4",
+      "depends_on": [
+        "t1"
+      ],
+      "status": "verified",
+      "attempt": 1,
+      "generation": 1,
+      "cancel_requested": false,
+      "error_code": "",
+      "diagnostic_code": "",
+      "cost_reported": false,
+      "cost_unknown": false
+    }
+  ],
+  "events": [
+    {
+      "kind": "cancel_requested",
+      "task": "t2"
+    },
+    {
+      "kind": "started",
+      "task": "t1"
+    },
+    {
+      "kind": "produced",
+      "task": "t1"
+    },
+    {
+      "kind": "verified",
+      "task": "t1"
+    },
+    {
+      "kind": "started",
+      "task": "t4"
+    },
+    {
+      "kind": "produced",
+      "task": "t4"
+    },
+    {
+      "kind": "verified",
+      "task": "t4"
+    }
+  ],
+  "recovery": {
+    "attention": [
+      {
+        "id": "t2",
+        "classification": "cancelled_operator_decision",
+        "error_code": "cancelled"
+      }
+    ],
+    "next_steps": [
+      "irrigator inspect RUN_DIR NODE and irrigator logs RUN_DIR --task NODE are read-only follow-ups",
+      "cancelled: operator decision to retry or revise"
+    ]
+  }
+}

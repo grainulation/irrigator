@@ -1,0 +1,215 @@
+{
+  "schema": "irrigator.replay-fixture/v1",
+  "scenario": "spawn-nested-waiting-cancelled-child",
+  "backend": "mock",
+  "tasks": [
+    {
+      "id": "t1",
+      "depends_on": [],
+      "spawn": true,
+      "status": "waiting",
+      "attempt": 1,
+      "generation": 1,
+      "cancel_requested": false,
+      "error_code": "",
+      "diagnostic_code": "",
+      "cost_reported": false,
+      "cost_unknown": false
+    },
+    {
+      "id": "t2",
+      "depends_on": [
+        "t1"
+      ],
+      "status": "pending",
+      "attempt": 0,
+      "generation": 1,
+      "cancel_requested": false,
+      "error_code": "",
+      "diagnostic_code": "",
+      "cost_reported": false,
+      "cost_unknown": false
+    },
+    {
+      "id": "t3",
+      "depends_on": [],
+      "parent": "t1",
+      "spawn": true,
+      "status": "waiting",
+      "attempt": 1,
+      "generation": 1,
+      "cancel_requested": false,
+      "error_code": "",
+      "diagnostic_code": "",
+      "cost_reported": false,
+      "cost_unknown": false
+    },
+    {
+      "id": "t4",
+      "depends_on": [],
+      "parent": "t1",
+      "status": "verified",
+      "attempt": 1,
+      "generation": 1,
+      "cancel_requested": false,
+      "error_code": "",
+      "diagnostic_code": "",
+      "cost_reported": false,
+      "cost_unknown": false
+    },
+    {
+      "id": "t5",
+      "depends_on": [],
+      "parent": "t3",
+      "status": "verified",
+      "attempt": 1,
+      "generation": 1,
+      "cancel_requested": false,
+      "error_code": "",
+      "diagnostic_code": "",
+      "cost_reported": false,
+      "cost_unknown": false
+    },
+    {
+      "id": "t6",
+      "depends_on": [],
+      "parent": "t3",
+      "status": "verified",
+      "attempt": 1,
+      "generation": 1,
+      "cancel_requested": false,
+      "error_code": "",
+      "diagnostic_code": "",
+      "cost_reported": false,
+      "cost_unknown": false
+    },
+    {
+      "id": "t7",
+      "depends_on": [
+        "t6"
+      ],
+      "parent": "t3",
+      "status": "cancelled",
+      "attempt": 0,
+      "generation": 1,
+      "cancel_requested": true,
+      "error_code": "cancelled",
+      "diagnostic_code": "",
+      "cost_reported": false,
+      "cost_unknown": false
+    }
+  ],
+  "events": [
+    {
+      "kind": "started",
+      "task": "t1"
+    },
+    {
+      "kind": "produced",
+      "task": "t1"
+    },
+    {
+      "kind": "expanded",
+      "task": "t1"
+    },
+    {
+      "kind": "started",
+      "task": "t4"
+    },
+    {
+      "kind": "started",
+      "task": "t3"
+    },
+    {
+      "kind": "produced",
+      "task": "t4"
+    },
+    {
+      "kind": "produced",
+      "task": "t3"
+    },
+    {
+      "kind": "verified",
+      "task": "t4"
+    },
+    {
+      "kind": "expanded",
+      "task": "t3"
+    },
+    {
+      "kind": "started",
+      "task": "t6"
+    },
+    {
+      "kind": "started",
+      "task": "t5"
+    },
+    {
+      "kind": "cancel_requested",
+      "task": "t7"
+    },
+    {
+      "kind": "produced",
+      "task": "t5"
+    },
+    {
+      "kind": "verified",
+      "task": "t5"
+    },
+    {
+      "kind": "produced",
+      "task": "t6"
+    },
+    {
+      "kind": "verified",
+      "task": "t6"
+    }
+  ],
+  "recovery": {
+    "attention": [
+      {
+        "id": "t1",
+        "classification": "cancelled_operator_decision",
+        "error_code": "",
+        "lifecycle": {
+          "activity": "no_active_work",
+          "blockers": [
+            "t7"
+          ],
+          "blockers_total": 1,
+          "active": [],
+          "active_total": 0,
+          "uncertain_total": 0,
+          "failed_total": 0,
+          "cancelled_total": 1
+        }
+      },
+      {
+        "id": "t3",
+        "classification": "cancelled_operator_decision",
+        "error_code": "",
+        "lifecycle": {
+          "activity": "no_active_work",
+          "blockers": [
+            "t7"
+          ],
+          "blockers_total": 1,
+          "active": [],
+          "active_total": 0,
+          "uncertain_total": 0,
+          "failed_total": 0,
+          "cancelled_total": 1
+        }
+      },
+      {
+        "id": "t7",
+        "classification": "cancelled_operator_decision",
+        "error_code": "cancelled"
+      }
+    ],
+    "next_steps": [
+      "irrigator inspect RUN_DIR NODE and irrigator logs RUN_DIR --task NODE are read-only follow-ups",
+      "cancelled: operator decision to retry or revise"
+    ]
+  }
+}

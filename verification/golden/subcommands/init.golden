@@ -1,0 +1,7 @@
+Usage of init:
+  -managed
+    	create a managed plan with an explicit local CLI profile
+  -out string
+    	new plan file (default "irrigator.json")
+  -profile string
+    	managed profile selector: claude:MODEL or codex:MODEL

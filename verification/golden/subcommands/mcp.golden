@@ -1,0 +1,8 @@
+Usage of mcp:
+  -allow-control
+    	also register tools that change runs: apply, pause, resume, retry_cell, decide_approval
+  -runs value
+    	directory whose subdirectories are runs (repeatable)
+  -workspace string
+    	Git repository for review_list and base for relative plan paths (default ".")
+error: flag: help requested

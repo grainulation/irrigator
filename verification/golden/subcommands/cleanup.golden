@@ -1,0 +1,6 @@
+Usage of cleanup:
+  -all-finished
+    	treat RUN as a directory of runs and clean every run in it (live terminals and windows are still never touched)
+  -dry-run
+    	list what would be removed and change nothing
+error: flag: help requested

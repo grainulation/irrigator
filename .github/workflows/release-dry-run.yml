@@ -1,0 +1,44 @@
+name: Release dry run
+
+# Builds snapshot archives with GoReleaser and uploads nothing: no release, no
+# artifact upload, no signing key, no write permissions.
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - .goreleaser.yaml
+      - .github/workflows/release-dry-run.yml
+      - tools/release-sign/**
+      - docs/release-pipeline.md
+      - docs/update-verification.md
+      - internal/selfupdate/**
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-dry-run-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  snapshot:
+    name: GoReleaser snapshot
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
+        with:
+          go-version: '1.27.2'
+      - name: Test the signer against the update verifier
+        run: go test ./tools/release-sign
+      - uses: goreleaser/goreleaser-action@e435ccd777264be153ace6237001ef4d979d3a7a # v6.4.0
+        with:
+          distribution: goreleaser
+          version: v2.12.0
+          args: release --snapshot --clean --skip=publish
+      - name: List snapshot archives
+        run: ls -l dist/*.tar.gz dist/checksums.txt

@@ -1,0 +1,167 @@
+name: macOS and Linux
+
+# Push builds only for main: a branch with an open pull request would otherwise
+# run every job twice (once for the push, once for the pull request).
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: platforms-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # macOS minutes cost ten times Linux minutes. Skip macOS when a change only
+  # touches documentation; run it for everything else, manual runs included.
+  changes:
+    name: Detect changes
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      os: ${{ steps.pick.outputs.os }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Verify platform selection
+        run: python3 verification/ci-platform-picker-test.py
+      - name: Choose platforms
+        id: pick
+        env:
+          EVENT: ${{ github.event_name }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          PUSH_BEFORE: ${{ github.event.before }}
+        run: sh .github/scripts/pick-platforms.sh
+
+  runtime:
+    name: Runtime / ${{ matrix.os }}
+    needs: changes
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        os: ${{ fromJSON(needs.changes.outputs.os) }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
+        with:
+          go-version: '1.27.2'
+          cache: false
+      - name: Record environment
+        run: |
+          go version
+          go env GOOS GOARCH
+          uname -a
+      - name: Build and first-use acceptance
+        run: |
+          make build
+          make smoke
+          make demo
+      - name: Runtime race suite and vet (untagged)
+        run: make check
+      # Integration tests (process supervision, controller drain, re-exec, CLI) carry the
+      # "integration" build tag, so the untagged suite above does not compile them. This
+      # runs the whole tree with -tags integration, unfiltered, under the race detector.
+      - name: Integration race suite (build tag integration)
+        run: make check-integration
+      - name: Tool and package safety tests
+        run: |
+          python3 -m unittest discover -s tools -p 'test_*.py'
+          python3 verification/package-safety-test.py
+          python3 -I verification/monitoring-sensor-test.py
+      - name: Standalone plugin consumer contract
+        run: |
+          python3 -I verification/plugin-validator-regression.py
+          plugin_output=$(mktemp -d)
+          python3 -I tools/package-plugin.py --out "$plugin_output"
+          set -- "$plugin_output"/irrigator-plugin-*.zip
+          test "$#" -eq 1
+          python3 -I verification/plugin-consumer-test.py --archive "$1" --binary "$GITHUB_WORKSPACE/irrigator" --strict
+      - name: Packaged CLI archive acceptance
+        run: |
+          runtime_temp=$(mktemp -d)
+          runtime_temp=$(cd "$runtime_temp" && pwd -P)
+          runtime_target="$(go env GOOS)/$(go env GOARCH)"
+          python3 -I tools/package_runtime.py --go "$(command -v go)" --revision HEAD --target "$runtime_target" --out "$runtime_temp/package"
+          set -- "$runtime_temp"/package/irrigator-*.tar.gz
+          test "$#" -eq 1
+          python3 -I tools/check_runtime_archive.py "$1"
+      - name: Cross-build supported runtime targets
+        env:
+          CGO_ENABLED: '0'
+        run: |
+          mkdir -p dist/platforms
+          for target in linux/amd64 linux/arm64 darwin/amd64 darwin/arm64; do
+            target_os=${target%/*}
+            target_arch=${target#*/}
+            GOOS="$target_os" GOARCH="$target_arch" go build -trimpath -o "dist/platforms/irrigator-$target_os-$target_arch" .
+          done
+
+  lint:
+    name: Lint (golangci-lint, exportcheck)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      # Optional baseline switch; the tree is lint-clean, so leave it unset. Empty = report every
+      # finding. Setting the repository variable LINT_NEW_FROM_REV (Settings > Secrets and variables >
+      # Actions > Variables) to a commit reports only findings introduced after it.
+      # Needs the fetch-depth: 0 checkout below.
+      LINT_NEW_FROM_REV: ${{ vars.LINT_NEW_FROM_REV }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
+        with:
+          go-version: '1.27.2'
+          cache: false
+      # golangci-lint-action v9.3.0 = ba0d7d2ec06a0ea1cb5fa41b2e4a3ab91d21278a (commit behind the annotated tag;
+      # resolved with `gh api repos/golangci/golangci-lint-action/git/ref/tags/v9.3.0` then `.../git/tags/<sha>`).
+      - uses: golangci/golangci-lint-action@ba0d7d2ec06a0ea1cb5fa41b2e4a3ab91d21278a # v9.3.0
+        with:
+          version: v2.15.0
+          args: ${{ env.LINT_NEW_FROM_REV && format('--new-from-rev={0} ./...', env.LINT_NEW_FROM_REV) || './...' }}
+      - name: Lint integration-tagged files
+        uses: golangci/golangci-lint-action@ba0d7d2ec06a0ea1cb5fa41b2e4a3ab91d21278a # v9.3.0
+        with:
+          version: v2.15.0
+          args: ${{ env.LINT_NEW_FROM_REV && format('--build-tags=integration --new-from-rev={0} ./...', env.LINT_NEW_FROM_REV) || '--build-tags=integration ./...' }}
+      - name: gofmt and go.mod hygiene
+        run: |
+          test -z "$(gofmt -l .)" || { gofmt -l .; exit 1; }
+          go mod tidy -diff
+      # Blocking: the Makefile's EXPORTCHECK_STRICT defaults to 1, so an exported name in internal/
+      # that no other package uses (and that is not exempted with a reason) fails this step.
+      - name: exportcheck (minimal exported surface)
+        run: make check-exports
+
+  minimum-go:
+    name: Minimum Go / Linux
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      GOTOOLCHAIN: local
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
+        with:
+          # Must equal the "go" directive in go.mod (checked by tools/test_repo_consistency.py).
+          go-version: '1.26.0'
+          cache: false
+      - name: Build complete runtime with minimum supported toolchain
+        run: |
+          go version
+          go build ./...
+          go test -tags integration ./... -run 'TestPlanSchema|TestBackup|TestRecover|TestCampaign|TestComposition|TestBilling|TestTerminal' -count=1

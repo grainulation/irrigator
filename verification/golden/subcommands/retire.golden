@@ -1,0 +1,9 @@
+Usage of retire:
+  -reason string
+    	why the run is retired (required, 1-160 characters)
+  -session-registry string
+    	absolute session registry path (same as apply/resume; default ./.irrigator/current-session.json)
+  -superseded-by string
+    	optional registered, non-retired run that replaces this one
+  -superseded_by string
+    	alias of --superseded-by

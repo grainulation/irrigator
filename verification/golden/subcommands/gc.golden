@@ -1,0 +1,7 @@
+Usage of gc:
+  -apply
+    	delete the listed obsolete files
+  -dry-run
+    	preview only (default)
+  -keep int
+    	raw attempts to retain per node (default 1)

@@ -1,0 +1,46 @@
+{
+  "api_version": "swarm/v2",
+  "name": "Versioned 2x2x2 turns and terminal helpers",
+  "turn_shape": {
+    "root_agents": 2,
+    "max_turns_per_agent": 2,
+    "helpers_per_turn": 2
+  },
+  "max_tasks": 12,
+  "tasks": [
+    {
+      "id": "agent_a",
+      "prompt": "Return the word ready",
+      "requires": [
+        "answer",
+        "turn_request"
+      ],
+      "mock_result": {
+        "answer": "ready",
+        "turn_request": "{\"continue\": {\"id\": \"next\", \"prompt\": \"Return the word ready\", \"requires\": [\"answer\", \"turn_request\"], \"mock_result\": {\"answer\": \"ready\", \"turn_request\": \"{\\\"helpers\\\": [{\\\"id\\\": \\\"h1\\\", \\\"prompt\\\": \\\"Return the word ready\\\", \\\"requires\\\": [\\\"answer\\\"], \\\"mock_result\\\": {\\\"answer\\\": \\\"ready\\\"}}, {\\\"id\\\": \\\"h2\\\", \\\"prompt\\\": \\\"Return the word ready\\\", \\\"requires\\\": [\\\"answer\\\"], \\\"mock_result\\\": {\\\"answer\\\": \\\"ready\\\"}}]}\"}}, \"helpers\": [{\"id\": \"h1\", \"prompt\": \"Return the word ready\", \"requires\": [\"answer\"], \"mock_result\": {\"answer\": \"ready\"}}, {\"id\": \"h2\", \"prompt\": \"Return the word ready\", \"requires\": [\"answer\"], \"mock_result\": {\"answer\": \"ready\"}}], \"wait_for_helpers\": true}"
+      },
+      "turn": {
+        "agent_id": "agent_a",
+        "role": "main",
+        "index": 1
+      }
+    },
+    {
+      "id": "agent_b",
+      "prompt": "Return the word ready",
+      "requires": [
+        "answer",
+        "turn_request"
+      ],
+      "mock_result": {
+        "answer": "ready",
+        "turn_request": "{\"continue\": {\"id\": \"next\", \"prompt\": \"Return the word ready\", \"requires\": [\"answer\", \"turn_request\"], \"mock_result\": {\"answer\": \"ready\", \"turn_request\": \"{\\\"helpers\\\": [{\\\"id\\\": \\\"h1\\\", \\\"prompt\\\": \\\"Return the word ready\\\", \\\"requires\\\": [\\\"answer\\\"], \\\"mock_result\\\": {\\\"answer\\\": \\\"ready\\\"}}, {\\\"id\\\": \\\"h2\\\", \\\"prompt\\\": \\\"Return the word ready\\\", \\\"requires\\\": [\\\"answer\\\"], \\\"mock_result\\\": {\\\"answer\\\": \\\"ready\\\"}}]}\"}}, \"helpers\": [{\"id\": \"h1\", \"prompt\": \"Return the word ready\", \"requires\": [\"answer\"], \"mock_result\": {\"answer\": \"ready\"}}, {\"id\": \"h2\", \"prompt\": \"Return the word ready\", \"requires\": [\"answer\"], \"mock_result\": {\"answer\": \"ready\"}}], \"wait_for_helpers\": true}"
+      },
+      "turn": {
+        "agent_id": "agent_b",
+        "role": "main",
+        "index": 1
+      }
+    }
+  ]
+}

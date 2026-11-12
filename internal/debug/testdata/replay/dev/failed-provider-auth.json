@@ -1,0 +1,57 @@
+{
+  "schema": "irrigator.replay-fixture/v1",
+  "scenario": "failed-provider-auth",
+  "backend": "haiku",
+  "tasks": [
+    {
+      "id": "t1",
+      "depends_on": [],
+      "status": "failed",
+      "attempt": 1,
+      "generation": 1,
+      "cancel_requested": false,
+      "error_code": "failed_provider_authentication_required",
+      "diagnostic_code": "provider_authentication_required",
+      "failure_phase": "execution",
+      "cost_reported": false,
+      "cost_unknown": false
+    },
+    {
+      "id": "t2",
+      "depends_on": [
+        "t1"
+      ],
+      "status": "pending",
+      "attempt": 0,
+      "generation": 1,
+      "cancel_requested": false,
+      "error_code": "",
+      "diagnostic_code": "",
+      "cost_reported": false,
+      "cost_unknown": false
+    }
+  ],
+  "events": [
+    {
+      "kind": "started",
+      "task": "t1"
+    },
+    {
+      "kind": "failed",
+      "task": "t1"
+    }
+  ],
+  "recovery": {
+    "attention": [
+      {
+        "id": "t1",
+        "classification": "failed_review_before_retry",
+        "error_code": "failed_provider_authentication_required"
+      }
+    ],
+    "next_steps": [
+      "irrigator inspect RUN_DIR NODE and irrigator logs RUN_DIR --task NODE are read-only follow-ups",
+      "failed: status alone does not establish external effects; review before an explicit retry"
+    ]
+  }
+}

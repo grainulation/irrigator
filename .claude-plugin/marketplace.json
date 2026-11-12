@@ -1,0 +1,23 @@
+{
+  "name": "irrigator-local",
+  "owner": {
+    "name": "Irrigator contributors"
+  },
+  "metadata": {
+    "description": "Local-only marketplace for the Irrigator workflow plugin. Not a public release.",
+    "version": "1.0.0-rc.4"
+  },
+  "plugins": [
+    {
+      "name": "irrigator",
+      "source": "./",
+      "description": "Workflow skills for the local Irrigator CLI: shape sizing, plan/run, resume, observe and budget control.",
+      "version": "1.0.0-rc.4",
+      "author": {
+        "name": "Irrigator contributors"
+      },
+      "keywords": ["irrigator", "agent-graphs", "swarm", "orchestration", "local-first"],
+      "category": "productivity"
+    }
+  ]
+}

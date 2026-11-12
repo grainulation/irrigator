@@ -1,0 +1,13 @@
+Usage of serve:
+  -budget float
+    	total service admission budget USD; unknown charges retain reservations (default 1)
+  -claude string
+    	Claude CLI executable (default "claude")
+  -dir string
+    	durable service state directory (required)
+  -listen string
+    	loopback listening address (default "127.0.0.1:0")
+  -model string
+    	Claude model (default "haiku")
+  -workers int
+    	maximum reusable sessions (default 4)

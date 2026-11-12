@@ -1,0 +1,21 @@
+{
+  "name": "Swarm lifecycle design",
+  "tasks": [
+    {
+      "id": "lifecycle",
+      "prompt": "Design a concise state machine for a durable agent swarm. Explain pause, teardown, and resume. Return states and recovery as strings.",
+      "requires": ["states", "recovery"]
+    },
+    {
+      "id": "scheduling",
+      "prompt": "Design a concise scheduling policy for Haiku workers executing a dependency graph. Explain concurrency and validation before releasing downstream work. Return scheduling and validation as strings.",
+      "requires": ["scheduling", "validation"]
+    },
+    {
+      "id": "handoff",
+      "depends_on": ["lifecycle", "scheduling"],
+      "prompt": "Using both dependency artifacts, produce a concise implementation handoff. Include a restart acceptance test and explicitly identify the most important unresolved risk. Return implementation, acceptance_test, and risk as strings.",
+      "requires": ["implementation", "acceptance_test", "risk"]
+    }
+  ]
+}

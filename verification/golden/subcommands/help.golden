@@ -1,0 +1,4 @@
+Usage of help:
+  -json
+    	machine-readable command and flag definitions
+error: flag: help requested

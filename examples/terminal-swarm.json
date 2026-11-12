@@ -1,0 +1,101 @@
+{
+  "api_version": "swarm/v1",
+  "name": "Irrigator live swarm demo",
+  "max_tasks": 12,
+  "max_depth": 3,
+  "tasks": [
+    {
+      "id": "discover",
+      "prompt": "Split research into child tasks",
+      "provider": "mock",
+      "requires": [
+        "graph"
+      ],
+      "spawn": {
+        "field": "graph",
+        "max_children": 3
+      },
+      "mock_delay": 0.7,
+      "mock_result": {
+        "graph": "{\"tasks\": [{\"id\": \"interface\", \"prompt\": \"Explore interface\", \"requires\": [\"result\"], \"mock_delay\": 1.2, \"mock_result\": {\"result\": \"interface checked\"}}, {\"id\": \"storage\", \"prompt\": \"Explore storage\", \"requires\": [\"result\"], \"mock_delay\": 1.8, \"mock_result\": {\"result\": \"storage checked\"}}, {\"id\": \"recovery\", \"prompt\": \"Explore recovery\", \"requires\": [\"result\"], \"mock_delay\": 2.3, \"mock_result\": {\"result\": \"recovery checked\"}}]}"
+      }
+    },
+    {
+      "id": "api",
+      "prompt": "Build api",
+      "depends_on": [
+        "discover"
+      ],
+      "provider": "mock",
+      "requires": [
+        "result"
+      ],
+      "mock_delay": 1.2,
+      "mock_result": {
+        "result": "api ready"
+      }
+    },
+    {
+      "id": "cli",
+      "prompt": "Build cli",
+      "depends_on": [
+        "discover"
+      ],
+      "provider": "mock",
+      "requires": [
+        "result"
+      ],
+      "mock_delay": 1.7,
+      "mock_result": {
+        "result": "cli ready"
+      }
+    },
+    {
+      "id": "tests",
+      "prompt": "Build tests",
+      "depends_on": [
+        "discover"
+      ],
+      "provider": "mock",
+      "requires": [
+        "result"
+      ],
+      "mock_delay": 2.1,
+      "mock_result": {
+        "result": "tests ready"
+      }
+    },
+    {
+      "id": "review",
+      "prompt": "Verify parallel work",
+      "depends_on": [
+        "api",
+        "cli",
+        "tests"
+      ],
+      "provider": "mock",
+      "requires": [
+        "result"
+      ],
+      "mock_delay": 1,
+      "mock_result": {
+        "result": "all checks passed"
+      }
+    },
+    {
+      "id": "deliver",
+      "prompt": "Deliver verified output",
+      "depends_on": [
+        "review"
+      ],
+      "provider": "mock",
+      "requires": [
+        "result"
+      ],
+      "mock_delay": 0.5,
+      "mock_result": {
+        "result": "ready to use"
+      }
+    }
+  ]
+}

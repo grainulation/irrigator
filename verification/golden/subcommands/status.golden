@@ -1,0 +1,7 @@
+Usage of status:
+  -interval duration
+    	refresh interval (default 250ms)
+  -json
+    	JSON state
+  -watch
+    	watch until run stops

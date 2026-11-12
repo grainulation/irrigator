@@ -1,0 +1,22 @@
+{
+  "name": "release-review",
+  "display": {
+    "version": 1,
+    "publish": true,
+    "title": "Release review",
+    "purpose": "Assess whether the release is ready"
+  },
+  "tasks": [
+    {
+      "id": "review",
+      "prompt": "Review the release notes and tests.",
+      "requires": ["public_summary", "details"],
+      "display": {
+        "title": "Review tests",
+        "why_spawned": "Independent verification",
+        "done_when": "Tests checked",
+        "outcome_field": "public_summary"
+      }
+    }
+  ]
+}

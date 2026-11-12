@@ -1,0 +1,2 @@
+irrigator turn-shape XxYxZ [--json]
+Capacity preview only. X independent main agents; Y optional sequential turns each; Z one-shot helpers per turn. Z=1 is unbranched shorthand (zero helpers). Existing size --shape retains legacy tree semantics.

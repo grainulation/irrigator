@@ -1,0 +1,70 @@
+[
+  {
+    "name": "no_args",
+    "args": [],
+    "exit_code": 0
+  },
+  {
+    "name": "help_cmd",
+    "args": [
+      "help"
+    ],
+    "exit_code": 0
+  },
+  {
+    "name": "help_flag",
+    "args": [
+      "--help"
+    ],
+    "exit_code": 0
+  },
+  {
+    "name": "version_cmd",
+    "args": [
+      "version"
+    ],
+    "exit_code": 0
+  },
+  {
+    "name": "schema_cmd",
+    "args": [
+      "schema"
+    ],
+    "exit_code": 0
+  },
+  {
+    "name": "unknown_command",
+    "args": [
+      "nonexistent_command_xyz"
+    ],
+    "exit_code": 2
+  },
+  {
+    "name": "apply_missing_args",
+    "args": [
+      "apply"
+    ],
+    "exit_code": 2
+  },
+  {
+    "name": "status_missing_args",
+    "args": [
+      "status"
+    ],
+    "exit_code": 2
+  },
+  {
+    "name": "inspect_missing_args",
+    "args": [
+      "inspect"
+    ],
+    "exit_code": 2
+  },
+  {
+    "name": "retry_missing_args",
+    "args": [
+      "retry"
+    ],
+    "exit_code": 2
+  }
+]

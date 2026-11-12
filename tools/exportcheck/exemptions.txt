@@ -1,0 +1,24 @@
+# exportcheck exemptions. One entry per line:   <module-relative pkg>.<Name>  # reason (MANDATORY)
+#   internal/store.Store.Close         exact name (types: pkg.Type, methods/fields: pkg.Type.Member)
+#   internal/model.Plan.*              every member of Plan (trailing .* = prefix match)
+# Entries that match no declaration are reported as stale; delete them.
+#
+# Interface-satisfying methods, json/yaml-tagged fields, structs passed to encoding/json etc.,
+# embedded fields, generated files and go:linkname symbols are exempted automatically and need no entry.
+#
+# Policy: add a line only for a name that is deliberately exported although no other package's
+# production code names it. "It is only used in tests" is not a reason (move the test or un-export).
+
+# --- artifactstore: the storage adapter contract. Remote adapters must implement Store and name Reference.
+internal/artifactstore.Store         # adapter interface: implemented outside the package by hosted stores, pinned by the black-box contract test
+internal/artifactstore.Store.Get     # method of the adapter interface; Local satisfies it and the xtest contract suite calls it
+internal/artifactstore.Reference     # portable content identity named by every Store implementation (its signature), serialised in checkpoints
+
+# --- reviewtui: callers implement the interface without naming it
+internal/reviewtui.Backend           # parameter type of Run; branchreview supplies a struct that implements it, so the type name is the documented contract
+
+# --- clitest: hook slot for test mains
+internal/clitest.Hooks.Fixtures      # extra fake subcommands (e.g. _protocol_fixture) that a test main registers for re-exec; set only by test mains of other packages (internal/executor/main_test.go), which the checker does not count as a use
+
+# --- clock: interface satisfaction the checker does not see through the atomic delegate
+internal/clock.RealClock.After       # implements clock.Clock.After; callers reach it through the Clock interface (clockSource delegate), never by name

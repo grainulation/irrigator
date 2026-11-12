@@ -1,0 +1,5 @@
+Usage of resolve:
+  -confirm-stopped
+    	attest surviving provider/validator processes have been stopped
+  -result string
+    	JSON result reconciled from external system

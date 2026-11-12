@@ -1,0 +1,6 @@
+Usage of session list:
+  -json
+    	print structured output
+  -workspace string
+    	workspace whose sessions to read (default ".")
+error: flag: help requested

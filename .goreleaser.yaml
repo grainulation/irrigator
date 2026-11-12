@@ -1,0 +1,36 @@
+# Release build for macOS and Linux CLI archives. See docs/release-pipeline.md.
+#
+# Nothing is published from this file: the GitHub release is disabled and there
+# is no Homebrew cask (casks are quarantined on macOS and would need
+# notarization). Windows is excluded until the runtime is validated on real
+# Windows hosts (AGENTS.md, docs/platform-support.md). Archives are signed
+# separately with tools/release-sign in Irrigator's own update format.
+version: 2
+project_name: irrigator
+
+builds:
+  - id: irrigator
+    main: .
+    binary: irrigator
+    env:
+      - CGO_ENABLED=0
+    flags:
+      - -trimpath
+    goos:
+      - darwin
+      - linux
+    goarch:
+      - amd64
+      - arm64
+
+archives:
+  - id: irrigator
+    formats:
+      - tar.gz
+    name_template: "{{ .ProjectName }}_{{ .Os }}_{{ .Arch }}"
+
+checksum:
+  name_template: checksums.txt
+
+release:
+  disable: true

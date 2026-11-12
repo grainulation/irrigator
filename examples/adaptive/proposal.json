@@ -1,0 +1,15 @@
+{
+  "id": "repair-with-parallel-helpers",
+  "base_revision": 0,
+  "reason": "Preserve the accepted prerequisite and repair unfinished work with independent helpers",
+  "expected_savings_ms": 250,
+  "switch_cost_ms": 10,
+  "extra_cost_usd": 0,
+  "confidence": 0.9,
+  "tasks": [
+    {"id":"retained","prompt":"Produce a prerequisite","requires":["answer"],"mock_delay":0.02,"mock_result":{"answer":"accepted prerequisite"}},
+    {"id":"left","prompt":"Produce independent left artifact","depends_on":["retained"],"requires":["answer"],"mock_delay":0.25,"mock_result":{"answer":"left artifact"}},
+    {"id":"right","prompt":"Produce independent right artifact","depends_on":["retained"],"requires":["answer"],"mock_delay":0.25,"mock_result":{"answer":"right artifact"}},
+    {"id":"implementation","prompt":"Combine independent artifacts with corrected implementation","depends_on":["left","right"],"requires":["answer"],"checks":[{"kind":"contains","field":"answer","value":"ACCEPTED"}],"outputs":{"answer":"result.txt"},"mock_delay":0.02,"mock_result":{"answer":"ACCEPTED corrected implementation"}}
+  ]
+}
