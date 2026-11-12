@@ -31,6 +31,11 @@ jobs:
           wsl-version: 2
           additional-packages: git make gcc libc6-dev tmux ca-certificates curl python3
 
+      - name: Install Go (toolchain pinned in go.mod)
+        run: |
+          curl -fsSL https://go.dev/dl/go1.27.2.linux-amd64.tar.gz | tar -C /usr/local -xz
+          ln -s /usr/local/go/bin/go /usr/local/go/bin/gofmt /usr/local/bin/
+
       # Run as an unprivileged user, like the Linux job: tests cover permission checks.
       - name: Create unprivileged user
         run: useradd --create-home --shell /bin/bash builder
@@ -40,12 +45,7 @@ jobs:
         with:
           distribution: Ubuntu-24.04
           wsl-shell-user: builder
-          wsl-shell-command: bash --login -euo pipefail
-
-      - name: Install Go (toolchain pinned in go.mod)
-        run: |
-          curl -fsSL https://go.dev/dl/go1.27.2.linux-amd64.tar.gz | tar -C "$HOME" -xz
-          echo 'export PATH="$HOME/go/bin:$PATH"' >> ~/.profile
+          wsl-shell-command: bash --noprofile --norc -euo pipefail
 
       # Clone inside the WSL filesystem, where users keep their checkouts. A Windows-side
       # checkout under /mnt would bring NTFS semantics and CRLF conversion.
