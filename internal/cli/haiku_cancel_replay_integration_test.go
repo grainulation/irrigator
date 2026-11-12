@@ -141,7 +141,8 @@ func TestCancelDuringValidationDoesNotAbandonSibling(t *testing.T) {
 	}
 	a := runfixture.Task("a", .01)
 	a.Checks = []model.Check{{Kind: "command", Command: []string{validator}}}
-	root := runfixture.New(t, a, runfixture.Task("b", .8))
+	// b must still be running while a validates; a wide window keeps this true on slow hosts (WSL).
+	root := runfixture.New(t, a, runfixture.Task("b", 3))
 	binary, _ := os.Executable()
 	cmd := exec.Command(binary, "resume", root, "--workers", "2")
 	var stderr bytes.Buffer

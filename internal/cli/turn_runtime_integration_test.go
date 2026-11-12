@@ -16,9 +16,11 @@ import (
 )
 
 func TestTurnRuntimeExecutionIndependentLanes(t *testing.T) {
+	// The continuation must start while beta and the helper still run; wide delays keep
+	// that window open on slow hosts (WSL).
 	next := task("ignored", .01)
-	rootTask := runfixture.TurnRequestTask(t, "alpha", checkpoint.TurnRequest{Continue: &next, Helpers: []model.Task{task("h", .3)}})
-	root := runfixture.TurnFixture(t, model.TurnShape{Roots: 2, MainTurns: 2, HelpersPerTurn: 1}, rootTask, task("beta", .5))
+	rootTask := runfixture.TurnRequestTask(t, "alpha", checkpoint.TurnRequest{Continue: &next, Helpers: []model.Task{task("h", 2)}})
+	root := runfixture.TurnFixture(t, model.TurnShape{Roots: 2, MainTurns: 2, HelpersPerTurn: 1}, rootTask, task("beta", 2))
 	_, done := start(t, root, "--workers", "4")
 	finished(t, done, true)
 	s := read(t, root)
