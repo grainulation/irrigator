@@ -7,7 +7,7 @@ every decision lands in the run directory.
 
 ```sh
 irrigator approvals serve --run RUN --expose cloudflare     # or tailscale
-irrigator approvals notify --run RUN --request TASK_ID --via ntfy
+IRRIGATOR_NTFY_TOKEN=tk_... irrigator approvals notify --run RUN --request TASK_ID --via ntfy --topic YOUR_RESERVED_TOPIC
 irrigator approvals link --run RUN --request TASK_ID --action approve --ttl 5m
 # prints https://<public host>/approve/<token> (or /approve/<token> with no public URL)
 ```
@@ -179,7 +179,12 @@ argv. The notification carries an `Actions` header with an **Approve** and a
 **Open** action that opens the approve confirm page. Plain `http` is accepted
 only for a loopback server. ntfy topics are readable by anyone who knows the
 name, so `notify` warns when the topic is shorter than 20 characters; use a
-long random topic or an authenticated self-hosted server. The tokens in the
+long random topic or an authenticated self-hosted server. On the public
+`https://ntfy.sh`, anyone subscribed to an unreserved topic receives the live
+links, so `notify` refuses it without `IRRIGATOR_NTFY_TOKEN`: reserve the topic
+on an ntfy.sh account (with no public read access) and set the token, or point
+`IRRIGATOR_NTFY_SERVER` at your own server. `IRRIGATOR_NTFY_ALLOW_PUBLIC=1`
+sends anyway, with a warning. The tokens in the
 notification are live capabilities. Once one button is used the other remains
 valid until expiry, so approve and deny are independent; use a short TTL.
 

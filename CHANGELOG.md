@@ -15,6 +15,9 @@ release. Versioned plan and worker protocols are tracked separately from the CLI
 
 ### Changed
 
+- `approvals notify --via ntfy` (and run notifications over ntfy) refuse the public `ntfy.sh` without
+  `IRRIGATOR_NTFY_TOKEN`, since notices carry live approve/deny links. Set the token for a reserved topic, use
+  your own server, or set `IRRIGATOR_NTFY_ALLOW_PUBLIC=1` to send anyway.
 - The minimum Go version is now 1.26.7 (the `go.mod` directive), required by `charm.land/lipgloss/v2` v2.1.0.
 - Source layout: the entry point is now only `main.go` at the module root; the runtime lives in `internal/<domain>`
   packages with unit tests beside them (see [docs/architecture.md](docs/architecture.md)). No change to

@@ -350,3 +350,30 @@ func TestNotifyTransportErrorCategories(t *testing.T) {
 		}
 	}
 }
+
+func TestNotifyNtfyRefusesPublicServerWithoutToken(t *testing.T) {
+	runfixture.NotifyEnv(t, "")
+	t.Setenv("IRRIGATOR_NTFY_ALLOW_PUBLIC", "")
+	topic := "a-long-random-topic-0123456789"
+	for _, server := range []string{"", "https://ntfy.sh", "https://NTFY.sh/"} {
+		var stderr strings.Builder
+		if _, err := newNtfyNotifierAt(server, topic, &stderr); err == nil || !strings.Contains(err.Error(), "IRRIGATOR_NTFY_TOKEN") {
+			t.Fatalf("server %q: want refusal, got %v", server, err)
+		}
+	}
+	// A token, an explicit opt-in or a self-hosted server lifts the refusal.
+	t.Setenv("IRRIGATOR_NTFY_TOKEN", "tk_secret")
+	if _, err := newNtfyNotifierAt("", topic, io.Discard); err != nil {
+		t.Fatalf("with token: %v", err)
+	}
+	t.Setenv("IRRIGATOR_NTFY_TOKEN", "")
+	t.Setenv("IRRIGATOR_NTFY_ALLOW_PUBLIC", "1")
+	var stderr strings.Builder
+	if _, err := newNtfyNotifierAt("", topic, &stderr); err != nil || !strings.Contains(stderr.String(), "warning") {
+		t.Fatalf("opt-in: %v %q", err, stderr.String())
+	}
+	t.Setenv("IRRIGATOR_NTFY_ALLOW_PUBLIC", "")
+	if _, err := newNtfyNotifierAt("https://ntfy.example.test", topic, io.Discard); err != nil {
+		t.Fatalf("self-hosted: %v", err)
+	}
+}

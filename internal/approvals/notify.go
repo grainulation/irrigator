@@ -189,10 +189,25 @@ func newNtfyNotifierAt(serverFlag, topicFlag string, stderr io.Writer) (approval
 	if !ntfyTopicName.MatchString(topic) {
 		return nil, errors.New("ntfy needs a topic of 1-64 letters, digits, - or _ (--topic or IRRIGATOR_NTFY_TOPIC)")
 	}
+	token := os.Getenv("IRRIGATOR_NTFY_TOKEN")
+	if token == "" && isPublicNtfy(server) {
+		// Every approval notice carries live approve/deny links, and anyone who
+		// reads an unreserved ntfy.sh topic can use them.
+		if os.Getenv("IRRIGATOR_NTFY_ALLOW_PUBLIC") != "1" {
+			return nil, errors.New("refusing to send approval links to the public ntfy.sh without IRRIGATOR_NTFY_TOKEN: anyone who reads the topic could approve. Reserve the topic on an ntfy.sh account and set IRRIGATOR_NTFY_TOKEN, point IRRIGATOR_NTFY_SERVER at your own server, or set IRRIGATOR_NTFY_ALLOW_PUBLIC=1 to accept the risk")
+		}
+		fmt.Fprintln(stderr, "warning: sending approval links to the public ntfy.sh without a token (IRRIGATOR_NTFY_ALLOW_PUBLIC=1); anyone who reads the topic can approve.")
+	}
 	if len(topic) < ntfyMinTopicLen {
 		fmt.Fprintf(stderr, "warning: ntfy topic is shorter than %d characters; anyone who guesses it can read the approval links. Use a long random topic or an authenticated server.\n", ntfyMinTopicLen)
 	}
-	return ntfyNotifier{server: server, topic: topic, token: os.Getenv("IRRIGATOR_NTFY_TOKEN")}, nil
+	return ntfyNotifier{server: server, topic: topic, token: token}, nil
+}
+
+// isPublicNtfy reports whether server is the shared public ntfy.sh service.
+func isPublicNtfy(server string) bool {
+	u, err := url.Parse(server)
+	return err == nil && strings.EqualFold(u.Hostname(), "ntfy.sh")
 }
 
 func newWebhookNotifier(urlFlag string) (approvalNotifier, error) {
