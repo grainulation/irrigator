@@ -28,6 +28,8 @@ import sys
 import threading
 
 PROTOCOL = "swarm.worker/v1"
+# A convenience guardrail, not a sandbox: python3, node and npx can still run any
+# command, including denied ones. See docs/coding-cells.md#tool-allowlist.
 ALLOWED = ["Read", "Edit", "Write", "Glob", "Grep", "TodoWrite",
            "Bash(go:*)", "Bash(gofmt:*)", "Bash(git status:*)", "Bash(git diff:*)", "Bash(git show:*)",
            "Bash(git log:*)", "Bash(git add:*)", "Bash(git commit:*)", "Bash(git mv:*)", "Bash(make:*)",
