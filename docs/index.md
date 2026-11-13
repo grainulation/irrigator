@@ -32,7 +32,7 @@ contracts to their source files.
 
 - [Delivery workflow](delivery-workflow.md): acceptance, export, and delivery checks.
 - [Read-only monitoring](monitoring.md): bounded observations, selected evidence and explicit judgments.
-- [Coding cells](coding-cells.md): coding agents in git worktrees, landing as review branches.
+- [Coding cells](coding-cells.md): `irrigator code` runs Claude Code, Codex or Antigravity in git worktrees, landing as review branches.
 - [Recovery](recovery.md): exclusive transfer and checkpoint migration.
 - [Provider executable migration](provider-migration.md): review and approve a replacement without rewriting admitted plans or past attempts.
 - [Backup and restore](backup-restore.md): preserve evidence without granting execution authority.

@@ -7,6 +7,10 @@ release. Versioned plan and worker protocols are tracked separately from the CLI
 
 ### Added
 
+- `irrigator code`: run Claude Code, Codex or Antigravity (`--agent claude|codex|agy`) on a repository, one
+  task per git worktree, with results as review branches; `irrigator code cleanup` removes a run's worktrees.
+  It replaces the Python `examples/coder` scripts (same branch layout, outcomes, verification, retries and
+  `--continue-from`). See [coding cells](docs/coding-cells.md).
 - Antigravity plugin: `agy plugin install https://github.com/grainulation/irrigator` installs the skills and the
   read-only `irrigator mcp` server (root `plugin.json` with the Agent Plugins schema, `mcp_config.json`, `mcp.json`).
   New [agent setup](docs/agent-setup.md) guide for Claude Code, Codex, Antigravity and other MCP agents.

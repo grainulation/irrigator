@@ -309,6 +309,134 @@
       ]
     },
     {
+      "name": "code",
+      "flags": [
+        {
+          "name": "add-dir",
+          "default": "",
+          "usage": "extra directory agents may read, outside the worktree (repeatable)",
+          "boolean": false
+        },
+        {
+          "name": "agent",
+          "default": "claude",
+          "usage": "coding agent: claude, codex or agy",
+          "boolean": false
+        },
+        {
+          "name": "base",
+          "default": "main",
+          "usage": "branch or commit each cell branch starts from",
+          "boolean": false
+        },
+        {
+          "name": "call-budget",
+          "default": "1",
+          "usage": "USD cap per cell (enforced by claude; codex and agy report cost as unknown)",
+          "boolean": false
+        },
+        {
+          "name": "continue-from",
+          "default": "",
+          "usage": "start each cell from irrigator/\u003cRUNID[:8]\u003e/\u003ccell\u003e when that branch exists",
+          "boolean": false
+        },
+        {
+          "name": "delete-branches",
+          "default": "false",
+          "usage": "also delete the run's branches (git branch -D)",
+          "boolean": true
+        },
+        {
+          "name": "depends",
+          "default": "",
+          "usage": "ID=DEP[,DEP]: run ID after DEP and show it DEP's summary",
+          "boolean": false
+        },
+        {
+          "name": "dry-run",
+          "default": "false",
+          "usage": "list what would be removed and change nothing",
+          "boolean": true
+        },
+        {
+          "name": "force",
+          "default": "false",
+          "usage": "remove dirty worktrees too, discarding uncommitted work",
+          "boolean": true
+        },
+        {
+          "name": "model",
+          "default": "",
+          "usage": "agent model (default: sonnet for claude, the agent's own default otherwise)",
+          "boolean": false
+        },
+        {
+          "name": "name",
+          "default": "",
+          "usage": "plan name",
+          "boolean": false
+        },
+        {
+          "name": "out",
+          "default": "",
+          "usage": "also write the plan to this file",
+          "boolean": false
+        },
+        {
+          "name": "plan-only",
+          "default": "false",
+          "usage": "print the plan and do not run it",
+          "boolean": true
+        },
+        {
+          "name": "repo",
+          "default": ".",
+          "usage": "git repository the agents change",
+          "boolean": false
+        },
+        {
+          "name": "run",
+          "default": "",
+          "usage": "new run directory (default: runs/code-\u003ctime\u003e)",
+          "boolean": false
+        },
+        {
+          "name": "task",
+          "default": "",
+          "usage": "one coding cell as ID=PROMPT; repeat for more",
+          "boolean": false
+        },
+        {
+          "name": "timeout",
+          "default": "30m",
+          "usage": "time limit per cell",
+          "boolean": false
+        },
+        {
+          "name": "verify",
+          "default": "",
+          "usage": "ID=COMMAND run in ID's worktree after the agent finishes; non-zero fails the cell",
+          "boolean": false
+        },
+        {
+          "name": "workers",
+          "default": "2",
+          "usage": "cells that run at once",
+          "boolean": false
+        },
+        {
+          "name": "worktrees",
+          "default": "",
+          "usage": "worktree root (default: irrigator-worktrees beside the repo)",
+          "boolean": false
+        }
+      ],
+      "subcommands": [
+        "cleanup"
+      ]
+    },
+    {
       "name": "compose",
       "flags": [
         {

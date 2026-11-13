@@ -13,6 +13,7 @@ import (
 	"github.com/grainulation/irrigator/internal/buildinfo"
 	"github.com/grainulation/irrigator/internal/campaign"
 	"github.com/grainulation/irrigator/internal/checkpoint"
+	"github.com/grainulation/irrigator/internal/coder"
 	"github.com/grainulation/irrigator/internal/commandflags"
 	"github.com/grainulation/irrigator/internal/composition"
 	"github.com/grainulation/irrigator/internal/debug"
@@ -46,6 +47,10 @@ func commands() map[string]commandEntry {
 	}
 	commands["_worker"] = commandEntry{run: func(args []string) (int, error) { return builtinCLI(append([]string{"_worker"}, args...)) }, Hidden: true}
 	commands["_supervise"] = commandEntry{run: func([]string) (int, error) { return launch.Supervise(), nil }, Hidden: true}
+	commands["_code-worker"] = commandEntry{run: coder.WorkerCLI, Hidden: true}
+	commands["code"] = commandEntry{run: func(args []string) (int, error) {
+		return coder.CodeCLI(args, func(applyArgs []string) (int, error) { return builtinCLI(append([]string{"apply"}, applyArgs...)) })
+	}, additionalProbes: [][]string{{"cleanup"}}, subcommands: []string{"cleanup"}}
 	commands["help"] = commandEntry{run: helpCLI}
 	commands["schema"] = commandEntry{run: checkpoint.SchemaCLI}
 	commands["contracts"] = commandEntry{run: runtimeContractsCLI, probe: []string{"plan"}, additionalProbes: [][]string{{"receipt"}, {"git"}}, subcommands: []string{"plan", "receipt", "git"}}
