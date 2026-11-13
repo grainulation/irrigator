@@ -42,6 +42,8 @@ const Usage = `Irrigator — durable local agent graphs
   context create --workspace DIR --out FILE [--registry FILE]  Create validated launch context
   turn-shape XxYxZ [--json]              Preview turn/helper capacity; does not launch
   demo [--run DIR]                        Watch a credential-free animated swarm
+  code --task ID=PROMPT [--agent claude|codex|agy]  Run coding agents in git worktrees; results land as review branches
+  code cleanup --repo DIR --run RUNID     Remove a code run's worktrees (and, with --delete-branches, branches)
   schema                                Print the editor JSON Schema for plans
   plan PLAN [--json]                      Validate and preview dependencies
   prepare PLAN --run DIR                  Save a run without starting workers

@@ -22,9 +22,10 @@ import (
 
 func completionFailedOwnerWithVerifiedHelper(t *testing.T) (string, string) {
 	t.Helper()
-	main := runfixture.Task("a", 1.0)
+	main := runfixture.Task("a", 0)
 	main.Equals = map[string]string{"answer": "unreachable-value"}
 	root := runfixture.TurnFixture(t, model.TurnShape{Roots: 1, MainTurns: 2, HelpersPerTurn: 1}, main)
+	release := runfixture.HoldMock(t, "a") // the owner runs until its helper has verified
 	_, done := clitest.Start(t, root, "--workers", "2")
 	waitFor(t, root, func(s *model.State) bool { return s.Tasks["a"].Status == "running" })
 	owner := runfixture.Read(t, root).Tasks["a"]
@@ -33,6 +34,7 @@ func completionFailedOwnerWithVerifiedHelper(t *testing.T) (string, string) {
 	}
 	id := "a__turn1__helper_h"
 	waitFor(t, root, func(s *model.State) bool { return s.Tasks[id] != nil && s.Tasks[id].Status == "verified" })
+	release("a")
 	clitest.Finished(t, done, false)
 	s := runfixture.Read(t, root)
 	if s.Tasks["a"].Status != "failed" || s.Tasks[id].Status != "verified" {
@@ -84,15 +86,16 @@ func TestManagedCompletionOwnerRetryPreservesAsyncChild(t *testing.T) {
 }
 
 func TestManagedCompletionCancelOwnerFencesRunningAsyncChild(t *testing.T) {
-	main := runfixture.Task("a", 1.5)
+	main := runfixture.Task("a", 0)
 	root := runfixture.TurnFixture(t, model.TurnShape{Roots: 1, MainTurns: 2, HelpersPerTurn: 1}, main)
+	child := "a__turn1__helper_h"
+	release := runfixture.HoldMock(t, "a", child) // both stay live until cancelled
 	_, done := clitest.Start(t, root, "--workers", "2")
 	waitFor(t, root, func(s *model.State) bool { return s.Tasks["a"].Status == "running" })
 	owner := runfixture.Read(t, root).Tasks["a"]
-	if err := graph.AdmitTurnHelpers(root, "a", owner.OperationID, owner.Attempt, graph.TurnHelperRequest{ID: "live", Helpers: []model.Task{runfixture.Task("h", 1.5)}}); err != nil {
+	if err := graph.AdmitTurnHelpers(root, "a", owner.OperationID, owner.Attempt, graph.TurnHelperRequest{ID: "live", Helpers: []model.Task{runfixture.Task("h", 0)}}); err != nil {
 		t.Fatal(err)
 	}
-	child := "a__turn1__helper_h"
 	waitFor(t, root, func(s *model.State) bool { return s.Tasks[child] != nil && s.Tasks[child].Status == "running" })
 	if err := runops.CancelNode(root, "a"); err != nil {
 		t.Fatal(err)
@@ -104,6 +107,7 @@ func TestManagedCompletionCancelOwnerFencesRunningAsyncChild(t *testing.T) {
 	if err := retryNode(root, "a", false, false); err == nil {
 		t.Fatal("owner retry admitted while controller/child still live")
 	}
+	release("a", child)
 	clitest.Finished(t, done, false)
 	s := runfixture.Read(t, root)
 	if s.Tasks["a"].Status == "verified" || s.Tasks[child].Status == "verified" {

@@ -17,7 +17,9 @@ Irrigator is for developers who want coding agents to work in parallel without
 losing track of results, retries, or spending. Turn a task into an explicit graph,
 run it locally, and inspect or resume the work from your terminal.
 
-Use the **CLI** directly or through the **Claude Code, Codex and Antigravity plugins**. The
+Use the **CLI** directly or through the **Claude Code, Codex and Antigravity plugins**.
+`irrigator code` puts Claude Code, Codex or Antigravity to work on your repository,
+one task per git worktree, with results landing as branches to review. The
 interface is the terminal: `status --watch`, `graph`, `review tui`, `session`,
 and a read-only [MCP server](docs/mcp.md) for agent hosts.
 

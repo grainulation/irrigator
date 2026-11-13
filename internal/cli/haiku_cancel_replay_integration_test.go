@@ -141,8 +141,8 @@ func TestCancelDuringValidationDoesNotAbandonSibling(t *testing.T) {
 	}
 	a := runfixture.Task("a", .01)
 	a.Checks = []model.Check{{Kind: "command", Command: []string{validator}}}
-	// b must still be running while a validates; a wide window keeps this true on slow hosts (WSL).
-	root := runfixture.New(t, a, runfixture.Task("b", 3))
+	root := runfixture.New(t, a, runfixture.Task("b", 0))
+	release := runfixture.HoldMock(t, "b") // b is still running while a validates and is cancelled
 	binary, _ := os.Executable()
 	cmd := exec.Command(binary, "resume", root, "--workers", "2")
 	var stderr bytes.Buffer
@@ -160,6 +160,7 @@ func TestCancelDuringValidationDoesNotAbandonSibling(t *testing.T) {
 	if err := runops.CancelNode(root, "a"); err != nil {
 		t.Fatal(err)
 	}
+	release("b")
 	clitest.Finished(t, done, false) // Deliberately cancelled graph is blocked, not complete.
 	s := runfixture.Read(t, root)
 	if s.Tasks["a"].Status != "cancelled" || s.Tasks["b"].Status != "verified" || strings.Contains(stderr.String(), "worker a exited") {

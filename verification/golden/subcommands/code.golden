@@ -1,0 +1,36 @@
+Usage of code:
+  -add-dir value
+    	extra directory agents may read, outside the worktree (repeatable)
+  -agent string
+    	coding agent: claude, codex or agy (default "claude")
+  -base string
+    	branch or commit each cell branch starts from (default "main")
+  -call-budget float
+    	USD cap per cell (enforced by claude; codex and agy report cost as unknown) (default 1)
+  -continue-from string
+    	start each cell from irrigator/<RUNID[:8]>/<cell> when that branch exists
+  -depends value
+    	ID=DEP[,DEP]: run ID after DEP and show it DEP's summary
+  -model string
+    	agent model (default: sonnet for claude, the agent's own default otherwise)
+  -name string
+    	plan name
+  -out string
+    	also write the plan to this file
+  -plan-only
+    	print the plan and do not run it
+  -repo string
+    	git repository the agents change (default ".")
+  -run string
+    	new run directory (default: runs/code-<time>)
+  -task value
+    	one coding cell as ID=PROMPT; repeat for more
+  -timeout string
+    	time limit per cell (default "30m")
+  -verify value
+    	ID=COMMAND run in ID's worktree after the agent finishes; non-zero fails the cell
+  -workers int
+    	cells that run at once (default 2)
+  -worktrees string
+    	worktree root (default: irrigator-worktrees beside the repo)
+error: flag: help requested

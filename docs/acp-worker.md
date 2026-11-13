@@ -13,7 +13,7 @@ cd examples/acp && npm ci --no-audit --no-fund
 npm test
 ```
 
-Use it like the [coder worker](../examples/coder/worker.py): a command worker that takes the
+Use it like the built-in [coding worker](coding-cells.md) behind `irrigator code`: a command worker that takes the
 request on stdin and prints one `swarm.worker/v1` response.
 
 ```sh
@@ -29,7 +29,7 @@ arguments can be passed with repeatable `--agent-arg <arg>`.
 
 ## What it does
 
-- **Worktree per cell.** Same layout as `examples/coder/worker.py`: branch
+- **Worktree per cell.** Same layout as [`irrigator code`](coding-cells.md): branch
   `irrigator/<run8>/<cell>`, worktree `<worktrees>/<run8>/<cell>-a<attempt>`
   (default root `irrigator-worktrees` beside the repo). A retry continues the
   cell's branch. Leftover changes are committed, and the result carries `branch`,

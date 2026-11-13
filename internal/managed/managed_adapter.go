@@ -235,6 +235,9 @@ func managedWorkCallWithHistory(ctx context.Context, cell, prefix string, req mo
 			return fail(model.OutcomeNotStarted, ctx.Err())
 		case <-clock.ActiveClock.After(delay):
 		}
+		if err := clock.WaitMockGate(ctx, req.Task.ID); err != nil {
+			return fail(model.OutcomeNotStarted, err)
+		}
 		response.Output = req.Task.MockResult
 		if response.Output == nil {
 			response.Output = map[string]string{}

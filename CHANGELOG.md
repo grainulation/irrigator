@@ -7,6 +7,10 @@ release. Versioned plan and worker protocols are tracked separately from the CLI
 
 ### Added
 
+- `irrigator code`: run Claude Code, Codex or Antigravity (`--agent claude|codex|agy`) on a repository, one
+  task per git worktree, with results as review branches; `irrigator code cleanup` removes a run's worktrees.
+  It replaces the Python `examples/coder` scripts (same branch layout, outcomes, verification, retries and
+  `--continue-from`). See [coding cells](docs/coding-cells.md).
 - Antigravity plugin: `agy plugin install https://github.com/grainulation/irrigator` installs the skills and the
   read-only `irrigator mcp` server (root `plugin.json` with the Agent Plugins schema, `mcp_config.json`, `mcp.json`).
   New [agent setup](docs/agent-setup.md) guide for Claude Code, Codex, Antigravity and other MCP agents.
@@ -18,6 +22,10 @@ release. Versioned plan and worker protocols are tracked separately from the CLI
 
 ### Changed
 
+- Integration tests no longer depend on sub-second mock delays: tests that need a mock task to keep running hold
+  it open explicitly (`IRRIGATOR_TEST_MOCK_GATE`, test-only, mock backends only) and release it. The Windows
+  (WSL) workflow no longer retries failed integration tests and runs them under the race detector like the
+  native jobs.
 - `approvals notify --via ntfy` (and run notifications over ntfy) refuse the public `ntfy.sh` without
   `IRRIGATOR_NTFY_TOKEN`, since notices carry live approve/deny links. Set the token for a reserved topic, use
   your own server, or set `IRRIGATOR_NTFY_ALLOW_PUBLIC=1` to send anyway.

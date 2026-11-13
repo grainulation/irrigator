@@ -78,7 +78,7 @@ def main():
         base = Path(tmp).resolve()
         stage = base / "plugin"
         stage.mkdir()
-        for name in ("plugin.json", ".codex-plugin", ".claude-plugin", "skills"):
+        for name in ("plugin.json", "mcp.json", "mcp_config.json", ".codex-plugin", ".claude-plugin", "skills"):
             item = source / name
             if item.is_dir():
                 shutil.copytree(item, stage / name)
