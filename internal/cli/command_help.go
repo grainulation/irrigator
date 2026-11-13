@@ -27,6 +27,7 @@ import (
 	"github.com/grainulation/irrigator/internal/selfupdate"
 	"github.com/grainulation/irrigator/internal/session"
 	"github.com/grainulation/irrigator/internal/telemetry"
+	"github.com/grainulation/irrigator/internal/triage"
 )
 
 type commandEntry struct {
@@ -48,6 +49,7 @@ func commands() map[string]commandEntry {
 	commands["_worker"] = commandEntry{run: func(args []string) (int, error) { return builtinCLI(append([]string{"_worker"}, args...)) }, Hidden: true}
 	commands["_supervise"] = commandEntry{run: func([]string) (int, error) { return launch.Supervise(), nil }, Hidden: true}
 	commands["_code-worker"] = commandEntry{run: coder.WorkerCLI, Hidden: true}
+	commands["triage"] = commandEntry{run: func(args []string) (int, error) { return triage.CLI(args, builtinCLI) }}
 	commands["code"] = commandEntry{run: func(args []string) (int, error) {
 		return coder.CodeCLI(args, func(applyArgs []string) (int, error) { return builtinCLI(append([]string{"apply"}, applyArgs...)) })
 	}, additionalProbes: [][]string{{"cleanup"}}, subcommands: []string{"cleanup"}}

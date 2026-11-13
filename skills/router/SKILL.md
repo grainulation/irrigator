@@ -40,7 +40,7 @@ still applies within its stated scope; configuration alone grants none.
 | "how many agents", "what would this cost", "how many workers", "is the budget enough" | `budget` | `size`, `size --shape`, `decisions` |
 | "run it", "launch", "apply the plan", "deliver these files" | `run` | `prepare`, `apply`, `deliver` |
 | "have agents fix/implement this in my repo", "run Claude/Codex/agy on these tasks", "one branch per task" | `run` (coding tasks) | `code --plan-only`, `code`, `review list`, `code cleanup` |
-| "it crashed", "continue", "retry the failed node", "it says uncertain" | `resume` | `resume`, `inspect`, `retry`, `resolve`, `cancel` |
+| "it crashed", "continue", "retry the failed node", "it says uncertain", "it's stuck" | `resume` | `triage`, `resume`, `inspect`, `retry`, `resolve`, `cancel` |
 | "where are we", "show progress", "watch it", "open the graph" | `observe` | `status --watch`, `logs`, `graph` |
 | "why is it stuck", "diagnose this run", "what failed" | `debug` (read-only) | `debug`, `status`, `inspect`, `logs` |
 | "pause it", "stop spending" | `resume` (control) | `pause`, `down` |

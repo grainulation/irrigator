@@ -7,6 +7,10 @@ release. Versioned plan and worker protocols are tracked separately from the CLI
 
 ### Added
 
+- `irrigator triage RUN`: read-only explanation of uncertain and failed cells (confirmed exit, live workers, cost,
+  last progress, and for `irrigator code` cells the branch, commits and uncommitted worktree changes) with one
+  recommended command each. `--fix` walks through them at a terminal and runs the chosen `resolve` (including
+  accepting a code cell's branch), `retry` or `cancel`. See [recovery](docs/recovery.md#triage-stuck-cells).
 - `irrigator code`: run Claude Code, Codex or Antigravity (`--agent claude|codex|agy`) on a repository, one
   task per git worktree, with results as review branches; `irrigator code cleanup` removes a run's worktrees.
   It replaces the Python `examples/coder` scripts (same branch layout, outcomes, verification, retries and

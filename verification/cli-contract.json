@@ -1447,6 +1447,23 @@
       ]
     },
     {
+      "name": "triage",
+      "flags": [
+        {
+          "name": "fix",
+          "default": "false",
+          "usage": "walk through each stuck cell and run the step you choose (needs a terminal)",
+          "boolean": true
+        },
+        {
+          "name": "json",
+          "default": "false",
+          "usage": "print the triage as JSON",
+          "boolean": true
+        }
+      ]
+    },
+    {
       "name": "turn-shape",
       "flags": [
         {

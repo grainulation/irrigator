@@ -62,6 +62,7 @@ const Usage = `Irrigator — durable local agent graphs
   logs DIR [--follow] [--since N]          Read sequenced events
   otel export RUN [--follow] [--since N] [--endpoint URL]  Send run events to an OpenTelemetry collector
   debug DIR [--json] [--node ID]          Read-only run diagnosis; no model call
+  triage DIR [--json] [--fix]             Why cells are stuck, the evidence, and the next step; --fix walks through them
   debug fixture export DIR --out FILE     (experimental) Write a redacted replay fixture of a run
   review [list|change|diff|approve|...]    Review local changes, plans and decisions before pushing
   session [list|show|enable]              Big-picture feed of agent sessions (prompts, tool activity, replies)
