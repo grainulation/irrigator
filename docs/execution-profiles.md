@@ -217,6 +217,34 @@ request. Irrigator does not automatically replay ambiguous paid operations. This
 not a project-wide or cross-application billing ledger.
 
 
+## Antigravity with an existing CLI login (`swarm/v4`)
+
+`agy_cli` uses the installed `agy` executable and its existing sign-in.
+`irrigator init --managed --profile agy:MODEL --out plan.json` pins the real
+executable and its SHA256 with the credential reference
+`{"kind":"host_session","name":"agy"}`; no key is copied. Models are agy model
+ids (`agy models`), which carry the effort, for example `gemini-3.8-flash-low`;
+the profile effort must be `low`. Like Codex, agy plans need `swarm/v4` or later
+with `cost_policy` `track` or `retain_unknown`, because agy reports token counts
+and never a USD cost or cap.
+
+Each operation runs one `agy -p` print turn in a fresh private temporary
+directory whose `AGENTS.md` holds the managed system prompt (agy has no
+system-prompt flag), with `--json-schema` for the output and session settings
+`{"toolPermission":"strict","allowNonWorkspaceAccess":false}`: in print mode a
+strict session auto-denies every tool call. The WorkRequest is the prompt
+argument, limited to 128 KiB. agy still loads its own global configuration
+(for example user rules or installed plugins); strict permissions keep their
+tools from running.
+
+Acceptance requires exactly one result event with status `SUCCESS`, no
+`finished_reason`, no `denied_actions`, a `structured_output` that matches the
+task's outputs, and nonnegative token usage. Any tool or subagent step,
+malformed or duplicate events, a print timeout or interruption, and missing
+usage remain uncertain; a run agy rejected before starting a session (for
+example an unknown model) is not started. The time limit is the only spend
+bound: agy has no token or USD cap.
+
 ## Mixed Claude and Codex example
 
 This creates a two-root, one-turn plan with no helpers: Claude handles one task

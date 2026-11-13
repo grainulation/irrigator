@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 )
@@ -116,12 +117,13 @@ func agentArgs(l launch) (string, []string, error) {
 
 // result is what the worker learned from the agent's output stream.
 type result struct {
-	done    bool   // a terminal result event arrived
-	isError bool   // the agent reported failure
-	text    string // final summary, or the error text
-	costUSD *float64
-	usage   map[string]any
-	model   string
+	done       bool   // a terminal result event arrived
+	notStarted bool   // the agent rejected the run before starting a session
+	isError    bool   // the agent reported failure
+	text       string // final summary, or the error text
+	costUSD    *float64
+	usage      map[string]any
+	model      string
 }
 
 // parseLine reads one stdout line from the agent, updating r, and returns a
@@ -222,6 +224,22 @@ func parseAgy(ev map[string]any, r *result, worktree string) string {
 	switch str(ev["event"]) {
 	case "step_update":
 		su, _ := ev["step_update"].(map[string]any)
+		switch str(su["step_type"]) {
+		case "subagent": // its own steps run in a separate session; session deny rules still apply there
+			if str(su["state"]) != "DONE" {
+				return ""
+			}
+			info, _ := su["subagent_info"].(map[string]any)
+			subs, _ := info["subagents"].([]any)
+			var roles []string
+			for _, s := range subs {
+				m, _ := s.(map[string]any)
+				roles = append(roles, firstString(m, "role", "type_name"))
+			}
+			return "▸ subagent started: " + strings.Join(roles, ", ")
+		case "system_message":
+			return "· message from a subagent or the system"
+		}
 		if str(su["step_type"]) != "tool" || (str(su["state"]) != "DONE" && str(su["state"]) != "ERROR") {
 			return ""
 		}
@@ -234,13 +252,24 @@ func parseAgy(ev map[string]any, r *result, worktree string) string {
 		return line
 	case "result":
 		res, _ := ev["result"].(map[string]any)
+		r.usage, _ = res["usage"].(map[string]any)
+		turns, _ := res["num_turns"].(float64)
+		switch {
+		case str(res["status"]) != "SUCCESS" && str(res["conversation_id"]) == "" && turns == 0:
+			// Rejected before a session existed (for example an unknown --model): nothing ran.
+			r.notStarted, r.text = true, str(res["error"])
+			return ""
+		case str(res["finished_reason"]) == "print_timeout" || str(res["finished_reason"]) == "interrupted":
+			// The turn was cut off mid-work: partial effects are possible, so no clean result.
+			r.text = str(res["error"])
+			return ""
+		}
 		r.done = true
 		r.isError = str(res["status"]) != "SUCCESS"
 		r.text = str(res["response"])
 		if r.isError && strings.TrimSpace(r.text) == "" {
-			r.text = str(res["status"])
+			r.text = firstString(res, "error", "status")
 		}
-		r.usage, _ = res["usage"].(map[string]any)
 	}
 	return ""
 }
@@ -303,4 +332,32 @@ func sortedKeys(m map[string]string) []string {
 	}
 	sort.Strings(keys)
 	return keys
+}
+
+// CodeFlags returns the help command for agent and the flags `irrigator code`
+// passes to it, so `irrigator agents` can warn when an agent CLI stops listing
+// one. Keep it in step with agentArgs.
+func CodeFlags(agent string) (help []string, flags []string, ok bool) {
+	switch agent {
+	case "claude":
+		return []string{"--help"}, []string{"--model", "--output-format", "--verbose", "--max-budget-usd", "--permission-mode",
+			"--setting-sources", "--add-dir", "--allowedTools", "--disallowedTools"}, true
+	case "codex":
+		return []string{"exec", "--help"}, []string{"--json", "--color", "--cd", "--sandbox", "--model", "--add-dir", "--config"}, true
+	case "agy":
+		return []string{"--help"}, []string{"--print", "--output-format", "--mode", "--settings", "--print-timeout", "--model", "--add-dir"}, true
+	}
+	return nil, nil, false
+}
+
+// MissingFlags returns the flags absent from help text (matched as whole flags).
+func MissingFlags(helpText string, flags []string) []string {
+	var missing []string
+	for _, f := range flags {
+		re := regexp.MustCompile(regexp.QuoteMeta(f) + `([^A-Za-z0-9-]|$)`)
+		if !re.MatchString(helpText) {
+			missing = append(missing, f)
+		}
+	}
+	return missing
 }

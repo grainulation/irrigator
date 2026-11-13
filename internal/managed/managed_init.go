@@ -23,8 +23,8 @@ import (
 func managedInitialPlan(selector string) (model.Plan, error) {
 	var empty model.Plan
 	provider, modelName, ok := strings.Cut(selector, ":")
-	if !ok || (provider != "claude" && provider != "codex") || !launch.ExecutionModel.MatchString(modelName) {
-		return empty, errors.New("--profile must be claude:MODEL or codex:MODEL")
+	if !ok || (provider != "claude" && provider != "codex" && provider != "agy") || !launch.ExecutionModel.MatchString(modelName) {
+		return empty, errors.New("--profile must be claude:MODEL, codex:MODEL or agy:MODEL")
 	}
 	found, err := exec.LookPath(provider)
 	if err != nil {

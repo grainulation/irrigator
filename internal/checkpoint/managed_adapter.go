@@ -38,5 +38,11 @@ func ValidateManagedBinding(b model.ExecutionBinding) error {
 			return errors.New("managed Codex requires explicit host_session codex")
 		}
 	}
+	if b.Adapter.Kind == "agy_cli" {
+		ref := b.Instance.CredentialRefs[0]
+		if ref.Kind != "host_session" || ref.Name != "agy" {
+			return errors.New("managed Antigravity requires explicit host_session agy")
+		}
+	}
 	return nil
 }

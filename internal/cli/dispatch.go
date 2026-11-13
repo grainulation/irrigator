@@ -121,7 +121,7 @@ func builtinCLI(args []string) (int, error) {
 	switch command {
 	case "init":
 		fs.BoolVar(&managedInit, "managed", false, "create a managed plan with an explicit local CLI profile")
-		fs.StringVar(&initProfile, "profile", "", "managed profile selector: claude:MODEL or codex:MODEL")
+		fs.StringVar(&initProfile, "profile", "", "managed profile selector: claude:MODEL, codex:MODEL or agy:MODEL")
 		fs.StringVar(&out, "out", "irrigator.json", "new plan file")
 		expected = 0
 	case "deliver":

@@ -770,7 +770,7 @@
         {
           "name": "profile",
           "default": "",
-          "usage": "managed profile selector: claude:MODEL or codex:MODEL",
+          "usage": "managed profile selector: claude:MODEL, codex:MODEL or agy:MODEL",
           "boolean": false
         }
       ]

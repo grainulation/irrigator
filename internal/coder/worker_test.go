@@ -53,10 +53,20 @@ else
   echo '{"type":"turn.completed","usage":{"input_tokens":120,"cached_input_tokens":5,"output_tokens":40,"reasoning_output_tokens":3}}'
 fi
 `,
-	"agy": fakeHead + `echo '{"event":"init","init":{"cwd":"x"}}'
-echo '{"event":"step_update","step_update":{"step_type":"tool","state":"DONE","tool_name":"write_file","tool_info":{"parameters":{"Path":"hello.txt"}}}}'` + fakeWork + `
+	"agy": fakeHead + `if [ "$FAKE_MODE" = agybadmodel ]; then
+  echo '{"event":"result","result":{"conversation_id":"","status":"ERROR","response":"","error":"invalid model selection (--model \"x\"): model x is not recognized","num_turns":0,"usage":{"input_tokens":0,"output_tokens":0},"finished_reason":"error"}}'
+  exit 1
+fi
+echo '{"event":"init","conversation_id":"c1","init":{"cwd":"x"}}'
+echo '{"event":"step_update","step_update":{"step_type":"tool","state":"DONE","tool_name":"write_file","tool_info":{"parameters":{"Path":"hello.txt"}}}}'
+echo '{"event":"step_update","step_update":{"step_type":"subagent","state":"DONE","tool_name":"invoke_subagent","subagent_info":{"subagents":[{"type_name":"research","role":"Directory Explorer","conversation_id":"c2"}]}}}'
+if [ "$FAKE_MODE" = agytimeout ]; then
+  echo hi > hello.txt && git add hello.txt && git commit -q -m "partial"
+  echo '{"event":"result","result":{"conversation_id":"c1","status":"ERROR","response":"","error":"print timeout after 1s with the turn still in progress; the response is partial","num_turns":1,"usage":{"input_tokens":5,"output_tokens":1},"finished_reason":"print_timeout"}}'
+  exit 3
+fi` + fakeWork + `
 STATUS=SUCCESS; [ "$ERR" = true ] && STATUS=ERROR
-echo "{\"event\":\"result\",\"result\":{\"status\":\"$STATUS\",\"response\":\"$TEXT\",\"usage\":{\"input_tokens\":120,\"output_tokens\":40,\"thinking_tokens\":3,\"total_tokens\":163}}}"
+echo "{\"event\":\"result\",\"result\":{\"conversation_id\":\"c1\",\"num_turns\":1,\"status\":\"$STATUS\",\"response\":\"$TEXT\",\"usage\":{\"input_tokens\":120,\"output_tokens\":40,\"thinking_tokens\":3,\"total_tokens\":163}}}"
 `,
 }
 
@@ -275,6 +285,27 @@ func TestOutcomesForEveryAgent(t *testing.T) {
 	}
 }
 
+func TestAgyOwnTimeoutIsUncertainAndBadModelIsNotStarted(t *testing.T) {
+	f := newFixture(t)
+	if r := f.run(call{agent: "agy", mode: "agytimeout", cell: "slow"}); r["outcome"] != "uncertain" {
+		t.Fatalf("agy print timeout must be uncertain (partial work is possible): %v", r)
+	}
+	r := f.run(call{agent: "agy", mode: "agybadmodel", cell: "bad"})
+	if msg, _ := r["error"].(string); r["outcome"] != "not_started" || !strings.Contains(msg, "invalid model selection") {
+		t.Fatalf("agy rejecting the model must be not_started: %v", r)
+	}
+	var out, errOut bytes.Buffer
+	raw, _ := json.Marshal(model.WorkRequest{Protocol: protocol, Kind: "task", RequestID: "req-1", RunID: "0123456789abcdef", Attempt: 1, TimeoutMS: 1800000,
+		Task: model.Task{ID: "sub", Prompt: "p"}})
+	t.Setenv("FAKE_MODE", "success")
+	if _, err := runWorker([]string{"--agent", "agy", "--repo", f.repo, "--worktrees", filepath.Join(f.root, "wt"), "--no-tty"}, bytes.NewReader(raw), &out, &errOut); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(errOut.String(), "▸ subagent started: Directory Explorer") {
+		t.Fatalf("no subagent progress line:\n%s", errOut.String())
+	}
+}
+
 func TestTimeoutIsUncertainAndStopsTheAgent(t *testing.T) {
 	f := newFixture(t)
 	start := time.Now()
@@ -439,6 +470,34 @@ func TestBuildPlan(t *testing.T) {
 	} {
 		if _, err := buildPlan(bad); err == nil {
 			t.Fatalf("accepted %+v", bad)
+		}
+	}
+}
+
+func TestCodeFlagsMatchWhatTheWorkerPasses(t *testing.T) {
+	if got := MissingFlags("  --model-name X\n  --json\n  --add-dir <DIR>", []string{"--model", "--json", "--add-dir"}); len(got) != 1 || got[0] != "--model" {
+		t.Fatalf("whole-flag match: %v", got)
+	}
+	for _, agent := range agents {
+		_, flags, ok := CodeFlags(agent)
+		_, args, _ := agentArgs(launch{agent: agent, model: "m", prompt: "p", worktree: "/w", gitCommonDir: "/g", addDirs: []string{"/d"}, budgetUSD: 1, seconds: 60})
+		if !ok {
+			t.Fatalf("%s has no flag list", agent)
+		}
+		used := map[string]bool{}
+		for _, a := range args {
+			if strings.HasPrefix(a, "--") {
+				used[a] = true
+			}
+		}
+		listed := map[string]bool{}
+		for _, f := range flags {
+			listed[f] = true
+		}
+		for f := range used {
+			if !listed[f] && !(agent == "agy" && f == "--print") {
+				t.Errorf("%s: worker passes %s but CodeFlags does not check it", agent, f)
+			}
 		}
 	}
 }

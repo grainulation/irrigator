@@ -7,6 +7,10 @@ release. Versioned plan and worker protocols are tracked separately from the CLI
 
 ### Added
 
+- Antigravity as a managed execution profile: `init --managed --profile agy:MODEL` and adapter kind `agy_cli`
+  (structured output via `--json-schema`, tools denied by a strict session, token-only accounting; `swarm/v4`+).
+- `irrigator agents` (and `doctor`) warn when an installed Claude, Codex or agy CLI stops listing a flag
+  `irrigator code` passes.
 - `irrigator triage RUN`: read-only explanation of uncertain and failed cells (confirmed exit, live workers, cost,
   last progress, and for `irrigator code` cells the branch, commits and uncommitted worktree changes) with one
   recommended command each. `--fix` walks through them at a terminal and runs the chosen `resolve` (including
@@ -26,6 +30,9 @@ release. Versioned plan and worker protocols are tracked separately from the CLI
 
 ### Changed
 
+- `irrigator code` with agy: agy's own time limit or an interruption is `uncertain` (partial work is possible),
+  and a run agy rejects before starting (for example an unknown model) is `not_started`; subagent starts appear
+  in the cell's progress.
 - Integration tests no longer depend on sub-second mock delays: tests that need a mock task to keep running hold
   it open explicitly (`IRRIGATOR_TEST_MOCK_GATE`, test-only, mock backends only) and release it. The Windows
   (WSL) workflow no longer retries failed integration tests and runs them under the race detector like the
