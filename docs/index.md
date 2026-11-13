@@ -10,6 +10,7 @@ contracts to their source files.
 - [Platform support](platform-support.md): runtime and terminal boundaries.
 - [Linux terminal dashboard](linux.md): build, run, and inspect a local workflow.
 - [Windows (WSL 2)](windows-wsl.md): run the Linux build on Windows.
+- [Agent setup](agent-setup.md): install for Claude Code, Codex, Antigravity or any MCP agent.
 - [Host integration](host-integration.md): use Markdown skills with a real CLI.
 - [MCP server](mcp.md): inspect and, when allowed, drive runs from any MCP host.
 - [Plugin packaging](plugin-packaging.md): source-only plugin layout and checks.

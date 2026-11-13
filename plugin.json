@@ -1,7 +1,9 @@
 {
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "irrigator",
   "version": "1.0.0-rc.4",
   "description": "Durable local agent graphs. Plan, run, observe, resume and budget Irrigator swarms through the local irrigator CLI.",
+  "logo": "docs/mascot.png",
   "extensions": {
     "com.openai": {
       "requires_local_executor": true,

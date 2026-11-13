@@ -561,6 +561,19 @@ def t_manifests(c):
                 if ".." in v.split("/") and v.startswith("."):
                     r.check("manifest.paths", False, "%s: %s escapes plugin root" % (label, p))
     r.check("claims.no-mcp-file", not c.exists(".mcp.json"), "no .mcp.json (the MCP server is registered inline in the Claude manifest)")
+    # Antigravity / Agent Plugins MCP files: the same read-only server, optionally typed stdio.
+    for rel in ("mcp.json", "mcp_config.json"):
+        if not c.exists(rel):
+            continue
+        try:
+            servers = json.loads((c.root / rel).read_text(encoding="utf-8")).get("mcpServers")
+        except (OSError, ValueError, AttributeError):
+            servers = None
+        entry = dict(servers.get("irrigator") or {}) if isinstance(servers, dict) else {}
+        typed_ok = entry.pop("type", "stdio") == "stdio"
+        r.check("claims.agent-plugin-mcp-entry",
+                mcp_backed(c.root) and isinstance(servers, dict) and set(servers) == {"irrigator"} and typed_ok and mcp_server_entry_ok(entry),
+                "%s: mcpServers may only register the read-only `irrigator mcp` server (stdio, no --allow-control)" % rel)
     r.check("claims.no-agents-dir", not (c.root / "agents").exists(), "no agents/ dir inherited from Grainulator", "WARN")
 
 
