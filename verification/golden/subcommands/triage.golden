@@ -1,0 +1,6 @@
+Usage of triage:
+  -fix
+    	walk through each stuck cell and run the step you choose (needs a terminal)
+  -json
+    	print the triage as JSON
+error: flag: help requested

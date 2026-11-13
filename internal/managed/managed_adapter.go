@@ -255,6 +255,9 @@ func managedWorkCallWithHistory(ctx context.Context, cell, prefix string, req mo
 	if b.Adapter.Kind == "ollama_http" {
 		return managedOllamaWork(ctx, cell, prefix, req, b, input)
 	}
+	if b.Adapter.Kind == "agy_cli" {
+		return managedAgyWork(ctx, cell, prefix, req, b, input)
+	}
 	if b.Adapter.Kind == "codex_cli" {
 		return managedCodexWork(ctx, cell, prefix, req, b, input)
 	}

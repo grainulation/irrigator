@@ -18,8 +18,11 @@ func ReportContract() model.ArtifactContract {
 	}}
 }
 
+// FakeProviderRequest's timeout is a hang guard: the fake provider re-executes the
+// test binary, which can take seconds on a loaded host. Tests that exercise a
+// timeout set a short TimeoutMS themselves.
 func FakeProviderRequest(id string) model.WorkRequest {
-	return model.WorkRequest{RunID: "shared-run", Protocol: model.ProtocolVersion, Kind: "task", RequestID: id, OperationID: id, Task: model.Task{ID: id, Prompt: "produce answer", Requires: []string{"answer"}}, MaxCostUSD: .1, TimeoutMS: 2000}
+	return model.WorkRequest{RunID: "shared-run", Protocol: model.ProtocolVersion, Kind: "task", RequestID: id, OperationID: id, Task: model.Task{ID: id, Prompt: "produce answer", Requires: []string{"answer"}}, MaxCostUSD: .1, TimeoutMS: 30000}
 }
 
 func ConversationRequest(id, agent string, index int, previous string) model.WorkRequest {

@@ -5,7 +5,7 @@ description: Recover an interrupted or failed Irrigator run without blind replay
 
 # resume -- Recover an Irrigator run
 
-Use this skill when a durable Irrigator run (a directory containing `state.json`) was interrupted, paused, blocked, has failed nodes, or has nodes in `uncertain` state. It drives the real CLI commands only: `status`, `inspect`, `logs`, `resume`, `retry`, `resolve`, `propose`, `decisions`, `pause`, `down`, `cancel`, `export`, `gc`.
+Use this skill when a durable Irrigator run (a directory containing `state.json`) was interrupted, paused, blocked, has failed nodes, or has nodes in `uncertain` state. It drives the real CLI commands only: `status`, `triage`, `inspect`, `logs`, `resume`, `retry`, `resolve`, `propose`, `decisions`, `pause`, `down`, `cancel`, `export`, `gc`.
 
 This file is plain Markdown. Claude Code, Codex, or a human can follow it manually. It does not assume any host-specific Skill tool. Run commands with the host's shell tool. If the host asks for permission to run a command, respect that answer and report the command as not run.
 
@@ -87,7 +87,7 @@ Starts a new logical operation for selected unfinished nodes. `--recursive` incl
 
 An `uncertain` node may already have caused an external effect or a charge. Do the following in order:
 
-1. `irrigator inspect DIR NODE` and `irrigator logs DIR --task NODE`. Note the attempt markers and the provider.
+1. Start with `irrigator triage DIR` (read-only). It shows, per stuck node, whether the provider's exit was confirmed, whether a worker is still live, reported or unknown cost, the last progress lines and, for `irrigator code` cells, the branch, its commits and any uncommitted worktree changes, plus one recommended command. Use `irrigator inspect DIR NODE` and `irrigator logs DIR --task NODE` for more. `irrigator triage DIR --fix` is an interactive walk-through for a person at a terminal; suggest it to the user rather than driving it.
 2. Check the external system (files, remote service, spend ledger). Check for surviving provider processes yourself. Recovery never kills a stored PID, and the runtime will not identify processes for you.
 3. If the external outcome is known, write the reconciled result as JSON (an object of string fields matching the node's `requires`) to a file you choose. Then run:
 

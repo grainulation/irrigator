@@ -62,6 +62,7 @@ const Usage = `Irrigator — durable local agent graphs
   logs DIR [--follow] [--since N]          Read sequenced events
   otel export RUN [--follow] [--since N] [--endpoint URL]  Send run events to an OpenTelemetry collector
   debug DIR [--json] [--node ID]          Read-only run diagnosis; no model call
+  triage DIR [--json] [--fix]             Why cells are stuck, the evidence, and the next step; --fix walks through them
   debug fixture export DIR --out FILE     (experimental) Write a redacted replay fixture of a run
   review [list|change|diff|approve|...]    Review local changes, plans and decisions before pushing
   session [list|show|enable]              Big-picture feed of agent sessions (prompts, tool activity, replies)
@@ -120,7 +121,7 @@ func builtinCLI(args []string) (int, error) {
 	switch command {
 	case "init":
 		fs.BoolVar(&managedInit, "managed", false, "create a managed plan with an explicit local CLI profile")
-		fs.StringVar(&initProfile, "profile", "", "managed profile selector: claude:MODEL or codex:MODEL")
+		fs.StringVar(&initProfile, "profile", "", "managed profile selector: claude:MODEL, codex:MODEL or agy:MODEL")
 		fs.StringVar(&out, "out", "irrigator.json", "new plan file")
 		expected = 0
 	case "deliver":

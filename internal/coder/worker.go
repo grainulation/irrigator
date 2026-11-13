@@ -203,6 +203,10 @@ func work(o workerOptions, req model.WorkRequest, p *progress) map[string]any {
 	if err != nil {
 		return outcome("not_started", map[string]any{"error": fmt.Sprintf("could not launch %s: %v", bin, err)})
 	}
+	if res.notStarted {
+		p.say(cell, "rejected before starting")
+		return outcome("not_started", map[string]any{"error": fmt.Sprintf("%s rejected the run before starting: %s", o.agent, firstLine(res.text))})
+	}
 	report := map[string]any{}
 	usedModel := res.model
 	if usedModel == "" {
@@ -492,4 +496,12 @@ func limitError(text string) string {
 		line = line[:200]
 	}
 	return fmt.Sprintf("account usage limit reached, not a code problem: %s (reset: %s). Resume this cell after the limit resets.", line, when)
+}
+
+func firstLine(s string) string {
+	s = strings.SplitN(strings.TrimSpace(s), "\n", 2)[0]
+	if len(s) > 300 {
+		s = s[:300]
+	}
+	return s
 }

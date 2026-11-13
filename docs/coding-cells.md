@@ -36,8 +36,8 @@ Outcomes are reported honestly, for every agent:
 
 | Situation | Outcome |
 | --- | --- |
-| Validator request, git/worktree setup failed, or the agent could not be launched | `not_started` |
-| Agent timed out, ended without a result, or git failed after it ran | `uncertain` |
+| Validator request, git/worktree setup failed, the agent could not be launched, or it rejected the run before starting (for example an unknown model) | `not_started` |
+| Agent timed out (including agy's own time limit or an interruption), ended without a result, or git failed after it ran | `uncertain` |
 | Agent finished (including an agent-reported error, a usage limit, no changes, or failed verification) | `settled`, with `error` set for all but a clean finish |
 
 `uncertain` is never replayed automatically. Inspect the worktree and branch
@@ -116,9 +116,11 @@ agent enforces that differs:
   to download dependencies fail.
 - **agy** runs in print mode with session-only settings that deny the commands
   above and keep its file tools inside the worktree; they replace your own agy
-  allow and deny rules for the cell. Other commands run without asking: agy ends
-  its turn on any refused command, so an allowlist would stop cells on harmless
-  commands.
+  allow and deny rules for the cell, and they also apply inside any subagents agy
+  starts (tested). Other commands run without asking: a refused command does not
+  end agy's turn by itself, but the refusal tells the model not to work around it
+  and it often stops there, so an allowlist would stop cells on harmless commands.
+  Subagents' own steps do not appear in the cell's progress; their start does.
 
 These are convenience guardrails, not a sandbox (Codex's sandbox aside):
 `python3`, `node` and similar commands can do anything your user can, including
