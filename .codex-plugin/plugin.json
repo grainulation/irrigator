@@ -7,7 +7,7 @@
   "interface": {
     "displayName": "Irrigator",
     "shortDescription": "Run durable local agent graphs",
-    "longDescription": "Turn bounded task graphs into parallel agent work with the local irrigator CLI. Size A\u00d7D\u00d7S shapes before launch, keep immutable plans, recover without blind replay, and accept results independently.",
+    "longDescription": "Turn bounded task graphs into parallel agent work with the local irrigator CLI. Size the graph before launch, keep immutable plans, recover without blind replay, and accept results independently.",
     "category": "Productivity",
     "capabilities": [
       "Read",
