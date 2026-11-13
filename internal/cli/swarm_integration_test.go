@@ -225,7 +225,8 @@ func TestTimeoutAndRetry(t *testing.T) {
 }
 
 func TestSingleController(t *testing.T) {
-	root := fixture(t, task("a", .7))
+	// a must outlast the second controller's startup, which is slow on some hosts (WSL).
+	root := fixture(t, task("a", 3))
 	_, first := start(t, root)
 	waitFor(t, root, func(s *model.State) bool { return s.Tasks["a"].Status == "running" })
 	_, second := start(t, root)

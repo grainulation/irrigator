@@ -73,5 +73,22 @@ jobs:
 
       # Without -race: the integration tests use fixed 5-10s deadlines, and the race detector on
       # a WSL 2 runner overruns them. Race coverage comes from the native Linux and macOS jobs.
+      # Many integration tests rely on sub-second mock delays to observe a task while it runs;
+      # slower process startup under WSL can miss that window. Failed tests are re-run by name
+      # up to twice (each retry is a workflow warning). A build failure or a panic with no named
+      # test is not retried. The native jobs never retry.
       - name: Integration suite (build tag integration)
-        run: cd ~/irrigator && go test -tags integration -count=1 -timeout 30m ./...
+        run: |
+          cd ~/irrigator
+          set +e
+          go test -tags integration -count=1 -timeout 30m ./... 2>&1 | tee /tmp/integration.log
+          status=${PIPESTATUS[0]}
+          for attempt in 1 2; do
+            [ "$status" -eq 0 ] && break
+            failed=$(grep -oE '^--- FAIL: [A-Za-z0-9_]+' /tmp/integration.log | awk '{print $3}' | sort -u | paste -sd'|' -)
+            [ -n "$failed" ] || exit "$status"
+            echo "::warning title=WSL integration retry::attempt $attempt re-running: $failed"
+            go test -tags integration -count=1 -timeout 30m -run "^($failed)\$" ./... 2>&1 | tee /tmp/integration.log
+            status=${PIPESTATUS[0]}
+          done
+          exit "$status"

@@ -79,7 +79,11 @@ Linux filesystem:
 - the integration suite (`go test -tags integration ./...`: process supervision,
   controller drain, CLI re-exec) **without** the race detector. Under the race
   detector some integration tests overrun their fixed deadlines on this runner;
-  race coverage of that suite comes from the native Linux and macOS jobs.
+  race coverage of that suite comes from the native Linux and macOS jobs. Many
+  integration tests watch a mock task during a sub-second window, which slower
+  process startup under WSL can miss, so failed tests are re-run by name up to
+  twice and each retry is reported as a workflow warning. The native jobs do not
+  retry.
 
 Not verified under WSL:
 
