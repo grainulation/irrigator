@@ -158,7 +158,9 @@ func TestSandboxAutoSelectionOrder(t *testing.T) {
 		if want == "container" && runtime.GOOS != "darwin" {
 			want = "podman"
 		}
-		fakeRuntime(t, c.have, false)
+		argv, _ := fakeRuntime(t, c.have, false)
+		// Only the fakes: a real runtime in /usr/bin (podman ships on Ubuntu runners) must not win.
+		t.Setenv("PATH", filepath.Dir(argv))
 		got, err := launch.SandboxRuntimePath("auto")
 		if err != nil {
 			t.Fatal(err)

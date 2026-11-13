@@ -1,19 +1,22 @@
 # Platform support
 
-The Go runtime and terminal interface target macOS and Linux. **Windows is not
-currently supported; planned.** No release date or verified WSL support is claimed.
+The Go runtime and terminal interface target macOS and Linux. On Windows, run the
+Linux build inside **WSL 2**; see the [Windows (WSL) guide](windows-wsl.md).
+**Native Windows is not currently supported; planned.** No release date is claimed.
 
-| Component | macOS | Linux |
-| --- | --- | --- |
-| Runtime and CLI | Local execution, race-suite, and first-use verification; hosted macOS 14 ARM64 CI checks | ARM64: actual Linux execution, full race suite, static analysis, and first-use checks. AMD64: hosted Ubuntu 24.04 CI checks |
-| Terminal dashboard and MCP server | `status --watch`, `graph`, `review tui`, `irrigator mcp` | Same commands |
-| Markdown skills | Requires a working CLI and the host's execution permission | Same contract; installing skills does not establish host-specific integration |
+| Component | macOS | Linux | Windows (WSL 2) |
+| --- | --- | --- | --- |
+| Runtime and CLI | Local execution, race-suite, and first-use verification; hosted macOS 15 ARM64 CI checks | ARM64: actual Linux execution, full race suite, static analysis, and first-use checks. AMD64: hosted Ubuntu 24.04 CI checks | Linux AMD64 build in Ubuntu 24.04 on a hosted Windows Server 2025 runner: first-use checks, race suite, integration suite without the race detector |
+| Terminal dashboard and MCP server | `status --watch`, `graph`, `review tui`, `irrigator mcp` | Same commands | Same commands (Linux build) |
+| Markdown skills | Requires a working CLI and the host's execution permission | Same contract; installing skills does not establish host-specific integration | Same contract, with the host running inside WSL |
 
 The [platform workflow](../.github/workflows/platforms.yml) runs build, first-use,
 race, static-analysis, and metadata checks on macOS and Linux, and builds
-both architectures. Minimum Go is Go 1.26, matching `go.mod`. See
+both architectures. Minimum Go is Go 1.26.7, matching `go.mod`. See
 [workflow history](https://github.com/grainulation/irrigator/actions/workflows/platforms.yml)
-for run results.
+for run results. The [Windows (WSL) workflow](../.github/workflows/windows-wsl.yml)
+runs the same first-use and test targets inside WSL 2; its scope and limits are
+listed in the [Windows (WSL) guide](windows-wsl.md#what-is-verified).
 
 ## What the verification establishes
 
@@ -29,15 +32,15 @@ Host authentication and real provider behavior need separate verification from m
 
 ## Toolchain requirements
 
-Go 1.26.0 is the minimum supported version for every runtime feature; it is the
+Go 1.26.7 is the minimum supported version for every runtime feature; it is the
 `go` directive in `go.mod`. The module pins the Go 1.27.2 toolchain used by
 development and CI. Older toolchains must upgrade before building; there is no
 reduced-feature fallback build with weaker or unavailable filesystem confinement.
-The CI "Minimum Go" job builds with Go 1.26.0 and `GOTOOLCHAIN=local`.
+The CI "Minimum Go" job builds with Go 1.26.7 and `GOTOOLCHAIN=local`.
 
 The minimum covers workflow composition, launch contexts, confined
 backup/campaign/recovery, and billing registry operations. To verify the minimum
-with an installed Go 1.26 toolchain without automatic toolchain selection, set
+with an installed Go 1.26.7 toolchain without automatic toolchain selection, set
 `GOTOOLCHAIN=local` when running its `go test ./...` and `go build .`.
 
 From the source root, `make build`, `make smoke`, `make demo`, and `make check`

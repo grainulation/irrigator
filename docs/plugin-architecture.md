@@ -94,7 +94,7 @@ The plugin contract tests check the following workflow requirements. Each maps t
 | Shell | host asks the user for permission | host asks the user for permission |
 | MCP | read-only `irrigator mcp` in `mcpServers` ([MCP server](mcp.md)) | none declared; user adds a `config.toml` entry |
 
-On either host the agent must verify that the `irrigator` executable is on PATH (`irrigator version`) and fall back to building it from a checkout (`make build`, Go 1.26+ for the complete runtime) only when the user wants that. Installation of the binary or the plugin into a host is the user's action, not an automatic step.
+On either host the agent must verify that the `irrigator` executable is on PATH (`irrigator version`) and fall back to building it from a checkout (`make build`, Go 1.26.7+ for the complete runtime) only when the user wants that. Installation of the binary or the plugin into a host is the user's action, not an automatic step.
 
 ## Distribution boundary
 

@@ -26,7 +26,7 @@ layout does not assert a public plugin-directory listing or host endorsement.
 
 ## Build and load locally
 
-Use Go 1.26 or newer and a POSIX shell for the complete runtime:
+Use Go 1.26.7 or newer and a POSIX shell for the complete runtime:
 
 ```sh
 make build

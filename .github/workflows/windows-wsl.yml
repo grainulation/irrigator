@@ -1,0 +1,94 @@
+name: Windows (WSL)
+
+# Runs the Linux build inside WSL 2 on a Windows host: the path Windows users
+# take today. Native Windows is not supported (see docs/platform-support.md).
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: windows-wsl-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  wsl:
+    name: WSL 2 / Ubuntu 24.04
+    runs-on: windows-2025
+    timeout-minutes: 60
+    defaults:
+      run:
+        shell: wsl-bash {0}
+    steps:
+      - name: Install Ubuntu 24.04 in WSL 2
+        uses: Vampire/setup-wsl@4c48163d9f981914dd8caa0fc335fe19cca5bff4 # v7.2.0
+        with:
+          distribution: Ubuntu-24.04
+          wsl-version: 2
+          additional-packages: git make gcc libc6-dev tmux ca-certificates curl python3
+
+      - name: Install Go (toolchain pinned in go.mod)
+        run: |
+          curl -fsSL https://go.dev/dl/go1.27.2.linux-amd64.tar.gz | tar -C /usr/local -xz
+          ln -s /usr/local/go/bin/go /usr/local/go/bin/gofmt /usr/local/bin/
+
+      # Run as an unprivileged user, like the Linux job: tests cover permission checks.
+      - name: Create unprivileged user
+        run: useradd --create-home --shell /bin/bash builder
+
+      - name: Run later steps as that user
+        uses: Vampire/setup-wsl@4c48163d9f981914dd8caa0fc335fe19cca5bff4 # v7.2.0
+        with:
+          distribution: Ubuntu-24.04
+          wsl-shell-user: builder
+          wsl-shell-command: bash --noprofile --norc -euo pipefail
+
+      # Clone inside the WSL filesystem, where users keep their checkouts. A Windows-side
+      # checkout under /mnt would bring NTFS semantics and CRLF conversion.
+      - name: Check out inside WSL
+        run: |
+          git init -q ~/irrigator
+          cd ~/irrigator
+          git remote add origin "https://github.com/${{ github.repository }}.git"
+          git fetch -q --depth=1 origin "${{ github.sha }}"
+          git checkout -q FETCH_HEAD
+
+      - name: Record environment
+        run: |
+          uname -a
+          cat /proc/version
+          go version
+          tmux -V
+          id
+
+      - name: Build and first-use acceptance
+        run: cd ~/irrigator && make build smoke demo
+
+      - name: Runtime race suite and vet (untagged)
+        run: cd ~/irrigator && make check
+
+      # Without -race: the integration tests use fixed 5-10s deadlines, and the race detector on
+      # a WSL 2 runner overruns them. Race coverage comes from the native Linux and macOS jobs.
+      # Many integration tests rely on sub-second mock delays to observe a task while it runs;
+      # slower process startup under WSL can miss that window. Failed tests are re-run by name
+      # up to twice (each retry is a workflow warning). A build failure or a panic with no named
+      # test is not retried. The native jobs never retry.
+      - name: Integration suite (build tag integration)
+        run: |
+          cd ~/irrigator
+          set +e
+          go test -tags integration -count=1 -timeout 30m ./... 2>&1 | tee /tmp/integration.log
+          status=${PIPESTATUS[0]}
+          for attempt in 1 2; do
+            [ "$status" -eq 0 ] && break
+            failed=$(grep -oE '^--- FAIL: [A-Za-z0-9_]+' /tmp/integration.log | awk '{print $3}' | sort -u | paste -sd'|' -)
+            [ -n "$failed" ] || exit "$status"
+            echo "::warning title=WSL integration retry::attempt $attempt re-running: $failed"
+            go test -tags integration -count=1 -timeout 30m -run "^($failed)\$" ./... 2>&1 | tee /tmp/integration.log
+            status=${PIPESTATUS[0]}
+          done
+          exit "$status"

@@ -6,8 +6,11 @@
 <p align="center"><strong>Durable local workflows for agent work.</strong></p>
 <p align="center">
   <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-blue"></a>
-  <a href="docs/platform-support.md"><img alt="Runtime: macOS and Linux" src="https://img.shields.io/badge/runtime-macOS%20%7C%20Linux-476b46"></a>
+  <a href="docs/platform-support.md"><img alt="Runtime: macOS, Linux and Windows via WSL 2" src="https://img.shields.io/badge/runtime-macOS%20%7C%20Linux%20%7C%20WSL%202-476b46"></a>
+</p>
+<p align="center">
   <a href="https://github.com/grainulation/irrigator/actions/workflows/platforms.yml"><img alt="macOS and Linux CI" src="https://github.com/grainulation/irrigator/actions/workflows/platforms.yml/badge.svg"></a>
+  <a href="https://github.com/grainulation/irrigator/actions/workflows/windows-wsl.yml"><img alt="Windows (WSL) CI" src="https://github.com/grainulation/irrigator/actions/workflows/windows-wsl.yml/badge.svg"></a>
 </p>
 
 Irrigator is for developers who want coding agents to work in parallel without
@@ -23,7 +26,7 @@ and a read-only [MCP server](docs/mcp.md) for agent hosts.
 
 ## Try it without credentials
 
-You need Go 1.26 or newer (the module's `go` directive), `make`, and a POSIX
+You need Go 1.26.7 or newer (the module's `go` directive), `make`, and a POSIX
 shell. Development and CI checks pin the Go 1.27.2 toolchain. The executable
 source is `main.go` (the entry point) and `internal/` (the packages; see [Architecture](#architecture)).
 From the repository root:
@@ -137,11 +140,14 @@ checks in your host. A Gemini plugin is not currently shipped or verified.
 
 ## Platform status
 
-The CLI and terminal dashboard support **macOS and Linux**. **Windows is
-deferred/planned and currently unsupported.**
+The CLI and terminal dashboard support **macOS and Linux**. On **Windows, use
+[WSL 2](docs/windows-wsl.md)**: the Linux build inside Ubuntu, checked in CI.
+Native Windows is not supported yet (planned).
 
 [macOS and Linux CI](https://github.com/grainulation/irrigator/actions/workflows/platforms.yml)
-runs builds, mock demos, race tests, package checks, and cross-builds. See
+runs builds, mock demos, race tests, package checks, and cross-builds.
+[Windows (WSL) CI](https://github.com/grainulation/irrigator/actions/workflows/windows-wsl.yml)
+runs the build, mock demos and test suites inside WSL 2 on a Windows runner. See
 [platform support](docs/platform-support.md) for tested configurations.
 
 This is a pre-release source distribution. See [CHANGELOG](CHANGELOG.md) for

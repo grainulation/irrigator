@@ -1,7 +1,7 @@
 # Verification
 
 These checks use mock workers, fake executables and temporary repositories. They
-require no model credentials and make no paid provider calls. Go 1.26 or newer is
+require no model credentials and make no paid provider calls. Go 1.26.7 or newer is
 required; the module selects the pinned Go toolchain when automatic toolchain
 selection is enabled.
 

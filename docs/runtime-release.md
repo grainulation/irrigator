@@ -3,7 +3,8 @@
 `tools/package_runtime.py` builds local, unsigned CLI archives for macOS and Linux,
 with amd64 and arm64 binaries. It does not publish, install, or establish that a
 cross-built binary has been executed on its target.
-Windows is not currently supported; planned.
+Native Windows is not currently supported; planned. On Windows, use the Linux
+archive inside [WSL 2](windows-wsl.md).
 
 Use an installed Go toolchain compatible with `go.mod`. The packager disables
 network module access and automatic toolchain downloads; dependencies must already

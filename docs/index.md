@@ -9,6 +9,7 @@ contracts to their source files.
 - [Choosing a tool](alternatives.md): scope comparisons with scripts and workflow frameworks.
 - [Platform support](platform-support.md): runtime and terminal boundaries.
 - [Linux terminal dashboard](linux.md): build, run, and inspect a local workflow.
+- [Windows (WSL 2)](windows-wsl.md): run the Linux build on Windows.
 - [Host integration](host-integration.md): use Markdown skills with a real CLI.
 - [MCP server](mcp.md): inspect and, when allowed, drive runs from any MCP host.
 - [Plugin packaging](plugin-packaging.md): source-only plugin layout and checks.

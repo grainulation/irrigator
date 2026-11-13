@@ -10,7 +10,7 @@ configuration SHA-256, exact output-file SHA-256, template pins, expanded task I
 and final output field locations. A failed write may leave an incomplete output
 file; inspect that failure rather than reusing its path automatically.
 
-This command is part of the complete runtime, which requires Go 1.26 or newer
+This command is part of the complete runtime, which requires Go 1.26.7 or newer
 (the module minimum).
 
 ## Template

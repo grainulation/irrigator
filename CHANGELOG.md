@@ -7,12 +7,15 @@ release. Versioned plan and worker protocols are tracked separately from the CLI
 
 ### Added
 
+- Windows via WSL 2: a [guide](docs/windows-wsl.md) and a `windows-wsl` CI workflow that runs the Linux
+  build, mock demos and test suites inside Ubuntu 24.04 on a Windows runner. Native Windows remains unsupported.
 - Experimental: `irrigator debug fixture export RUN_DIR --out FILE` writes a redacted replay
   fixture (`irrigator.replay-fixture/v1`) of a run, and `make replay-gate` replays the committed
   dev and held-out fixtures through the real executor path. See [docs/debug-workflow.md](docs/debug-workflow.md).
 
 ### Changed
 
+- The minimum Go version is now 1.26.7 (the `go.mod` directive), required by `charm.land/lipgloss/v2` v2.1.0.
 - Source layout: the entry point is now only `main.go` at the module root; the runtime lives in `internal/<domain>`
   packages with unit tests beside them (see [docs/architecture.md](docs/architecture.md)). No change to
   CLI output, JSON schemas or the worker protocol.

@@ -10,8 +10,9 @@ no signing key exists in this repository.
 
 `.goreleaser.yaml` (GoReleaser v2) builds the module root for darwin and linux
 on amd64 and arm64 with `CGO_ENABLED=0` and `-trimpath`, packs each as
-`irrigator_<os>_<arch>.tar.gz` and writes `checksums.txt`. Windows is excluded
-until the runtime is validated on real Windows hosts ([platform support](platform-support.md)).
+`irrigator_<os>_<arch>.tar.gz` and writes `checksums.txt`. Native Windows is excluded
+until the runtime is validated on real Windows hosts ([platform support](platform-support.md));
+Windows users run the linux archive inside [WSL 2](windows-wsl.md).
 
 ```sh
 goreleaser release --snapshot --clean --skip=publish
