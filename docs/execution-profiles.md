@@ -233,9 +233,23 @@ directory whose `AGENTS.md` holds the managed system prompt (agy has no
 system-prompt flag), with `--json-schema` for the output and session settings
 `{"toolPermission":"strict","allowNonWorkspaceAccess":false}`: in print mode a
 strict session auto-denies every tool call. The WorkRequest is the prompt
-argument, limited to 128 KiB. agy still loads its own global configuration
-(for example user rules or installed plugins); strict permissions keep their
-tools from running.
+argument, limited to 128 KiB.
+
+agy has no option to skip the user's own configuration for one run, so two
+things still apply to managed turns:
+
+- **User-level rules** in `~/.gemini/GEMINI.md`, `~/.gemini/AGENTS.md`,
+  `~/.gemini/config/GEMINI.md`, `~/.gemini/config/AGENTS.md` and
+  `~/.gemini/config/rules/*.md` are added to the model's instructions and can
+  change its answers. Keep rules there that should not affect Irrigator tasks
+  out of those files, or use a different profile.
+- **Plugins and MCP servers** stay loaded but cannot act: plugin skills are not
+  tools, MCP tools are reached only through agy's `call_mcp_tool`, and a strict
+  session denies every tool call.
+
+Isolating a run would mean pointing `HOME` at a copy of agy's sign-in files,
+which copies credentials and depends on agy internals, so the adapter does not
+do it.
 
 Acceptance requires exactly one result event with status `SUCCESS`, no
 `finished_reason`, no `denied_actions`, a `structured_output` that matches the
