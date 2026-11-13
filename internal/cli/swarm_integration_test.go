@@ -14,6 +14,7 @@ import (
 
 	"github.com/grainulation/irrigator/internal/checkpoint"
 	"github.com/grainulation/irrigator/internal/model"
+	"github.com/grainulation/irrigator/internal/runfixture"
 )
 
 func fixture(t *testing.T, tasks ...model.Task) string {
@@ -83,8 +84,11 @@ func finished(t *testing.T, done <-chan error, wantSuccess bool) {
 }
 
 func TestParallelDependenciesAndNoReplay(t *testing.T) {
-	root := fixture(t, task("a", .5), task("b", .5), task("c", .1, "a", "b"))
+	root := fixture(t, task("a", 0), task("b", 0), task("c", 0, "a", "b"))
+	release := runfixture.HoldMock(t, "a", "b")
 	_, done := start(t, root)
+	waitFor(t, root, func(s *model.State) bool { return s.Tasks["a"].Status == "running" && s.Tasks["b"].Status == "running" })
+	release("a", "b")
 	finished(t, done, true)
 	s := read(t, root)
 	seq := map[string]int{}
@@ -107,13 +111,15 @@ func TestParallelDependenciesAndNoReplay(t *testing.T) {
 }
 
 func TestDownResume(t *testing.T) {
-	root := fixture(t, task("a", .1), task("b", 1, "a"))
+	root := fixture(t, task("a", 0), task("b", 0, "a"))
+	release := runfixture.HoldMock(t, "b")
 	_, done := start(t, root)
 	waitFor(t, root, func(s *model.State) bool { return s.Tasks["b"].Status == "running" })
 	if err := checkpoint.SetControl(root, "down"); err != nil {
 		t.Fatal(err)
 	}
 	finished(t, done, true)
+	release("b")
 	if read(t, root).Tasks["b"].Status != "pending" {
 		t.Fatal("interrupted task not requeued")
 	}
@@ -126,12 +132,14 @@ func TestDownResume(t *testing.T) {
 }
 
 func TestPauseDrains(t *testing.T) {
-	root := fixture(t, task("a", .5), task("b", .1, "a"))
+	root := fixture(t, task("a", 0), task("b", 0, "a"))
+	release := runfixture.HoldMock(t, "a")
 	_, done := start(t, root)
 	waitFor(t, root, func(s *model.State) bool { return s.Tasks["a"].Status == "running" })
 	if err := checkpoint.SetControl(root, "pause"); err != nil {
 		t.Fatal(err)
 	}
+	release("a") // a pause drains: the running task finishes, nothing new starts
 	finished(t, done, true)
 	s := read(t, root)
 	if s.Tasks["a"].Status != "verified" || s.Tasks["b"].Attempt != 0 {
@@ -148,7 +156,8 @@ func TestCrashRecovery(t *testing.T) {
 			name = "controller-and-worker"
 		}
 		t.Run(name, func(t *testing.T) {
-			root := fixture(t, task("a", .1), task("b", 1, "a"))
+			root := fixture(t, task("a", 0), task("b", 0, "a"))
+			release := runfixture.HoldMock(t, "b")
 			cmd, done := start(t, root)
 			waitFor(t, root, func(s *model.State) bool { return s.Tasks["b"].Status == "running" })
 			if err := cmd.Process.Kill(); err != nil {
@@ -166,6 +175,7 @@ func TestCrashRecovery(t *testing.T) {
 				}
 				time.Sleep(50 * time.Millisecond)
 			}
+			release("b")
 			_, done = start(t, root)
 			finished(t, done, true)
 			s := read(t, root)
@@ -211,9 +221,11 @@ func TestValidationFailureBlocksDependents(t *testing.T) {
 }
 
 func TestTimeoutAndRetry(t *testing.T) {
-	root := fixture(t, task("a", .5))
+	root := fixture(t, task("a", 0))
+	release := runfixture.HoldMock(t, "a") // held past the timeout
 	_, done := start(t, root, "--timeout", "100ms")
 	finished(t, done, false)
+	release("a")
 	if read(t, root).Tasks["a"].Status != "failed" {
 		t.Fatal("timeout not failed")
 	}
@@ -225,12 +237,13 @@ func TestTimeoutAndRetry(t *testing.T) {
 }
 
 func TestSingleController(t *testing.T) {
-	// a must outlast the second controller's startup, which is slow on some hosts (WSL).
-	root := fixture(t, task("a", 3))
+	root := fixture(t, task("a", 0))
+	release := runfixture.HoldMock(t, "a") // a runs until the second controller has been refused
 	_, first := start(t, root)
 	waitFor(t, root, func(s *model.State) bool { return s.Tasks["a"].Status == "running" })
 	_, second := start(t, root)
 	finished(t, second, false)
+	release("a")
 	finished(t, first, true)
 }
 

@@ -19,8 +19,8 @@ import (
 func TestTurnHelpersExecuteDuringMainAndJoin(t *testing.T) {
 	next := task("next", 0)
 	main := runfixture.TurnRequestTask(t, "a", checkpoint.TurnRequest{Continue: &next, WaitForHelpers: true})
-	main.MockDelay = 1.5
 	root := runfixture.TurnFixture(t, model.TurnShape{Roots: 1, MainTurns: 2, HelpersPerTurn: 2}, main)
+	release := runfixture.HoldMock(t, "a") // main runs until its helper has verified
 	before := read(t, root)
 	_, done := start(t, root, "--workers", "2")
 	waitFor(t, root, func(s *model.State) bool { return s.Tasks["a"].Status == "running" })
@@ -47,6 +47,7 @@ func TestTurnHelpersExecuteDuringMainAndJoin(t *testing.T) {
 	if err := graph.AdmitTurnHelpers(root, "a", row.OperationID, row.Attempt, req); err != nil {
 		t.Fatal(err)
 	}
+	release("a")
 	finished(t, done, true)
 	s := read(t, root)
 	if s.PlanHash != before.PlanHash || len(s.Tasks) != 3 || s.Tasks[helperID].Attempt != 1 || !artifactstore.TurnContains(s.Tasks["a__turn2"].Spec.DependsOn, helperID) {

@@ -98,11 +98,13 @@ var replayScenarios = []replayScenario{
 		a := replayTask1("a")
 		a.MockDelay = 5
 		root := replayMockRoot(t, a, replayTask1("b", "a"))
+		release := runfixture.HoldMock(t, "a") // still running when the cancel lands
 		_, done := clitest.Start(t, root)
 		waitFor(t, root, func(s *model.State) bool { return s.Tasks["a"].Status == "running" })
 		if err := runops.CancelNode(root, "a"); err != nil {
 			t.Fatal(err)
 		}
+		release("a")
 		replayWait(t, done)
 		return runfixture.Read(t, root)
 	}},
@@ -200,6 +202,7 @@ var replayScenarios = []replayScenario{
 		slow.MockDelay = 1.5
 		nested := replaySpawn(t, "branch", replayTask1("leaf"), slow, replayTask1("leaf2", "slow"))
 		root := replayMockRoot(t, replaySpawn(t, "parent", nested, replayTask1("side")), replayTask1("join", "parent"))
+		release := runfixture.HoldMock(t, "parent__branch__slow") // still running when the cancel lands
 		_, done := clitest.Start(t, root)
 		waitFor(t, root, func(s *model.State) bool {
 			r := s.Tasks["parent__branch__slow"]
@@ -208,6 +211,7 @@ var replayScenarios = []replayScenario{
 		if err := runops.CancelNode(root, "parent__branch__leaf2"); err != nil {
 			t.Fatal(err)
 		}
+		release("parent__branch__slow")
 		replayWait(t, done)
 		return runfixture.Read(t, root)
 	}},

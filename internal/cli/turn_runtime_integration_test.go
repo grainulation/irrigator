@@ -16,12 +16,18 @@ import (
 )
 
 func TestTurnRuntimeExecutionIndependentLanes(t *testing.T) {
-	// The continuation must start while beta and the helper still run; wide delays keep
-	// that window open on slow hosts (WSL).
-	next := task("ignored", .01)
-	rootTask := runfixture.TurnRequestTask(t, "alpha", checkpoint.TurnRequest{Continue: &next, Helpers: []model.Task{task("h", 2)}})
-	root := runfixture.TurnFixture(t, model.TurnShape{Roots: 2, MainTurns: 2, HelpersPerTurn: 1}, rootTask, task("beta", 2))
+	// beta and the helper are held until the continuation has started, so a
+	// continuation that waited for either would never start.
+	next := task("ignored", 0)
+	rootTask := runfixture.TurnRequestTask(t, "alpha", checkpoint.TurnRequest{Continue: &next, Helpers: []model.Task{task("h", 0)}})
+	root := runfixture.TurnFixture(t, model.TurnShape{Roots: 2, MainTurns: 2, HelpersPerTurn: 1}, rootTask, task("beta", 0))
+	release := runfixture.HoldMock(t, "beta", "alpha__turn1__helper_h")
 	_, done := start(t, root, "--workers", "4")
+	waitFor(t, root, func(s *model.State) bool {
+		r := s.Tasks["alpha__turn2"]
+		return r != nil && (r.Status == "running" || r.Status == "verified")
+	})
+	release("beta", "alpha__turn1__helper_h")
 	finished(t, done, true)
 	s := read(t, root)
 	if len(s.Tasks) != 4 {

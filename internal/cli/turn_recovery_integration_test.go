@@ -14,8 +14,9 @@ import (
 func TestTurnRecoveryRetriesOwnerWithoutReplayingVerifiedHelper(t *testing.T) {
 	for _, mode := range []string{"explicit-node", "retry-failed"} {
 		t.Run(mode, func(t *testing.T) {
-			root := runfixture.TurnFixture(t, model.TurnShape{Roots: 1, MainTurns: 2, HelpersPerTurn: 1}, task("a", 1.5))
-			_, done := start(t, root, "--workers", "2", "--timeout", "1s")
+			root := runfixture.TurnFixture(t, model.TurnShape{Roots: 1, MainTurns: 2, HelpersPerTurn: 1}, task("a", 0))
+			runfixture.HoldMock(t, "a") // the owner can only end by timing out, after its helper verified
+			_, done := start(t, root, "--workers", "2", "--timeout", "3s")
 			waitFor(t, root, func(s *model.State) bool { return s.Tasks["a"].Status == "running" })
 			owner := read(t, root).Tasks["a"]
 			request := graph.TurnHelperRequest{ID: "original-batch", Helpers: []model.Task{task("h", .01)}}
@@ -44,6 +45,7 @@ func TestTurnRecoveryRetriesOwnerWithoutReplayingVerifiedHelper(t *testing.T) {
 			} else {
 				options = append(options, "--retry-failed")
 			}
+			release := runfixture.HoldMock(t, "a") // the retry stays running while admissions are checked
 			_, done = start(t, root, options...)
 			waitFor(t, root, func(s *model.State) bool { return s.Tasks["a"].Status == "running" && s.Tasks["a"].Attempt == 2 })
 			current := read(t, root).Tasks["a"]
@@ -57,6 +59,7 @@ func TestTurnRecoveryRetriesOwnerWithoutReplayingVerifiedHelper(t *testing.T) {
 			if err := graph.AdmitTurnHelpers(root, "a", owner.OperationID, owner.Attempt, request); err != nil {
 				t.Fatalf("original admission lost idempotency: %v", err)
 			}
+			release("a")
 			finished(t, done, true)
 			after := read(t, root)
 			helperAfter, _ := json.Marshal(after.Tasks[id])
