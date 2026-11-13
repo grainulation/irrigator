@@ -226,7 +226,7 @@ func work(o workerOptions, req model.WorkRequest, p *progress) map[string]any {
 	}
 	costNote := "cost unknown"
 	if res.costUSD != nil {
-		costNote = fmt.Sprintf("$%.2f", *res.costUSD)
+		costNote = fmt.Sprintf("$%.4f", *res.costUSD)
 	}
 
 	if timedOut || !res.done {
