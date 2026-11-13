@@ -35,7 +35,7 @@ func replayWait(t *testing.T, done <-chan error) {
 	t.Helper()
 	select {
 	case <-done:
-	case <-time.After(30 * time.Second):
+	case <-time.After(60 * time.Second):
 		t.Fatal("controller did not exit")
 	}
 }

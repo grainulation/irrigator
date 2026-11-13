@@ -41,7 +41,7 @@ func read(t *testing.T, root string) *model.State {
 
 func waitFor(t *testing.T, root string, check func(*model.State) bool) {
 	t.Helper()
-	deadline := time.Now().Add(10 * time.Second)
+	deadline := time.Now().Add(30 * time.Second) // hang guard; the check usually passes in milliseconds
 	for time.Now().Before(deadline) {
 		if check(read(t, root)) {
 			return
@@ -78,7 +78,7 @@ func finished(t *testing.T, done <-chan error, wantSuccess bool) {
 		if (err == nil) != wantSuccess {
 			t.Fatalf("exit %v, expected success %v", err, wantSuccess)
 		}
-	case <-time.After(10 * time.Second):
+	case <-time.After(60 * time.Second): // a hang guard, not a timing assumption: slow hosts under -race need room
 		t.Fatal("controller did not exit")
 	}
 }

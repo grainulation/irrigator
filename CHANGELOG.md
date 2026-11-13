@@ -24,7 +24,8 @@ release. Versioned plan and worker protocols are tracked separately from the CLI
 
 - Integration tests no longer depend on sub-second mock delays: tests that need a mock task to keep running hold
   it open explicitly (`IRRIGATOR_TEST_MOCK_GATE`, test-only, mock backends only) and release it. The Windows
-  (WSL) workflow no longer retries failed integration tests.
+  (WSL) workflow no longer retries failed integration tests and runs them under the race detector like the
+  native jobs.
 - `approvals notify --via ntfy` (and run notifications over ntfy) refuse the public `ntfy.sh` without
   `IRRIGATOR_NTFY_TOKEN`, since notices carry live approve/deny links. Set the token for a reserved topic, use
   your own server, or set `IRRIGATOR_NTFY_ALLOW_PUBLIC=1` to send anyway.

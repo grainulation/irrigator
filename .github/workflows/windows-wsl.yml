@@ -71,9 +71,7 @@ jobs:
       - name: Runtime race suite and vet (untagged)
         run: cd ~/irrigator && make check
 
-      # Without -race: two integration tests allow a controller 10s to exit, which the race
-      # detector overruns on a WSL 2 runner. Race coverage comes from the native Linux and
-      # macOS jobs. Tests that need a task to keep running hold it open explicitly
-      # (runfixture.HoldMock), so no retries are needed.
-      - name: Integration suite (build tag integration)
-        run: cd ~/irrigator && go test -tags integration -count=1 -timeout 30m ./...
+      # Same as the native jobs: the whole tree with -tags integration under the race detector.
+      # Tests that need a task to keep running hold it open explicitly (runfixture.HoldMock).
+      - name: Integration race suite (build tag integration)
+        run: cd ~/irrigator && make check-integration

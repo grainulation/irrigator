@@ -63,6 +63,8 @@ TEXT_EXTENSIONS = {'.md', '.json', '.py', '.txt', '.sh', '.toml', '.yaml', '.yml
 INCLUDE_DIRS = ('.claude-plugin', '.codex-plugin', 'skills', 'docs')
 INCLUDE_FILES = (
     'plugin.json',
+    'mcp.json',
+    'mcp_config.json',
     'README.md',
     'CONTRIBUTING.md',
     'CHANGELOG.md',

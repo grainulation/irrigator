@@ -76,11 +76,9 @@ Linux filesystem:
 
 - `make build`, `make smoke` and `make demo` (first use with mock workers);
 - `make check`: the untagged test suite under the race detector, and `go vet`;
-- the integration suite (`go test -tags integration ./...`: process supervision,
-  controller drain, CLI re-exec) **without** the race detector. Under the race
-  detector two integration tests overrun their fixed 10-second exit deadline on
-  this runner; race coverage of that suite comes from the native Linux and macOS
-  jobs. Failed tests are not retried.
+- `make check-integration`: the integration suite (process supervision,
+  controller drain, CLI re-exec) under the race detector, as on Linux and macOS.
+  Failed tests are not retried.
 
 Not verified under WSL:
 
