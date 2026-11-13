@@ -17,7 +17,7 @@ Irrigator is for developers who want coding agents to work in parallel without
 losing track of results, retries, or spending. Turn a task into an explicit graph,
 run it locally, and inspect or resume the work from your terminal.
 
-Use the **CLI** directly or through the **Claude Code and Codex plugins**. The
+Use the **CLI** directly or through the **Claude Code, Codex and Antigravity plugins**. The
 interface is the terminal: `status --watch`, `graph`, `review tui`, `session`,
 and a read-only [MCP server](docs/mcp.md) for agent hosts.
 
@@ -117,7 +117,8 @@ setting in both paths.
 | --- | --- |
 | CLI and terminal dashboard | [Linux guide](docs/linux.md), [workflow composition](docs/workflow-composition.md) |
 | Agent skills | [Host integration](docs/host-integration.md), [skills](skills) |
-| MCP hosts (Claude Code, Codex, Cursor, OpenCode) | [MCP server](docs/mcp.md) |
+| Agent plugins (Claude Code, Codex, Antigravity) | [Agent setup](docs/agent-setup.md) |
+| Other MCP hosts (Cursor, OpenCode and others) | [MCP server](docs/mcp.md) |
 | Terminal workspace with Swarm and Review | [Workspace guide](docs/terminal-workspace.md), [local code review](docs/local-review.md) |
 | Recovery and accounting | [Recovery](docs/recovery.md), [billing reconciliation](docs/billing-reconciliation.md) |
 
@@ -126,17 +127,20 @@ execution permissions.
 
 ## Plugins
 
-The Claude Code and Codex plugin files are included in this repository:
+Claude Code, Codex and Antigravity get a full plugin from this repository; other
+MCP agents (Cursor, opencode and others) connect to `irrigator mcp`. Start with
+[agent setup](docs/agent-setup.md).
 
 | Host | Package metadata | Setup |
 | --- | --- | --- |
 | Claude Code | [.claude-plugin/](.claude-plugin) | [Claude Code installation](docs/claude-plugin.md) |
 | Codex | [.codex-plugin/](.codex-plugin) and [plugin.json](plugin.json) | [Codex setup](docs/codex-plugin.md) |
+| Antigravity | [plugin.json](plugin.json), [mcp_config.json](mcp_config.json) and [mcp.json](mcp.json) | `agy plugin install https://github.com/grainulation/irrigator` ([agent setup](docs/agent-setup.md#antigravity)) |
 
 These are thin host-specific metadata layers around the same [Markdown skills](skills)
 and local CLI. Install the runtime separately, then follow the setup guide for
 your host. See [host integration](docs/host-integration.md) for installation and discovery
-checks in your host. A Gemini plugin is not currently shipped or verified.
+checks in your host. Antigravity replaced Gemini CLI; there is no separate Gemini plugin.
 
 ## Platform status
 

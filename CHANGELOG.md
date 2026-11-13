@@ -7,6 +7,9 @@ release. Versioned plan and worker protocols are tracked separately from the CLI
 
 ### Added
 
+- Antigravity plugin: `agy plugin install https://github.com/grainulation/irrigator` installs the skills and the
+  read-only `irrigator mcp` server (root `plugin.json` with the Agent Plugins schema, `mcp_config.json`, `mcp.json`).
+  New [agent setup](docs/agent-setup.md) guide for Claude Code, Codex, Antigravity and other MCP agents.
 - Windows via WSL 2: a [guide](docs/windows-wsl.md) and a `windows-wsl` CI workflow that runs the Linux
   build, mock demos and test suites inside Ubuntu 24.04 on a Windows runner. Native Windows remains unsupported.
 - Experimental: `irrigator debug fixture export RUN_DIR --out FILE` writes a redacted replay
