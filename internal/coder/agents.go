@@ -8,12 +8,12 @@ import (
 	"strings"
 )
 
-// Agents lists the coding agents the built-in worker can run.
-var Agents = []string{"claude", "codex", "agy"}
+// agents lists the coding agents the built-in worker can run.
+var agents = []string{"claude", "codex", "agy"}
 
-// DefaultModel is the model used when --model is empty. Codex and agy use
+// defaultModel is the model used when --model is empty. Codex and agy use
 // their own configured default.
-func DefaultModel(agent string) string {
+func defaultModel(agent string) string {
 	if agent == "claude" {
 		return "sonnet"
 	}
@@ -111,7 +111,7 @@ func agentArgs(l launch) (string, []string, error) {
 		}
 		return "agy", args, nil
 	}
-	return "", nil, fmt.Errorf("unknown agent %q (use %s)", l.agent, strings.Join(Agents, ", "))
+	return "", nil, fmt.Errorf("unknown agent %q (use %s)", l.agent, strings.Join(agents, ", "))
 }
 
 // result is what the worker learned from the agent's output stream.

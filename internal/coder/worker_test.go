@@ -197,7 +197,7 @@ func hasArg(argv []string, flag, value string) bool {
 }
 
 func TestSuccessLandsABranchForEveryAgent(t *testing.T) {
-	for _, agent := range Agents {
+	for _, agent := range agents {
 		t.Run(agent, func(t *testing.T) {
 			f := newFixture(t)
 			resp := f.run(call{agent: agent, mode: "success"})
@@ -251,7 +251,7 @@ func TestSuccessLandsABranchForEveryAgent(t *testing.T) {
 }
 
 func TestOutcomesForEveryAgent(t *testing.T) {
-	for _, agent := range Agents {
+	for _, agent := range agents {
 		t.Run(agent, func(t *testing.T) {
 			f := newFixture(t)
 			if r := f.run(call{agent: agent, mode: "leftover", cell: "left"}); r["outcome"] != "settled" ||
@@ -416,9 +416,9 @@ func TestCleanup(t *testing.T) {
 }
 
 func TestBuildPlan(t *testing.T) {
-	plan, err := BuildPlan(PlanOptions{Agent: "codex", Repo: "/repo", Base: "dev", Executable: "/bin/irrigator", Model: "gpt-x",
-		Tasks: []string{"docs=Fix typos", "tests=Add a test"}, Depends: []string{"tests=docs"}, Verify: []string{"tests=go test ./..."},
-		AddDirs: []string{"/ref"}, ContinueFrom: "abc"})
+	plan, err := buildPlan(planOptions{agent: "codex", repo: "/repo", base: "dev", executable: "/bin/irrigator", model: "gpt-x",
+		tasks: []string{"docs=Fix typos", "tests=Add a test"}, depends: []string{"tests=docs"}, verify: []string{"tests=go test ./..."},
+		addDirs: []string{"/ref"}, continueFrom: "abc"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -429,15 +429,15 @@ func TestBuildPlan(t *testing.T) {
 			t.Fatalf("plan lacks %s:\n%s", want, raw)
 		}
 	}
-	for _, bad := range []PlanOptions{
-		{Agent: "gemini", Tasks: []string{"a=x"}},
-		{Agent: "claude"},
-		{Agent: "claude", Tasks: []string{"bad id=x"}},
-		{Agent: "claude", Tasks: []string{"a=x", "a=y"}},
-		{Agent: "claude", Tasks: []string{"a=x"}, Depends: []string{"a=a"}},
-		{Agent: "claude", Tasks: []string{"a=x"}, Verify: []string{"b=true"}},
+	for _, bad := range []planOptions{
+		{agent: "gemini", tasks: []string{"a=x"}},
+		{agent: "claude"},
+		{agent: "claude", tasks: []string{"bad id=x"}},
+		{agent: "claude", tasks: []string{"a=x", "a=y"}},
+		{agent: "claude", tasks: []string{"a=x"}, depends: []string{"a=a"}},
+		{agent: "claude", tasks: []string{"a=x"}, verify: []string{"b=true"}},
 	} {
-		if _, err := BuildPlan(bad); err == nil {
+		if _, err := buildPlan(bad); err == nil {
 			t.Fatalf("accepted %+v", bad)
 		}
 	}

@@ -30,8 +30,8 @@ import (
 
 const protocol = "swarm.worker/v1"
 
-// OutputFields are the outputs every coding cell produces.
-var OutputFields = []string{"branch", "commit", "diffstat", "summary"}
+// outputFields are the outputs every coding cell produces.
+var outputFields = []string{"branch", "commit", "diffstat", "summary"}
 
 type multi []string
 
@@ -69,7 +69,7 @@ func runWorker(args []string, stdin io.Reader, stdout, stderr io.Writer) (int, e
 		return 2, errors.New("--repo is required")
 	}
 	if o.model == "" {
-		o.model = DefaultModel(o.agent)
+		o.model = defaultModel(o.agent)
 	}
 	raw, err := io.ReadAll(stdin)
 	if err != nil {
@@ -272,7 +272,7 @@ func work(o workerOptions, req model.WorkRequest, p *progress) map[string]any {
 	}
 	wanted := req.Task.Requires
 	if len(wanted) == 0 {
-		wanted = OutputFields
+		wanted = outputFields
 	}
 	selected := map[string]string{}
 	for _, k := range wanted {

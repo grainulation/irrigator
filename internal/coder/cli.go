@@ -18,21 +18,21 @@ import (
 
 var cellID = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$`)
 
-// PlanOptions describes a plan of coding cells.
-type PlanOptions struct {
-	Agent, Repo, Base, Model, Worktrees, Name, ContinueFrom string
-	Tasks, Verify, Depends, AddDirs                         []string
-	Executable                                              string // absolute path of the irrigator binary that runs the cells
+// planOptions describes a plan of coding cells.
+type planOptions struct {
+	agent, repo, base, model, worktrees, name, continueFrom string
+	tasks, verify, depends, addDirs                         []string
+	executable                                              string // absolute path of the irrigator binary that runs the cells
 }
 
-// BuildPlan returns a swarm/v1 plan whose cells each run Options.Agent in its
+// buildPlan returns a swarm/v1 plan whose cells each run Options.Agent in its
 // own worktree through `irrigator _code-worker`.
-func BuildPlan(o PlanOptions) (map[string]any, error) {
-	if !slices.Contains(Agents, o.Agent) {
-		return nil, fmt.Errorf("--agent must be one of %s, got %q", strings.Join(Agents, ", "), o.Agent)
+func buildPlan(o planOptions) (map[string]any, error) {
+	if !slices.Contains(agents, o.agent) {
+		return nil, fmt.Errorf("--agent must be one of %s, got %q", strings.Join(agents, ", "), o.agent)
 	}
 	order, tasks := []string{}, map[string]map[string]any{}
-	for _, spec := range o.Tasks {
+	for _, spec := range o.tasks {
 		id, prompt, ok := strings.Cut(spec, "=")
 		if !ok || !cellID.MatchString(id) || strings.TrimSpace(prompt) == "" {
 			return nil, fmt.Errorf("--task needs ID=PROMPT with a simple ID (letters, digits, _ and -), got %q", spec)
@@ -41,12 +41,12 @@ func BuildPlan(o PlanOptions) (map[string]any, error) {
 			return nil, fmt.Errorf("duplicate task %s", id)
 		}
 		order = append(order, id)
-		tasks[id] = map[string]any{"id": id, "provider": "coder", "prompt": strings.TrimSpace(prompt), "requires": OutputFields}
+		tasks[id] = map[string]any{"id": id, "provider": "coder", "prompt": strings.TrimSpace(prompt), "requires": outputFields}
 	}
 	if len(tasks) == 0 {
 		return nil, errors.New("give at least one --task ID=PROMPT")
 	}
-	for _, spec := range o.Depends {
+	for _, spec := range o.depends {
 		id, list, ok := strings.Cut(spec, "=")
 		var deps []string
 		for _, d := range strings.Split(list, ",") {
@@ -68,7 +68,7 @@ func BuildPlan(o PlanOptions) (map[string]any, error) {
 		tasks[id]["depends_on"], tasks[id]["input_fields"] = deps, fields
 	}
 	context := map[string]string{}
-	for _, spec := range o.Verify {
+	for _, spec := range o.verify {
 		id, command, ok := strings.Cut(spec, "=")
 		if !ok || tasks[id] == nil || strings.TrimSpace(command) == "" {
 			return nil, fmt.Errorf("--verify needs ID=COMMAND naming an existing task, got %q", spec)
@@ -80,36 +80,36 @@ func BuildPlan(o PlanOptions) (map[string]any, error) {
 		context[key] = strings.TrimSpace(command)
 		tasks[id]["context"] = []string{key}
 	}
-	repo, err := filepath.Abs(o.Repo)
+	repo, err := filepath.Abs(o.repo)
 	if err != nil {
 		return nil, err
 	}
-	command := []string{o.Executable, "_code-worker", "--agent", o.Agent, "--repo", repo, "--base", o.Base}
-	if o.Model != "" {
-		command = append(command, "--model", o.Model)
+	command := []string{o.executable, "_code-worker", "--agent", o.agent, "--repo", repo, "--base", o.base}
+	if o.model != "" {
+		command = append(command, "--model", o.model)
 	}
-	if o.Worktrees != "" {
-		w, err := filepath.Abs(o.Worktrees)
+	if o.worktrees != "" {
+		w, err := filepath.Abs(o.worktrees)
 		if err != nil {
 			return nil, err
 		}
 		command = append(command, "--worktrees", w)
 	}
-	for _, d := range o.AddDirs {
+	for _, d := range o.addDirs {
 		abs, err := filepath.Abs(d)
 		if err != nil {
 			return nil, err
 		}
 		command = append(command, "--add-dir", abs)
 	}
-	if o.ContinueFrom != "" {
-		command = append(command, "--continue-from", o.ContinueFrom)
+	if o.continueFrom != "" {
+		command = append(command, "--continue-from", o.continueFrom)
 	}
 	list := make([]map[string]any, 0, len(order))
 	for _, id := range order {
 		list = append(list, tasks[id])
 	}
-	name := o.Name
+	name := o.name
 	if name == "" {
 		name = "Worktree coding cells"
 	}
@@ -123,33 +123,33 @@ func BuildPlan(o PlanOptions) (map[string]any, error) {
 	return plan, nil
 }
 
-// Apply runs `irrigator apply PLAN args...`; the CLI package provides it.
-type Apply func(args []string) (int, error)
+// applyFunc runs `irrigator apply PLAN args...`; the CLI package provides it.
+type applyFunc func(args []string) (int, error)
 
 // CodeCLI is `irrigator code`: build a plan of coding cells and apply it, or
 // `irrigator code cleanup` to remove a run's worktrees.
-func CodeCLI(args []string, apply Apply) (int, error) {
+func CodeCLI(args []string, apply applyFunc) (int, error) {
 	if len(args) > 0 && args[0] == "cleanup" {
 		return cleanupCLI(args[1:], os.Stdout)
 	}
-	var o PlanOptions
+	var o planOptions
 	var tasks, verify, depends, addDirs multi
 	var run, timeout, out string
 	var workers int
 	var budget float64
 	var planOnly bool
 	fs := flag.NewFlagSet("code", flag.ContinueOnError)
-	fs.StringVar(&o.Agent, "agent", "claude", "coding agent: claude, codex or agy")
-	fs.StringVar(&o.Repo, "repo", ".", "git repository the agents change")
-	fs.StringVar(&o.Base, "base", "main", "branch or commit each cell branch starts from")
-	fs.StringVar(&o.Model, "model", "", "agent model (default: sonnet for claude, the agent's own default otherwise)")
+	fs.StringVar(&o.agent, "agent", "claude", "coding agent: claude, codex or agy")
+	fs.StringVar(&o.repo, "repo", ".", "git repository the agents change")
+	fs.StringVar(&o.base, "base", "main", "branch or commit each cell branch starts from")
+	fs.StringVar(&o.model, "model", "", "agent model (default: sonnet for claude, the agent's own default otherwise)")
 	fs.Var(&tasks, "task", "one coding cell as ID=PROMPT; repeat for more")
 	fs.Var(&verify, "verify", "ID=COMMAND run in ID's worktree after the agent finishes; non-zero fails the cell")
 	fs.Var(&depends, "depends", "ID=DEP[,DEP]: run ID after DEP and show it DEP's summary")
 	fs.Var(&addDirs, "add-dir", "extra directory agents may read, outside the worktree (repeatable)")
-	fs.StringVar(&o.ContinueFrom, "continue-from", "", "start each cell from irrigator/<RUNID[:8]>/<cell> when that branch exists")
-	fs.StringVar(&o.Worktrees, "worktrees", "", "worktree root (default: irrigator-worktrees beside the repo)")
-	fs.StringVar(&o.Name, "name", "", "plan name")
+	fs.StringVar(&o.continueFrom, "continue-from", "", "start each cell from irrigator/<RUNID[:8]>/<cell> when that branch exists")
+	fs.StringVar(&o.worktrees, "worktrees", "", "worktree root (default: irrigator-worktrees beside the repo)")
+	fs.StringVar(&o.name, "name", "", "plan name")
 	fs.StringVar(&run, "run", "", "new run directory (default: runs/code-<time>)")
 	fs.IntVar(&workers, "workers", 2, "cells that run at once")
 	fs.StringVar(&timeout, "timeout", "30m", "time limit per cell")
@@ -162,18 +162,18 @@ func CodeCLI(args []string, apply Apply) (int, error) {
 	if fs.NArg() > 0 {
 		return 2, fmt.Errorf("unexpected argument %q; give tasks with --task ID=PROMPT", fs.Arg(0))
 	}
-	o.Tasks, o.Verify, o.Depends, o.AddDirs = tasks, verify, depends, addDirs
+	o.tasks, o.verify, o.depends, o.addDirs = tasks, verify, depends, addDirs
 	exe, err := os.Executable()
 	if err != nil {
 		return 1, err
 	}
-	if o.Executable, err = filepath.EvalSymlinks(exe); err != nil {
+	if o.executable, err = filepath.EvalSymlinks(exe); err != nil {
 		return 1, err
 	}
-	if _, err := git(o.Repo, "rev-parse", "--verify", o.Base+"^{commit}"); err != nil {
+	if _, err := git(o.repo, "rev-parse", "--verify", o.base+"^{commit}"); err != nil {
 		return 2, fmt.Errorf("--repo must be a git repository containing --base: %w", err)
 	}
-	plan, err := BuildPlan(o)
+	plan, err := buildPlan(o)
 	if err != nil {
 		return 2, err
 	}
@@ -199,7 +199,7 @@ func CodeCLI(args []string, apply Apply) (int, error) {
 	if err := os.WriteFile(planPath, raw, 0o644); err != nil {
 		return 1, err
 	}
-	fmt.Fprintf(os.Stderr, "plan: %s\nrun: %s\nreview results: irrigator review list --workspace %s --base %s\n", planPath, run, o.Repo, o.Base)
+	fmt.Fprintf(os.Stderr, "plan: %s\nrun: %s\nreview results: irrigator review list --workspace %s --base %s\n", planPath, run, o.repo, o.base)
 	return apply([]string{planPath, "--run", run, "--backend", "coder", "--workers", fmt.Sprint(workers),
 		"--timeout", timeout, "--call-budget", fmt.Sprint(budget)})
 }
