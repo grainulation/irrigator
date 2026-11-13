@@ -98,18 +98,17 @@ credentials. Start with [execution profiles](docs/execution-profiles.md) and
 [local Ollama](docs/managed-ollama.md). Authorize spending explicitly: reservation
 limits control admission and do not guarantee the final provider invoice.
 
-## Choose your execution shape
+## Two ways to run work
 
-| You want | Plan and execution path |
+| You want | Use |
 | --- | --- |
-| Recursive delegation, where children may create further children | `A×D×S` spawning trees: mock, built-in Haiku, or a configured command provider implementing the worker contract. Roots × total levels × maximum children per parent. |
-| Explicit model/provider selection with run-level budget reservations | Managed execution profiles with turns and terminal helpers (`X×Y×Z`). Main agents × maximum turns × helper setting. |
+| Agents that can split their task and hand the pieces to sub-agents, which can split again | **Spawning trees**, with mock workers, the built-in Haiku backend or your own worker command. You choose how many tasks to start with, how many levels deep it may go and how many children each task may create. See [recursive spawning](docs/swarm-shapes.md). |
+| A chosen model or provider for each agent, and a budget for the whole run | **Managed profiles**: a fixed number of main agents, each taking up to a set number of turns, optionally with helpers. Helpers cannot spawn further work. See [turn shapes](docs/turn-shapes.md) and [execution profiles](docs/execution-profiles.md). |
 
-These are different expansion contracts, not interchangeable notation. Managed
-turn helpers cannot recursively spawn. For examples and capacity rules, see
-[recursive spawning](docs/swarm-shapes.md), [turn shapes](docs/turn-shapes.md), and
-[execution profiles](docs/execution-profiles.md). Worker concurrency is a separate
-setting in both paths.
+The two are separate ways of growing a run, not two spellings of the same thing.
+The detailed docs write these limits as short shapes (`A×D×S` for trees, `X×Y×Z`
+for turns); you do not need them to get started. How many workers run at once is
+a separate setting in both.
 
 ## Choose your interface
 
