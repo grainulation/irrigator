@@ -3,7 +3,6 @@
   "name": "irrigator",
   "version": "1.0.0-rc.4",
   "description": "Durable local agent graphs. Plan, run, observe, resume and budget Irrigator swarms through the local irrigator CLI.",
-  "homepage": "https://github.com/grainulation/irrigator",
   "logo": "docs/mascot.png",
   "extensions": {
     "com.openai": {
