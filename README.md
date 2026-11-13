@@ -7,6 +7,8 @@
 <p align="center">
   <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-blue"></a>
   <a href="docs/platform-support.md"><img alt="Runtime: macOS, Linux and Windows via WSL 2" src="https://img.shields.io/badge/runtime-macOS%20%7C%20Linux%20%7C%20WSL%202-476b46"></a>
+</p>
+<p align="center">
   <a href="https://github.com/grainulation/irrigator/actions/workflows/platforms.yml"><img alt="macOS and Linux CI" src="https://github.com/grainulation/irrigator/actions/workflows/platforms.yml/badge.svg"></a>
   <a href="https://github.com/grainulation/irrigator/actions/workflows/windows-wsl.yml"><img alt="Windows (WSL) CI" src="https://github.com/grainulation/irrigator/actions/workflows/windows-wsl.yml/badge.svg"></a>
 </p>
