@@ -1,6 +1,6 @@
 # Irrigator runtime notation
 
-This page is the plugin-facing reference for the notation the Irrigator CLI actually understands. It describes runtime behavior of the local Go executable (`irrigator`, version 1.0.0-rc.4). The executable also provides a stdio MCP server (`irrigator mcp`, read-only unless started with `--allow-control`; see [mcp.md](mcp.md)). This page does not describe a hosted service, pricing, or a public release; none exists for this plugin.
+This page is the plugin-facing reference for the notation the Irrigator CLI actually understands. It describes runtime behavior of the local Go executable (`irrigator`, version 1.0.0). The executable also provides a stdio MCP server (`irrigator mcp`, read-only unless started with `--allow-control`; see [mcp.md](mcp.md)). This page does not describe a hosted service or pricing; none exists for this plugin.
 
 The wire/compatibility names `swarm/v1`, `swarm.worker/v1`, `SWARM_*` and the saved-run filenames (for example `state.json`) are stable contracts, not stale product names. The product and executable are Irrigator.
 

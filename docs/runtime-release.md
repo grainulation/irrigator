@@ -1,5 +1,8 @@
 # CLI runtime archives
 
+For source validation and promotion into a GitHub Release, use the
+[versioned release checklist](versioned-release.md).
+
 `tools/package_runtime.py` builds local, unsigned CLI archives for macOS and Linux,
 with amd64 and arm64 binaries. It does not publish, install, or establish that a
 cross-built binary has been executed on its target.

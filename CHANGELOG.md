@@ -5,7 +5,14 @@ release. Versioned plan and worker protocols are tracked separately from the CLI
 
 ## Unreleased
 
+## 1.0.0 — 2026-11-15
+
 ### Added
+
+- A documented [1.x compatibility policy](docs/compatibility.md), with explicit
+  stable interfaces and experimental exclusions, plus fixed synthetic legacy-run
+  upgrade tests for provenance, migration backups, uncertainty and spending consent.
+
 
 - Antigravity as a managed execution profile: `init --managed --profile agy:MODEL` and adapter kind `agy_cli`
   (structured output via `--json-schema`, tools denied by a strict session, token-only accounting; `swarm/v4`+).
@@ -28,7 +35,35 @@ release. Versioned plan and worker protocols are tracked separately from the CLI
   fixture (`irrigator.replay-fixture/v1`) of a run, and `make replay-gate` replays the committed
   dev and held-out fixtures through the real executor path. See [docs/debug-workflow.md](docs/debug-workflow.md).
 
+
+- Explicit reviewed provider executable migration for paused managed runs,
+  preserving original plans, historical bindings, results, and budget receipts.
+- Worker boundary snapshots and model schemas for remaining depth, turns,
+  helpers, and task capacity; known invalid final-turn waits fail admission.
+- `make check-fast` for contributor feedback alongside the unchanged full race
+  gate, and a manual four-platform CLI candidate packaging/install workflow.
+
+- Offline managed-plan scaffolding with executable pinning, explicit context-file
+  imports, and optional per-profile deadlines. Resume preserves saved call limits.
+
+- Reproducible macOS/Linux CLI archives with source provenance, checksums and
+  isolated installation acceptance in the platform workflow.
+- Internal checkpoint transaction, attempt executor and immutable artifact-store
+  boundaries, wired to local execution and exports, with alternate-adapter
+  conformance tests and a staged hosting architecture plan.
+- Stable terminal swarm slots, distinct state markers and static/no-color modes.
+- Machine-readable command help derived from actual flag definitions.
+- A generated plan JSON Schema for editor assistance.
+- A first-run tutorial, tool comparison and contributor conduct guidelines.
+
 ### Changed
+
+- First-use help now leads with the credential-free path. The quickstart uses
+  a fresh demo directory on each invocation, and demos print inspection and
+  starter-plan commands when they finish.
+- Added a versioned release checklist covering source gates, native candidate
+  archives and promotion of the exact tested bytes.
+
 
 - `irrigator code` with agy: agy's own time limit or an interruption is `uncertain` (partial work is possible),
   and a run agy rejects before starting (for example an unknown model) is `not_started`; subagent starts appear
@@ -71,34 +106,18 @@ release. Versioned plan and worker protocols are tracked separately from the CLI
   Managed plans continue to use their declared profiles; resume keeps the
   admitted backend. There is no implicit paid provider.
 - `--call-budget` names the per-call limit; `--budget` remains a compatible alias.
-- Go 1.26 is the minimum supported toolchain (the `go.mod` directive). Older
+- Go 1.26.7 is the minimum supported toolchain (the `go.mod` directive). Older
   reduced-capability fallback builds have been removed; development and CI pin
   Go 1.27.2.
 - Terminal rendering and provider environment policy have separate internal modules.
 
-### Added
-
-- Explicit reviewed provider executable migration for paused managed runs,
-  preserving original plans, historical bindings, results, and budget receipts.
-- Worker boundary snapshots and model schemas for remaining depth, turns,
-  helpers, and task capacity; known invalid final-turn waits fail admission.
-- `make check-fast` for contributor feedback alongside the unchanged full race
-  gate, and a manual four-platform CLI candidate packaging/install workflow.
-
-- Offline managed-plan scaffolding with executable pinning, explicit context-file
-  imports, and optional per-profile deadlines. Resume preserves saved call limits.
-
-- Reproducible macOS/Linux CLI archives with source provenance, checksums and
-  isolated installation acceptance in the platform workflow.
-- Internal checkpoint transaction, attempt executor and immutable artifact-store
-  boundaries, wired to local execution and exports, with alternate-adapter
-  conformance tests and a staged hosting architecture plan.
-- Stable terminal swarm slots, distinct state markers and static/no-color modes.
-- Machine-readable command help derived from actual flag definitions.
-- A generated plan JSON Schema for editor assistance.
-- A first-run tutorial, tool comparison and contributor conduct guidelines.
-
 ### Fixed
+
+- Managed agy rejections require unambiguous evidence that no session started;
+  earlier activity, malformed turn counts and contradictory usage remain uncertain.
+- First-use smoke verification uses a private home, registry and local executor,
+  independent of the caller's launch and session settings.
+
 
 - Preserve admitted child graphs and historical spending when retrying failed
   parents; report retry no-ops and backup execution-authority boundaries.

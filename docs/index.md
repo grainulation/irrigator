@@ -52,6 +52,7 @@ contracts to their source files.
 ## Maintain the project
 
 - [Architecture](architecture.md): source ownership and runtime boundaries.
+- [1.x compatibility](compatibility.md): stable interfaces, saved-run upgrades and experimental exclusions.
 - [Contributing](../CONTRIBUTING.md): change requirements and local verification.
 - [Changelog](../CHANGELOG.md) and [roadmap boundaries](roadmap.md).
 - [Community conduct](../CODE_OF_CONDUCT.md).

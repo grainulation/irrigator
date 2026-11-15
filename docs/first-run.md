@@ -7,10 +7,14 @@ directories; Irrigator preserves existing evidence.
 ## 1. Run without credentials
 
 ```sh
-./irrigator demo --run ./runs/first-demo
-./irrigator status ./runs/first-demo
-./irrigator inspect ./runs/first-demo discover
+./irrigator demo
 ```
+
+Each invocation creates a fresh run directory. At the end, copy the printed
+`status` and `inspect` commands to explore its saved results. To choose the
+location yourself, use `./irrigator demo --run ./runs/first-demo`; that directory
+must be new. To inspect an earlier run, use `status` rather than rerunning `demo`
+with the same directory.
 
 The terminal displays task states as the graph grows. `IRRIGATOR_UI=static` keeps
 live state updates without animation; `IRRIGATOR_UI=plain` uses ordinary logs.
