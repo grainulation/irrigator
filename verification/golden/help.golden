@@ -1,5 +1,15 @@
 Irrigator — durable local agent graphs
 
+Start here (no credentials or model calls):
+  irrigator demo                          Run a free demo in a fresh directory
+  irrigator init --out plan.json          Create your own starter plan
+  irrigator plan plan.json                Validate it before running
+  irrigator apply plan.json --run runs/first --backend mock
+
+From a source checkout after make build, use ./irrigator in these commands.
+Use new plan filenames and run directories.
+
+Commands:
   billing reconcile RUN RECEIPT --attest-external-billing  Record externally verified cost
   campaign init|admit|status|close          Reserve admission across managed runs
   experiments [--json]                    List opt-in experiments and their risks
