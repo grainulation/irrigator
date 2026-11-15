@@ -9,6 +9,9 @@ release. Versioned plan and worker protocols are tracked separately from the CLI
 
 ### Added
 
+- A [Homebrew tap in this repository](docs/homebrew.md), with a development
+  source formula, private-prefix recipe acceptance, and a pinned stable formula
+  generator that consumes four verified release-candidate archives.
 - A documented [1.x compatibility policy](docs/compatibility.md), with explicit
   stable interfaces and experimental exclusions, plus fixed synthetic legacy-run
   upgrade tests for provenance, migration backups, uncertainty and spending consent.

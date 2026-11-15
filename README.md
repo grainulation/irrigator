@@ -74,6 +74,10 @@ To install from this checkout, run `make install PREFIX="$HOME/.local"` and add
 provider tools have their own setup. CLI archives and their installation checks
 are described in [runtime releases](docs/runtime-release.md).
 
+Homebrew users can install the development version from this repository's
+[tap](docs/homebrew.md) after the formula lands on `main`. A pinned stable formula
+follows the tested release archives.
+
 ### Ask your agent to start
 
 Give Claude Code, Codex or Antigravity this prompt from the checkout:

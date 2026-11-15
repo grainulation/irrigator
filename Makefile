@@ -1,7 +1,7 @@
 GO ?= go
 PREFIX ?= $(HOME)/.local
 
-.PHONY: build test check check-fast check-integration check-tools check-exports lint replay-gate acceptance smoke demo durability install
+.PHONY: build test check check-fast check-integration check-tools check-homebrew check-exports lint replay-gate acceptance smoke demo durability install
 
 GOLANGCI_LINT_VERSION ?= v2.15.0
 LINT_NEW_FROM_REV ?=
@@ -54,6 +54,10 @@ check-exports:
 # Tool, packaging and repository-consistency checks (Python standard library only).
 check-tools:
 	python3 -m unittest discover -s tools -p 'test_*.py'
+
+# Actual Homebrew formula DSL, build recipe and mock test in a private prefix.
+check-homebrew:
+	python3 -I verification/check_homebrew.py
 
 # Experimental replay gate: redacted failure fixtures (dev and held-out sets) must
 # replay through the real executor path to their recorded states. No network, no credentials.
