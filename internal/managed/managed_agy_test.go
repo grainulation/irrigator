@@ -76,3 +76,28 @@ func TestManagedInitialPlanForAgy(t *testing.T) {
 		t.Fatalf("unknown provider: %v", err)
 	}
 }
+
+func TestAgyRejectedBeforeStartRequiresUnambiguousEvidence(t *testing.T) {
+	rejected := `{"event":"result","result":{"conversation_id":"","status":"ERROR","num_turns":0,"usage":{"input_tokens":0}}}`
+	if !agyRejectedBeforeStart([]byte("\n" + rejected + "\n")) {
+		t.Fatal("standalone zero-turn rejection should remain not started")
+	}
+	for name, stream := range map[string]string{
+		"session started":     agyInit + "\n" + rejected,
+		"step before result":  agyFinish + "\n" + rejected,
+		"malformed prefix":    "broken\n" + rejected,
+		"multiple results":    rejected + "\n" + rejected,
+		"event after result":  rejected + "\n" + agyInit,
+		"missing turn count":  strings.Replace(rejected, `"num_turns":0,`, "", 1),
+		"string turn count":   strings.Replace(rejected, `"num_turns":0`, `"num_turns":"1"`, 1),
+		"negative turn count": strings.Replace(rejected, `"num_turns":0`, `"num_turns":-1`, 1),
+		"missing status":      strings.Replace(rejected, `"status":"ERROR",`, "", 1),
+		"reported usage":      strings.Replace(rejected, `"input_tokens":0`, `"input_tokens":1`, 1),
+	} {
+		t.Run(name, func(t *testing.T) {
+			if agyRejectedBeforeStart([]byte(stream)) {
+				t.Fatal("ambiguous or started execution was classified not started")
+			}
+		})
+	}
+}
