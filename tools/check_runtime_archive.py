@@ -84,6 +84,8 @@ def accept(archive):
             result = subprocess.run([str(binary), *command], cwd=home, env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=90)
             if result.returncode:
                 raise ValueError("packaged command failed: " + command[0])
+            if command == ["version"] and result.stdout != (provenance["version"] + "\n").encode("utf-8"):
+                raise ValueError("packaged executable version does not match provenance")
         if not (home / "results.json").is_file():
             raise ValueError("export missing")
     return {"archive_sha256": hashlib.sha256(Path(archive).read_bytes()).hexdigest(), "commit": provenance["commit"], "target": provenance["target"], "commands": commands, "result": "PASS", "paid_calls": False}
