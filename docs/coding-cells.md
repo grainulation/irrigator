@@ -37,7 +37,7 @@ Outcomes are reported honestly, for every agent:
 | Situation | Outcome |
 | --- | --- |
 | Validator request, git/worktree setup failed, the agent could not be launched, or it rejected the run before starting (for example an unknown model) | `not_started` |
-| Agent timed out (including agy's own time limit or an interruption), ended without a result, or git failed after it ran | `uncertain` |
+| Agent timed out (including agy's own time limit or an interruption), ended without a result, git failed after it ran, or verification was incomplete or exited successfully after changing the checked Git state | `uncertain` |
 | Agent finished (including an agent-reported error, a usage limit, no changes, or failed verification) | `settled`, with `error` set for all but a clean finish |
 
 `uncertain` is never replayed automatically. Inspect the worktree and branch
@@ -138,10 +138,22 @@ objective check.
 the agent has finished, and only when the branch has commits and the agent did
 not error, the worker runs it with `/bin/sh -c` in the cell's worktree:
 
-- Non-zero exit: the cell settles with `error` set to
+- Exit 77 means verification is incomplete or a required host prerequisite is
+  missing. The outcome is `uncertain`, with an error describing the incomplete
+  check. Use another nonzero exit for a completed check that failed.
+- Other nonzero exits settle the cell with `error` set to
   `verification failed (exit N): <last 1500 characters of output>` and no output.
-- Exit 0: the summary gains ``Verification `<command>` passed.``
+- Exit 0 is accepted only if the worktree remains clean, `HEAD` still names the
+  commit being checked, and the checked-out branch still matches the cell branch.
+  Then the summary gains ``Verification `<command>` passed.`` A dirty worktree,
+  changed commit or branch, or failure to inspect that state makes the outcome
+  `uncertain`; the worker does not certify a different artifact or commit changes
+  made by verification.
 - A command that outlives the cell's timeout makes the outcome `uncertain`.
+
+Inspect an uncertain cell's worktree, branch and verification output before an
+explicit recovery or retry decision. Verification commands should inspect the
+agent's committed result and leave it unchanged.
 
 ## Reference directories
 
