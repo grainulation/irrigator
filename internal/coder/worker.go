@@ -458,9 +458,10 @@ func promptFor(req model.WorkRequest, worktree, branch, base, previous string) s
 - Keep the change focused on this task. Add or update tests for behavior you change.
 - Commit your work with a clear message.
 - Never run git push, git reset, git checkout, git switch or rm; delete files with git rm.
+- Never bypass a failing check or permission refusal by weakening tests or verification gates.
 - Some commands are not allowed. If one is refused, do not stop: continue with file edits and the
   commands you can run, and name the refused command in your summary.
-- Finish with a short summary: what changed, which tests ran and their result, and anything left undone.`, worktree, branch, base))
+- Finish with a short summary: what changed, exact test commands and exit codes, and anything left undone.`, worktree, branch, base))
 	return strings.Join(parts, "\n")
 }
 

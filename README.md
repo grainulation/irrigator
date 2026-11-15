@@ -67,6 +67,22 @@ saved, pass `--run ./runs/first-demo` with a new directory name.
 See the [first-run guide](docs/first-run.md) for your own plan,
 provider selection, and recovery.
 
+Or point your coding agent (Claude Code, Codex, or Antigravity) at this checkout:
+
+```text
+Read README.md and AGENTS.md in the Irrigator repository. Build ./irrigator with make build,
+run ./irrigator agents and ./irrigator demo --run ./runs/first-demo, and report the exit codes
+and final status lines. Then tell me which routes below this machine can run, and ask me before
+starting any model-backed or paid run.
+```
+
+| Route | What it does | Needs | Time / Cost |
+| --- | --- | --- | --- |
+| **1. Mock demo & starter plan** | Runs `demo`, `init`, `plan`, and `apply --backend mock` | Local CLI (`make build`); no credentials | ~2 s · $0 (no model calls) |
+| **2. Local models (Ollama)** | Runs managed swarm tasks against a local Ollama model | Route 1 + `ollama` serving a local model | Local compute · $0 API spend |
+| **3. Managed CLI profiles** | Runs bounded turn/helper graphs via `claude:MODEL`, `codex:MODEL`, or `agy:MODEL` | Route 1 + authenticated local agent CLI | Explicit `--call-budget` / profile limit |
+| **4. Coding cells (`irrigator code`)** | Runs coding agents in parallel git worktrees (`--task ID=PROMPT --verify ID=CMD`), landing review branches | Route 1 + git repo + `claude`, `codex`, or `agy` | Per-cell timeout & budget cap |
+
 ## Why Irrigator?
 
 A shell script or Makefile is often enough for a fixed sequence of commands.
