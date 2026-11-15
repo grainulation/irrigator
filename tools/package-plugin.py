@@ -96,6 +96,10 @@ PATH_FIELD_WORDS = {'path', 'file', 'dir', 'directory', 'folder', 'icon', 'logo'
 FORBIDDEN_MANIFEST_KEYS = {'mcpServers', 'mcp_servers', 'permissions', 'pricing', 'price', 'userConfig'}
 # Present only with owner authorization; warn so they are never added by accident.
 REMOTE_METADATA_KEYS = {'homepage', 'repository', 'websiteURL', 'privacyPolicyURL', 'termsOfServiceURL'}
+AUTHORIZED_REMOTE_METADATA = {
+    'homepage': {'https://irrigator.dev', 'https://irrigator.dev/'},
+    'repository': {'https://github.com/grainulation/irrigator', 'https://github.com/grainulation/irrigator.git'},
+}
 
 BINARY_MAGIC = tuple(bytes.fromhex(h) for h in ('7f454c46', 'cffaedfe', 'cefaedfe', 'cafebabe', 'feedfacf', 'feedface'))
 # Coarse heuristics only: a clean scan does not prove a package holds no secrets.
@@ -376,7 +380,7 @@ def check_manifest_claims(root, rel, data, rep, has_license):
             continue
         if key in FORBIDDEN_MANIFEST_KEYS:
             rep.error('%s: key %s is forbidden (no MCP server, permission or pricing claims)' % (rel, here))
-        if key in REMOTE_METADATA_KEYS:
+        if key in REMOTE_METADATA_KEYS and not (isinstance(val, str) and val in AUTHORIZED_REMOTE_METADATA.get(key, ())):
             rep.warn('%s: %s is set; add homepage/repository style fields only with owner authorization' % (rel, here))
         if isinstance(val, str) and (val.startswith('./') or val.startswith('../')):
             target = '/'.join(b for b in val.split('/') if b not in ('', '.'))
