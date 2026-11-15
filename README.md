@@ -1,5 +1,5 @@
 <p align="center">
-  <a href="https://irrigator.dev"><img src="docs/mascot.png" alt="Irrigator mascot" width="200"></a>
+  <a href="https://irrigator.dev"><img src="docs/mascot.png" alt="Irrigator mascot" width="132"></a>
 </p>
 
 <h1 align="center">Irrigator</h1>
@@ -12,12 +12,15 @@
 </p>
 
 <p align="center">
-  <a href="https://irrigator.dev/"><img src="https://img.shields.io/badge/website-irrigator.dev-98f3ef?style=for-the-badge" alt="See the Irrigator homepage"></a>
+  <a href="https://irrigator.dev/"><img src="https://img.shields.io/badge/website-irrigator.dev-fcc830?style=for-the-badge" alt="See the Irrigator homepage"></a>
 </p>
 
 <p align="center">
   <a href="https://github.com/grainulation/irrigator/actions/workflows/platforms.yml"><img src="https://github.com/grainulation/irrigator/actions/workflows/platforms.yml/badge.svg?branch=main" alt="macOS and Linux CI"></a>
   <a href="https://github.com/grainulation/irrigator/actions/workflows/windows-wsl.yml"><img src="https://github.com/grainulation/irrigator/actions/workflows/windows-wsl.yml/badge.svg?branch=main" alt="Windows (WSL) CI"></a>
+</p>
+
+<p align="center">
   <a href="docs/platform-support.md"><img src="https://img.shields.io/badge/go-%E2%89%A51.26.7-00ADD8?logo=go&logoColor=white" alt="Go 1.26.7 or later"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green" alt="MIT license"></a>
   <a href="https://deepwiki.com/grainulation/irrigator"><img src="https://img.shields.io/badge/docs-DeepWiki-1f6feb" alt="Docs on DeepWiki"></a>
