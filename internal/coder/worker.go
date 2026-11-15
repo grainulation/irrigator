@@ -267,9 +267,17 @@ func work(o workerOptions, req model.WorkRequest, p *progress) map[string]any {
 		if timedOut {
 			return settle("uncertain", "error", fmt.Sprintf("verification `%s` timed out", verify))
 		}
+		if code == 77 {
+			p.say(cell, "verify INCOMPLETE (exit 77)")
+			return settle("uncertain", "error", fmt.Sprintf("verification incomplete or missing host prerequisite (exit 77): %s", tail))
+		}
 		if code != 0 {
 			p.say(cell, fmt.Sprintf("verify FAILED (exit %d)", code))
 			return settle("settled", "error", fmt.Sprintf("verification failed (exit %d): %s", code, tail))
+		}
+		if dirty, err := git(worktree, "status", "--porcelain"); err != nil || dirty != "" {
+			p.say(cell, "verify dirtied worktree")
+			return settle("uncertain", "error", fmt.Sprintf("verification `%s` left uncommitted or untracked changes in worktree", verify))
 		}
 		p.say(cell, "verify passed")
 		output["summary"] += fmt.Sprintf("\n\nVerification `%s` passed.", verify)

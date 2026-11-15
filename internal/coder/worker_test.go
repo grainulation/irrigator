@@ -407,6 +407,14 @@ func TestVerification(t *testing.T) {
 	if r["error"] != "agent error: agent says: boom" {
 		t.Fatalf("verify ran after agent error: %v", r)
 	}
+	r = f.run(call{mode: "success", cell: "prereq", context: map[string]string{"verify_prereq": "echo missing gpu; exit 77"}})
+	if r["outcome"] != "uncertain" || r["error"] != "verification incomplete or missing host prerequisite (exit 77): missing gpu" {
+		t.Fatalf("exit 77 must be uncertain: %v", r)
+	}
+	r = f.run(call{mode: "success", cell: "dirtyv", context: map[string]string{"verify_dirtyv": "echo leak > leak.tmp"}})
+	if r["outcome"] != "uncertain" || !strings.Contains(r["error"].(string), "left uncommitted or untracked changes in worktree") {
+		t.Fatalf("dirty verify worktree must be uncertain: %v", r)
+	}
 }
 
 func TestAddDirAndContinueFrom(t *testing.T) {
