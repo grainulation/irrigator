@@ -53,7 +53,11 @@ else
   echo '{"type":"turn.completed","usage":{"input_tokens":120,"cached_input_tokens":5,"output_tokens":40,"reasoning_output_tokens":3}}'
 fi
 `,
-	"agy": fakeHead + `if [ "$FAKE_MODE" = agybadmodel ]; then
+	"agy": fakeHead + `if [ -n "$FAKE_AGY_STREAM" ]; then
+  printf '%s\n' "$FAKE_AGY_STREAM"
+  exit 1
+fi
+if [ "$FAKE_MODE" = agybadmodel ]; then
   echo '{"event":"result","result":{"conversation_id":"","status":"ERROR","response":"","error":"invalid model selection (--model \"x\"): model x is not recognized","num_turns":0,"usage":{"input_tokens":0,"output_tokens":0},"finished_reason":"error"}}'
   exit 1
 fi
@@ -523,5 +527,53 @@ func TestCodeFlagsMatchWhatTheWorkerPasses(t *testing.T) {
 				t.Errorf("%s: worker passes %s but CodeFlags does not check it", agent, f)
 			}
 		}
+	}
+}
+
+func TestAgyRejectionEvidenceThroughWorker(t *testing.T) {
+	rejected := `{"event":"result","result":{"conversation_id":"","status":"ERROR","error":"bad model","num_turns":0,"usage":{"input_tokens":0}}}`
+	cases := []struct{ name, stream, outcome string }{
+		{"valid zero usage", rejected, "not_started"},
+		{"absent usage", strings.Replace(rejected, `,"usage":{"input_tokens":0}`, "", 1), "not_started"},
+		{"session before rejection", `{"event":"init","conversation_id":"c1"}` + "\n" + rejected, "uncertain"},
+		{"session after rejection", rejected + "\n" + `{"event":"init","conversation_id":"c1"}`, "uncertain"},
+		{"second result after rejection", rejected + "\n" + strings.Replace(rejected, `"conversation_id":""`, `"conversation_id":"c1"`, 1), "uncertain"},
+		{"malformed prefix", "broken\n" + rejected, "uncertain"},
+		{"duplicate usage", strings.Replace(rejected, `"input_tokens":0`, `"input_tokens":1,"input_tokens":0`, 1), "uncertain"},
+	}
+	for _, usage := range []string{`null`, `"not-an-object"`, `{}`, `{"input_tokens":"5"}`, `{"input_tokens":-1}`, `{"input_tokens":0.5}`, `{"input_tokens":0,"cache_read_tokens":1}`, `{"input_tokens":0,"cache_write_tokens":"0"}`} {
+		cases = append(cases, struct{ name, stream, outcome string }{"invalid usage " + usage, strings.Replace(rejected, `{"input_tokens":0}`, usage, 1), "uncertain"})
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			f := newFixture(t)
+			t.Setenv("FAKE_AGY_STREAM", tc.stream)
+			r := f.run(call{agent: "agy", mode: "success"})
+			if r["outcome"] != tc.outcome {
+				t.Fatalf("want %s, got %v", tc.outcome, r)
+			}
+			if _, ok := r["output"]; ok {
+				t.Fatalf("rejection produced accepted output: %v", r)
+			}
+		})
+	}
+}
+
+func TestVerificationPreservesCommitAndBranchIdentity(t *testing.T) {
+	for name, command := range map[string]string{
+		"committed change":          "printf changed > hello.txt && git add hello.txt && git commit -q -m verifier-change",
+		"same SHA different branch": "git branch verifier-branch && git symbolic-ref HEAD refs/heads/verifier-branch",
+		"detached same SHA":         "git update-ref --no-deref HEAD HEAD",
+	} {
+		t.Run(name, func(t *testing.T) {
+			f := newFixture(t)
+			r := f.run(call{mode: "success", context: map[string]string{"verify_cell1": command}})
+			if r["outcome"] != "uncertain" || r["error"] != "verification changed commit or branch identity" {
+				t.Fatalf("verification identity change accepted: %v", r)
+			}
+			if _, ok := r["output"]; ok {
+				t.Fatalf("identity change produced accepted output: %v", r)
+			}
+		})
 	}
 }

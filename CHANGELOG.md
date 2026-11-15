@@ -58,6 +58,12 @@ release. Versioned plan and worker protocols are tracked separately from the CLI
 
 ### Changed
 
+- Coding-cell verification stays bound to the collected commit and branch.
+  A verifier that changes either identity leaves the attempt uncertain, even
+  when it commits its changes and leaves a clean worktree.
+- Antigravity coding cells require correctly typed zero-token usage for a
+  pre-session rejection. Malformed or contradictory rejection evidence remains
+  uncertain instead of authorizing safe replay.
 - First-use help now leads with the credential-free path. The quickstart uses
   a fresh demo directory on each invocation, and demos print inspection and
   starter-plan commands when they finish.
