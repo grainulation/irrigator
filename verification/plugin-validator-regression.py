@@ -97,7 +97,7 @@ class GrainulatorVocabulary(unittest.TestCase):
     def manifest_fails(self, author):
         with tempfile.TemporaryDirectory() as d:
             put(d, "plugin.json", json.dumps({
-                "name": "irrigator", "version": "1.0.0-rc.4",
+                "name": "irrigator", "version": "1.0.0",
                 "description": "Local Irrigator workflow skills over the irrigator CLI",
                 "author": {"name": author}, "interface": {"developerName": author}}))
             c, rep = make_ctx(d)
