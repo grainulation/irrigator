@@ -93,6 +93,8 @@ func TestAgyRejectedBeforeStartRequiresUnambiguousEvidence(t *testing.T) {
 		"negative turn count": strings.Replace(rejected, `"num_turns":0`, `"num_turns":-1`, 1),
 		"missing status":      strings.Replace(rejected, `"status":"ERROR",`, "", 1),
 		"reported usage":      strings.Replace(rejected, `"input_tokens":0`, `"input_tokens":1`, 1),
+		"print timeout":       strings.Replace(rejected, `"status":"ERROR"`, `"status":"ERROR","finished_reason":"print_timeout"`, 1),
+		"interrupted":         strings.Replace(rejected, `"status":"ERROR"`, `"status":"ERROR","finished_reason":"interrupted"`, 1),
 	} {
 		t.Run(name, func(t *testing.T) {
 			if agyRejectedBeforeStart([]byte(stream)) {

@@ -294,6 +294,22 @@ func TestAgyOwnTimeoutIsUncertainAndBadModelIsNotStarted(t *testing.T) {
 	if msg, _ := r["error"].(string); r["outcome"] != "not_started" || !strings.Contains(msg, "invalid model selection") {
 		t.Fatalf("agy rejecting the model must be not_started: %v", r)
 	}
+	rejected := `{"event":"result","result":{"conversation_id":"","status":"ERROR","error":"bad model","num_turns":0,"usage":{"input_tokens":0}}}`
+	for name, lines := range map[string][]string{
+		"session started before error": {`{"event":"init","conversation_id":"c1"}`, rejected},
+		"event after rejection":        {rejected, `{"event":"init","conversation_id":"c1"}`},
+		"print timeout zero turns":     {strings.Replace(rejected, `"num_turns":0`, `"num_turns":0,"finished_reason":"print_timeout"`, 1)},
+		"missing num_turns":            {strings.Replace(rejected, `"num_turns":0,`, "", 1)},
+		"nonzero tokens":               {strings.Replace(rejected, `"input_tokens":0`, `"input_tokens":1`, 1)},
+	} {
+		var res result
+		for _, line := range lines {
+			parseLine("agy", []byte(line), &res, f.repo)
+		}
+		if res.notStarted {
+			t.Fatalf("%s: classified as notStarted", name)
+		}
+	}
 	var out, errOut bytes.Buffer
 	raw, _ := json.Marshal(model.WorkRequest{Protocol: protocol, Kind: "task", RequestID: "req-1", RunID: "0123456789abcdef", Attempt: 1, TimeoutMS: 1800000,
 		Task: model.Task{ID: "sub", Prompt: "p"}})

@@ -1,6 +1,7 @@
 package coder
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"path/filepath"
@@ -117,6 +118,7 @@ func agentArgs(l launch) (string, []string, error) {
 
 // result is what the worker learned from the agent's output stream.
 type result struct {
+	lines      int    // non-empty stdout lines seen so far
 	done       bool   // a terminal result event arrived
 	notStarted bool   // the agent rejected the run before starting a session
 	isError    bool   // the agent reported failure
@@ -129,6 +131,13 @@ type result struct {
 // parseLine reads one stdout line from the agent, updating r, and returns a
 // progress line to show (or "").
 func parseLine(agent string, line []byte, r *result, worktree string) string {
+	if len(bytes.TrimSpace(line)) == 0 {
+		return ""
+	}
+	r.lines++
+	if r.lines > 1 {
+		r.notStarted = false
+	}
 	var ev map[string]any
 	if json.Unmarshal(line, &ev) != nil {
 		return ""
@@ -253,15 +262,19 @@ func parseAgy(ev map[string]any, r *result, worktree string) string {
 	case "result":
 		res, _ := ev["result"].(map[string]any)
 		r.usage, _ = res["usage"].(map[string]any)
-		turns, _ := res["num_turns"].(float64)
+		turns, hasTurns := res["num_turns"].(float64)
+		id, hasID := res["conversation_id"].(string)
+		reason := str(res["finished_reason"])
+		u := usageFor(r.usage, "")
+		noTokens := u == nil || (u["input_tokens"] == int64(0) && u["output_tokens"] == int64(0) && u["thinking_tokens"] == int64(0) && u["cache_read_tokens"] == int64(0) && u["cache_write_tokens"] == int64(0) && u["total_tokens"] == int64(0))
 		switch {
-		case str(res["status"]) != "SUCCESS" && str(res["conversation_id"]) == "" && turns == 0:
-			// Rejected before a session existed (for example an unknown --model): nothing ran.
-			r.notStarted, r.text = true, str(res["error"])
-			return ""
-		case str(res["finished_reason"]) == "print_timeout" || str(res["finished_reason"]) == "interrupted":
+		case reason == "print_timeout" || reason == "interrupted":
 			// The turn was cut off mid-work: partial effects are possible, so no clean result.
 			r.text = str(res["error"])
+			return ""
+		case r.lines == 1 && str(res["status"]) == "ERROR" && hasID && id == "" && hasTurns && turns == 0 && noTokens:
+			// Standalone rejection before a session existed (for example an unknown --model): nothing ran.
+			r.notStarted, r.text = true, str(res["error"])
 			return ""
 		}
 		r.done = true

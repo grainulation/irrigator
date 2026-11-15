@@ -203,7 +203,7 @@ func work(o workerOptions, req model.WorkRequest, p *progress) map[string]any {
 	if err != nil {
 		return outcome("not_started", map[string]any{"error": fmt.Sprintf("could not launch %s: %v", bin, err)})
 	}
-	if res.notStarted {
+	if !timedOut && res.notStarted {
 		p.say(cell, "rejected before starting")
 		return outcome("not_started", map[string]any{"error": fmt.Sprintf("%s rejected the run before starting: %s", o.agent, firstLine(res.text))})
 	}

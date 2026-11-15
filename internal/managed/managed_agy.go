@@ -131,7 +131,8 @@ func agyRejectedBeforeStart(raw []byte) bool {
 	res, _ := event["result"].(map[string]any)
 	id, hasID := res["conversation_id"].(string)
 	turns, hasTurns := res["num_turns"].(json.Number)
-	if res["status"] != "ERROR" || !hasID || id != "" || !hasTurns || turns != "0" {
+	reason, _ := res["finished_reason"].(string)
+	if res["status"] != "ERROR" || !hasID || id != "" || !hasTurns || turns != "0" || reason == "print_timeout" || reason == "interrupted" {
 		return false
 	}
 	if reported, present := res["usage"]; present {
