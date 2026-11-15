@@ -1,17 +1,38 @@
 <p align="center">
-  <img src="docs/mascot.png" width="144" alt="Irrigator mascot">
+  <a href="https://irrigator.dev"><img src="docs/mascot.png" alt="Irrigator mascot" width="200"></a>
 </p>
 
 <h1 align="center">Irrigator</h1>
-<p align="center"><strong>Durable local workflows for agent work.</strong></p>
+
+<p align="center"><strong>Durable local workflows for the coding agents you already use.</strong></p>
+
 <p align="center">
-  <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-blue"></a>
-  <a href="docs/platform-support.md"><img alt="Runtime: macOS, Linux and Windows via WSL 2" src="https://img.shields.io/badge/runtime-macOS%20%7C%20Linux%20%7C%20WSL%202-476b46"></a>
+  Plan the graph. Run in parallel. Inspect or resume from your terminal.<br>
+  Explicit state, retries, and spending boundaries for local agent work.
 </p>
+
 <p align="center">
-  <a href="https://github.com/grainulation/irrigator/actions/workflows/platforms.yml"><img alt="macOS and Linux CI" src="https://github.com/grainulation/irrigator/actions/workflows/platforms.yml/badge.svg"></a>
-  <a href="https://github.com/grainulation/irrigator/actions/workflows/windows-wsl.yml"><img alt="Windows (WSL) CI" src="https://github.com/grainulation/irrigator/actions/workflows/windows-wsl.yml/badge.svg"></a>
+  <a href="https://irrigator.dev/"><img src="https://img.shields.io/badge/website-irrigator.dev-98f3ef?style=for-the-badge" alt="See the Irrigator homepage"></a>
 </p>
+
+<p align="center">
+  <a href="https://github.com/grainulation/irrigator/actions/workflows/platforms.yml"><img src="https://github.com/grainulation/irrigator/actions/workflows/platforms.yml/badge.svg?branch=main" alt="macOS and Linux CI"></a>
+  <a href="https://github.com/grainulation/irrigator/actions/workflows/windows-wsl.yml"><img src="https://github.com/grainulation/irrigator/actions/workflows/windows-wsl.yml/badge.svg?branch=main" alt="Windows (WSL) CI"></a>
+  <a href="docs/platform-support.md"><img src="https://img.shields.io/badge/go-%E2%89%A51.26.7-00ADD8?logo=go&logoColor=white" alt="Go 1.26.7 or later"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green" alt="MIT license"></a>
+  <a href="https://deepwiki.com/grainulation/irrigator"><img src="https://img.shields.io/badge/docs-DeepWiki-1f6feb" alt="Docs on DeepWiki"></a>
+</p>
+
+<p align="center">
+  <a href="#try-it-without-credentials">Quick start</a> ·
+  <a href="docs/first-run.md">First run</a> ·
+  <a href="#plugins">Plugins</a> ·
+  <a href="docs/agent-setup.md">Agent setup</a> ·
+  <a href="docs/index.md">Documentation</a> ·
+  <a href="CHANGELOG.md">Changelog</a>
+</p>
+
+---
 
 Irrigator is for developers who want coding agents to work in parallel without
 losing track of results, retries, or spending. Turn a task into an explicit graph,
@@ -22,9 +43,6 @@ Use the **CLI** directly or through the **Claude Code, Codex and Antigravity plu
 one task per git worktree, with results landing as branches to review. The
 interface is the terminal: `status --watch`, `graph`, `review tui`, `session`,
 and a read-only [MCP server](docs/mcp.md) for agent hosts.
-
-[First run](docs/first-run.md) · [Plugins](#plugins) · [Documentation](docs/index.md) · [Architecture](docs/architecture.md) ·
-[Contributing](CONTRIBUTING.md)
 
 ## Try it without credentials
 
