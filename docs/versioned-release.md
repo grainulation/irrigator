@@ -37,8 +37,8 @@ alone is not evidence that a release has been published.
   checks described in [local release packaging](local-release.md). CLI archives
   do not include the plugins.
 
-The candidate workflow's fast checks supplement the full source gates; they do
-not replace them. A local cross-build does not prove runtime behavior on another
+The candidate workflow runs only `make check-fast`; it supplements the full
+source gates (`make acceptance` and `make lint`) and does not replace them. A local cross-build does not prove runtime behavior on another
 platform. Any source change after the freeze requires a new candidate identity
 and renewed affected checks. See [1.x compatibility](compatibility.md) for the
 public contracts and explicit experimental exclusions.
@@ -53,6 +53,16 @@ duplicate asset names cannot coexist in one GitHub Release. Do not rebuild the
 archives during promotion. Check the published asset
 names, download links and installation instructions from a fresh consumer
 environment.
+
+Take all four archives from one **CLI release candidates** run dispatched at the
+frozen commit; artifacts are named `irrigator-cli-<target>-<sha>` and are kept
+for 30 days. Confirm each artifact's SHA and each archive's `provenance.json`
+commit and version equal the release commit and version before attaching it.
+Tag that exact commit: if the release branch is merged first, use a merge method
+that preserves the SHA or rebuild and revalidate at the new SHA. Archives built
+by GoReleaser or the dry-run workflow are a different build path and are not the
+tested bytes. The `published: false` field in a candidate's `provenance.json`
+describes the build and is not rewritten when the archive is published.
 
 Publishing and tag creation are separate maintainer actions; no current workflow
 performs them automatically. See [runtime archives](runtime-release.md) for
