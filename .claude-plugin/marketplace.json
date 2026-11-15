@@ -1,7 +1,7 @@
 {
   "name": "irrigator-local",
   "owner": {
-    "name": "Irrigator contributors"
+    "name": "Grainulation"
   },
   "metadata": {
     "description": "Repository marketplace for the Irrigator workflow plugin; requires a separately installed Irrigator CLI.",
@@ -14,8 +14,11 @@
       "description": "Workflow skills for the local Irrigator CLI: shape sizing, plan/run, resume, observe and budget control.",
       "version": "1.0.0",
       "author": {
-        "name": "Irrigator contributors"
+        "name": "Grainulation"
       },
+      "homepage": "https://irrigator.dev",
+      "repository": "https://github.com/grainulation/irrigator",
+      "license": "MIT",
       "keywords": ["irrigator", "agent-graphs", "swarm", "orchestration", "local-first"],
       "category": "productivity"
     }

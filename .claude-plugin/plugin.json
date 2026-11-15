@@ -3,8 +3,9 @@
   "version": "1.0.0",
   "description": "Plan, run, observe and recover durable local Irrigator agent graphs with explicit shape, budget and acceptance discipline.",
   "author": {
-    "name": "Irrigator contributors"
+    "name": "Grainulation"
   },
+  "homepage": "https://irrigator.dev",
   "keywords": ["irrigator", "agent-graphs", "swarm", "orchestration", "local-first"],
   "skills": "./skills/",
   "mcpServers": {
