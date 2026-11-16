@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/grainulation/irrigator/examples"
@@ -62,7 +63,18 @@ func terminalDemo(args []string) (int, error) {
 	fmt.Printf("Scheduling order: %s (explicit demo selection; apply/resume default stays depth)\n", order)
 	code, err := runops.Run(abs, model.Options{Workers: 4, Timeout: 15 * time.Second, Budget: .01})
 	fmt.Printf("Demo state retained: %s\n", abs)
+	binary := demoShellArg(os.Args[0])
+	runArg := demoShellArg(abs)
+	fmt.Printf("Inspect this run:\n  %s status %s\n  %s inspect %s discover\n", binary, runArg, binary, runArg)
+	if code == 0 && err == nil {
+		fmt.Printf("Create your own plan (use new filenames and run directories):\n  %s init --out plan.json\n  %s plan plan.json\n  %s apply plan.json --run runs/first --backend mock\n", binary, binary, binary)
+	}
 	return code, err
+}
+
+// Printed commands must preserve literal paths when pasted into a POSIX shell.
+func demoShellArg(value string) string {
+	return "'" + strings.ReplaceAll(value, "'", "'\"'\"'") + "'"
 }
 
 // Validate routing and launch confinement before creating any run directory.

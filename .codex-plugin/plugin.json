@@ -1,6 +1,6 @@
 {
   "name": "irrigator",
-  "version": "1.0.0-rc.4",
+  "version": "1.0.0",
   "description": "Durable local agent graphs. Plan, run, observe, resume and budget Irrigator swarms through the local irrigator CLI.",
   "skills": "./skills/",
   "requires_local_executor": true,
@@ -21,5 +21,6 @@
   },
   "author": {
     "name": "Grainulation"
-  }
+  },
+  "homepage": "https://irrigator.dev"
 }

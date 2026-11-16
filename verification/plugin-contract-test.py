@@ -10,7 +10,7 @@ Usage (run from anywhere; -I keeps the interpreter from importing planted module
 What it checks
   static (default): manifests, skill frontmatter + required workflow concepts,
   every documented `irrigator ...` command/flag against the real CLI surface
-  (derived from main.go of 1.0.0-rc.4), shape arithmetic, display-metadata
+  (derived from main.go of 1.0.0), shape arithmetic, display-metadata
   limits in JSON examples, unsupported claims (MCP, license, pricing, remote
   publication, Grainulator vocabulary), tree hygiene, packaging-tool hygiene.
   --archive RELEASE: scans the actual members of a .zip/.tar/.tar.gz release

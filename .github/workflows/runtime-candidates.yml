@@ -39,6 +39,13 @@ jobs:
         with:
           go-version: '1.27.2'
           cache: false
+      # The tmux executor tests need a real tmux; runner images do not always ship it.
+      - name: Install tmux
+        run: |
+          if ! command -v tmux >/dev/null; then
+            if [ "$RUNNER_OS" = macOS ]; then brew install tmux; else sudo apt-get update && sudo apt-get install -y tmux; fi
+          fi
+          tmux -V
       - name: Verify native target and fast contracts
         env:
           EXPECTED_TARGET: ${{ matrix.target }}

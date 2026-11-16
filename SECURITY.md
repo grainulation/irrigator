@@ -1,6 +1,6 @@
 # Security
 
-Irrigator is a pre-release local execution tool. This document states what the runtime does and does not protect against, and how to report a problem. It is not a certification and not a promise of support.
+Irrigator is a single-host local execution tool. This document states what the runtime does and does not protect against, and how to report a problem. It is not a certification and not a promise of support.
 
 ## Supported versions
 

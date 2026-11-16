@@ -82,7 +82,7 @@ After writing, the tool reads the new archive back and compares every member wit
 ## Validation before packaging
 
 - Manifests: valid JSON, `name` is `irrigator`, a semver `version` that agrees across `plugin.json`, `.codex-plugin/plugin.json`, `.claude-plugin/plugin.json` and the marketplace entry.
-- No `permissions`, pricing or `userConfig` keys, and no `mcpServers` key except the read-only `irrigator mcp` registration (no `--allow-control`) in `.claude-plugin/plugin.json`. No license key unless a license file exists. Homepage and repository style fields produce a warning.
+- No `permissions`, pricing or `userConfig` keys, and no `mcpServers` key except the read-only `irrigator mcp` registration (no `--allow-control`) in `.claude-plugin/plugin.json`. No license key unless a license file exists. Homepage and repository fields warn unless they use the authorized project URLs: `https://irrigator.dev` (with an optional trailing slash) for `homepage`, and `https://github.com/grainulation/irrigator` (with an optional `.git` suffix) for `repository`. Other remote metadata fields still warn.
 - Every `./` path in a manifest exists, stays inside the plugin root and does not pass through a symlink.
 - Manifest fields that name a location (keys ending in path, file, dir, icon, logo, image, screenshot, skill, agent, hook, entry, source, binary or executable) must not hold an absolute, `~`, `$VAR`, drive-letter, backslash, `file:` or `..` path. Descriptions, prompts and public `https://` URLs are not treated as paths.
 - All nine skills exist: `irrigator`, `router`, `plan`, `run`, `resume`, `observe`, `budget`, `swarm`, `debug`. Each has frontmatter whose `name` equals its directory name.

@@ -1,12 +1,16 @@
 package coder
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"path/filepath"
 	"regexp"
 	"sort"
 	"strings"
+
+	"github.com/grainulation/irrigator/internal/jsonio"
 )
 
 // agents lists the coding agents the built-in worker can run.
@@ -117,7 +121,9 @@ func agentArgs(l launch) (string, []string, error) {
 
 // result is what the worker learned from the agent's output stream.
 type result struct {
+	lines      int    // non-empty stdout lines seen so far
 	done       bool   // a terminal result event arrived
+	uncertain  bool   // contradictory or malformed evidence prevents settlement
 	notStarted bool   // the agent rejected the run before starting a session
 	isError    bool   // the agent reported failure
 	text       string // final summary, or the error text
@@ -129,8 +135,27 @@ type result struct {
 // parseLine reads one stdout line from the agent, updating r, and returns a
 // progress line to show (or "").
 func parseLine(agent string, line []byte, r *result, worktree string) string {
+	if len(bytes.TrimSpace(line)) == 0 {
+		return ""
+	}
+	r.lines++
+	if r.lines > 1 {
+		if r.notStarted {
+			r.uncertain = true
+		}
+		r.notStarted = false
+	}
 	var ev map[string]any
-	if json.Unmarshal(line, &ev) != nil {
+	if agent == "agy" {
+		decoder := json.NewDecoder(bytes.NewReader(line))
+		parsed, err := jsonio.ParseStrictJSON(decoder, 0)
+		var ok bool
+		ev, ok = parsed.(map[string]any)
+		if err != nil || !ok || decoder.Decode(new(any)) != io.EOF {
+			r.uncertain = true
+			return ""
+		}
+	} else if json.Unmarshal(line, &ev) != nil {
 		return ""
 	}
 	switch agent {
@@ -253,14 +278,23 @@ func parseAgy(ev map[string]any, r *result, worktree string) string {
 	case "result":
 		res, _ := ev["result"].(map[string]any)
 		r.usage, _ = res["usage"].(map[string]any)
-		turns, _ := res["num_turns"].(float64)
+		turns, hasTurns := res["num_turns"].(float64)
+		id, hasID := res["conversation_id"].(string)
+		reason := str(res["finished_reason"])
+		noTokens := agyRejectionHasZeroUsage(res)
 		switch {
-		case str(res["status"]) != "SUCCESS" && str(res["conversation_id"]) == "" && turns == 0:
-			// Rejected before a session existed (for example an unknown --model): nothing ran.
+		case reason == "print_timeout" || reason == "interrupted":
+			// The turn was cut off mid-work: partial effects are possible, so no clean result.
+			r.uncertain = true
+			r.text = str(res["error"])
+			return ""
+		case r.lines == 1 && str(res["status"]) == "ERROR" && hasID && id == "" && hasTurns && turns == 0 && noTokens:
+			// Standalone rejection before a session existed (for example an unknown --model): nothing ran.
 			r.notStarted, r.text = true, str(res["error"])
 			return ""
-		case str(res["finished_reason"]) == "print_timeout" || str(res["finished_reason"]) == "interrupted":
-			// The turn was cut off mid-work: partial effects are possible, so no clean result.
+		case str(res["status"]) == "ERROR" && (!hasID || id == "" || !hasTurns || turns == 0):
+			// A claimed rejection contradicted by the stream cannot establish completion.
+			r.uncertain = true
 			r.text = str(res["error"])
 			return ""
 		}
@@ -272,6 +306,31 @@ func parseAgy(ev map[string]any, r *result, worktree string) string {
 		}
 	}
 	return ""
+}
+
+// agyRejectionHasZeroUsage validates rejection evidence without the lossy
+// normalization used for reporting. Older rejections may omit usage entirely.
+func agyRejectionHasZeroUsage(res map[string]any) bool {
+	value, present := res["usage"]
+	if !present {
+		return true
+	}
+	usage, ok := value.(map[string]any)
+	if !ok {
+		return false
+	}
+	if _, present := usage["input_tokens"]; !present {
+		return false
+	}
+	for _, key := range []string{"input_tokens", "output_tokens", "thinking_tokens", "cache_read_tokens", "cache_read_input_tokens", "cache_write_tokens", "cache_creation_input_tokens", "total_tokens"} {
+		if value, present := usage[key]; present {
+			count, ok := value.(float64)
+			if !ok || count != 0 {
+				return false
+			}
+		}
+	}
+	return true
 }
 
 // usageFor maps an agent's token counts onto the swarm.worker/v1 usage fields.

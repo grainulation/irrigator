@@ -121,16 +121,27 @@ func agyObject(raw []byte) (map[string]any, error) {
 // agyRejectedBeforeStart reports a result that agy emitted without ever
 // starting a session (for example an unknown model): nothing ran.
 func agyRejectedBeforeStart(raw []byte) bool {
-	for _, line := range bytes.Split(raw, []byte{'\n'}) {
-		event, err := agyObject(line)
-		if err != nil || event["event"] != "result" {
-			continue
-		}
-		res, _ := event["result"].(map[string]any)
-		turns, _ := res["num_turns"].(json.Number)
-		return res["status"] != "SUCCESS" && res["conversation_id"] == "" && (turns == "" || turns == "0")
+	// A standalone rejection is the only evidence that no session ran. A stream
+	// with an init, step, second result or malformed data stays uncertain, even
+	// when one terminal record claims zero turns and an empty conversation ID.
+	event, err := agyObject(bytes.TrimSpace(raw))
+	if err != nil || event["event"] != "result" {
+		return false
 	}
-	return false
+	res, _ := event["result"].(map[string]any)
+	id, hasID := res["conversation_id"].(string)
+	turns, hasTurns := res["num_turns"].(json.Number)
+	reason, _ := res["finished_reason"].(string)
+	if res["status"] != "ERROR" || !hasID || id != "" || !hasTurns || turns != "0" || reason == "print_timeout" || reason == "interrupted" {
+		return false
+	}
+	if reported, present := res["usage"]; present {
+		usage, err := agyUsage(reported)
+		if err != nil || usage.InputTokens != 0 || usage.OutputTokens != 0 || usage.ThinkingTokens != 0 || usage.CacheReadTokens != 0 || usage.TotalTokens != 0 {
+			return false
+		}
+	}
+	return true
 }
 
 // parseManagedAgyStream accepts only a tool-free turn that ends in one SUCCESS

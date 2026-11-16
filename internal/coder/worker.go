@@ -203,7 +203,7 @@ func work(o workerOptions, req model.WorkRequest, p *progress) map[string]any {
 	if err != nil {
 		return outcome("not_started", map[string]any{"error": fmt.Sprintf("could not launch %s: %v", bin, err)})
 	}
-	if res.notStarted {
+	if !timedOut && !res.uncertain && res.notStarted {
 		p.say(cell, "rejected before starting")
 		return outcome("not_started", map[string]any{"error": fmt.Sprintf("%s rejected the run before starting: %s", o.agent, firstLine(res.text))})
 	}
@@ -233,6 +233,9 @@ func work(o workerOptions, req model.WorkRequest, p *progress) map[string]any {
 		costNote = fmt.Sprintf("$%.4f", *res.costUSD)
 	}
 
+	if res.uncertain {
+		return settle("uncertain", "error", "agent reported contradictory or malformed execution evidence")
+	}
 	if timedOut || !res.done {
 		// The agent ran and may have changed files; never claim a clean outcome.
 		p.say(cell, "timed out or ended without a result")
@@ -262,14 +265,32 @@ func work(o workerOptions, req model.WorkRequest, p *progress) map[string]any {
 		return settle("settled", "error", "agent finished without changing anything")
 	}
 	if verify := strings.TrimSpace(req.Context["verify_"+strings.ReplaceAll(cell, "-", "_")]); verify != "" {
+		verifyHead, headErr := git(worktree, "rev-parse", "--verify", "HEAD")
+		verifyRef, refErr := git(worktree, "symbolic-ref", "-q", "HEAD")
+		if headErr != nil || refErr != nil || verifyHead != output["commit"] || verifyRef != "refs/heads/"+branch {
+			return settle("uncertain", "error", "verification input commit or branch identity changed")
+		}
 		p.say(cell, "verify: "+verify)
 		code, tail, timedOut := runVerify(verify, worktree, time.Duration(math.Max(60, seconds)*float64(time.Second)))
 		if timedOut {
 			return settle("uncertain", "error", fmt.Sprintf("verification `%s` timed out", verify))
 		}
+		if code == 77 {
+			p.say(cell, "verify INCOMPLETE (exit 77)")
+			return settle("uncertain", "error", fmt.Sprintf("verification incomplete or missing host prerequisite (exit 77): %s", tail))
+		}
 		if code != 0 {
 			p.say(cell, fmt.Sprintf("verify FAILED (exit %d)", code))
 			return settle("settled", "error", fmt.Sprintf("verification failed (exit %d): %s", code, tail))
+		}
+		if dirty, err := git(worktree, "status", "--porcelain"); err != nil || dirty != "" {
+			p.say(cell, "verify dirtied worktree")
+			return settle("uncertain", "error", fmt.Sprintf("verification `%s` left uncommitted or untracked changes in worktree", verify))
+		}
+		afterHead, headErr := git(worktree, "rev-parse", "--verify", "HEAD")
+		afterRef, refErr := git(worktree, "symbolic-ref", "-q", "HEAD")
+		if headErr != nil || refErr != nil || afterHead != verifyHead || afterRef != verifyRef {
+			return settle("uncertain", "error", "verification changed commit or branch identity")
 		}
 		p.say(cell, "verify passed")
 		output["summary"] += fmt.Sprintf("\n\nVerification `%s` passed.", verify)
@@ -458,9 +479,10 @@ func promptFor(req model.WorkRequest, worktree, branch, base, previous string) s
 - Keep the change focused on this task. Add or update tests for behavior you change.
 - Commit your work with a clear message.
 - Never run git push, git reset, git checkout, git switch or rm; delete files with git rm.
+- Never bypass a failing check or permission refusal by weakening tests or verification gates.
 - Some commands are not allowed. If one is refused, do not stop: continue with file edits and the
   commands you can run, and name the refused command in your summary.
-- Finish with a short summary: what changed, which tests ran and their result, and anything left undone.`, worktree, branch, base))
+- Finish with a short summary: what changed, exact test commands and exit codes, and anything left undone.`, worktree, branch, base))
 	return strings.Join(parts, "\n")
 }
 

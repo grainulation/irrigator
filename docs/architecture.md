@@ -11,6 +11,9 @@ Paths below are relative to the repository root, the directory with
 `internal/<domain>` packages (below). The module root stays here; there is no published
 importable runtime library. Build with `make build` or `go build -o irrigator .`.
 
+The [1.x compatibility policy](compatibility.md) defines the public interfaces
+and saved-run upgrade guarantees; internal package boundaries are not public Go APIs.
+
 The top-level directories separate the product surfaces:
 
 - `main.go`: the entry point only (`os.Exit(cli.Main(os.Args))`).
