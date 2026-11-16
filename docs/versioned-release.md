@@ -77,5 +77,9 @@ monotonic sequence policy, then sign the exact tested assets using the
 [release pipeline](release-pipeline.md). This is separate from Apple signing
 and notarization.
 
-A Homebrew formula, an installer and automated GitHub publishing can follow a
-manual release. They are not prerequisites for publishing CLI archives.
+The [Homebrew tap](homebrew.md) lives in this repository. Prepare its pinned
+formula from the four frozen candidate archives, then promote the formula in a
+separate distribution-only commit after publishing those exact assets. Do not
+move the runtime release tag to that later formula commit. The HEAD recipe works
+from `main` independently of the stable release. Homebrew, an installer and
+automated publishing are not prerequisites for publishing CLI archives.

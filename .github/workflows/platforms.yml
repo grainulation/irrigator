@@ -102,6 +102,9 @@ jobs:
           set -- "$runtime_temp"/package/irrigator-*.tar.gz
           test "$#" -eq 1
           python3 -I tools/check_runtime_archive.py "$1"
+      - name: Homebrew source recipe and mock test
+        if: runner.os == 'macOS'
+        run: make check-homebrew
       - name: Cross-build supported runtime targets
         env:
           CGO_ENABLED: '0'

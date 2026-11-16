@@ -15,6 +15,7 @@ contracts to their source files.
 - [MCP server](mcp.md): inspect and, when allowed, drive runs from any MCP host.
 - [Plugin packaging](plugin-packaging.md): source-only plugin layout and checks.
 - [CLI runtime archives](runtime-release.md): reproducible local packages and clean-install checks.
+- [Homebrew](homebrew.md): development installation and promotion of a pinned release formula.
 
 ## Model the work
 
