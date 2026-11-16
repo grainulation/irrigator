@@ -5,13 +5,17 @@ release. Versioned plan and worker protocols are tracked separately from the CLI
 
 ## Unreleased
 
+### Added
+
+- A [Homebrew tap in this repository](docs/homebrew.md), with a development
+  source formula, private-prefix recipe acceptance, and a stable formula pinned
+  to the four verified 1.0.0 release-candidate archives. A generator prepares
+  future formula updates from one frozen set of verified candidate archives.
+
 ## 1.0.0 — 2026-11-15
 
 ### Added
 
-- A [Homebrew tap in this repository](docs/homebrew.md), with a development
-  source formula, private-prefix recipe acceptance, and a pinned stable formula
-  generator that consumes four verified release-candidate archives.
 - A documented [1.x compatibility policy](docs/compatibility.md), with explicit
   stable interfaces and experimental exclusions, plus fixed synthetic legacy-run
   upgrade tests for provenance, migration backups, uncertainty and spending consent.
