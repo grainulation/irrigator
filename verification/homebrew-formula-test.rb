@@ -1,8 +1,12 @@
 # Run with brew ruby after copying the formula into a temporary registered tap.
 # Exercises the actual Homebrew DSL, install recipe and test block in a private
-# prefix. It does not install a keg or dependencies into the caller's Homebrew.
+# prefix. It does not install a keg or formula dependencies. Homebrew may
+# initialize its own pinned formula-test gems, as it does for `brew test`.
 require "tmpdir"
 require "digest"
+# Match `brew test`: fresh Homebrew installs do not yet have its optional
+# formula-test gems (including minitest). Use Homebrew's pinned Bundler group.
+Utils::GemSetup.install_bundler_gems!(groups: ["formula_test"], setup_path: false)
 require "formula_assertions"
 
 raise "expected formula path, source directory, spec, archive and Go executable" unless ARGV.length == 5

@@ -54,9 +54,10 @@ make check-homebrew
 dependencies available. It registers an owned temporary local tap, loads the
 actual formula through Homebrew, builds into a private prefix, and runs the
 formula's credential-free demo/export test. It cleans up the temporary tap and
-prefix. It does not install a keg, resolve/install dependencies, or establish a
-fresh public-network `brew install`. CI runs it on macOS; the Python candidate
-checks also run on Linux.
+prefix. It does not install a keg, resolve/install formula dependencies, or
+establish a fresh public-network `brew install`. Like `brew test`, it may
+initialize Homebrew's own pinned formula-test gems on first use. CI runs it on
+macOS; the Python candidate checks also run on Linux.
 
 ## Prepare a pinned release formula update
 
