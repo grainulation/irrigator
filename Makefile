@@ -1,7 +1,7 @@
 GO ?= go
 PREFIX ?= $(HOME)/.local
 
-.PHONY: build test check check-fast check-integration check-tools check-exports lint replay-gate acceptance smoke demo durability install
+.PHONY: build test check check-fast check-integration check-tools check-homebrew check-exports lint replay-gate acceptance smoke demo durability install clean
 
 GOLANGCI_LINT_VERSION ?= v2.15.0
 LINT_NEW_FROM_REV ?=
@@ -55,6 +55,17 @@ check-exports:
 check-tools:
 	python3 -m unittest discover -s tools -p 'test_*.py'
 
+# Actual Homebrew formula DSL, build recipe and mock test in a private prefix.
+check-homebrew:
+	python3 -I verification/check_homebrew.py
+
+# ACP command worker test suite (examples/acp, Node.js 20+).
+check-acp:
+	@if [ ! -d "examples/acp/node_modules" ]; then \
+		(cd examples/acp && npm ci --ignore-scripts); \
+	fi
+	cd examples/acp && npm test
+
 # Experimental replay gate: redacted failure fixtures (dev and held-out sets) must
 # replay through the real executor path to their recorded states. No network, no credentials.
 replay-gate:
@@ -64,7 +75,7 @@ replay-gate:
 # (-tags integration) race suite, tool checks, the exported-surface report, the replay gate, then
 # the credential-free first-use workflow, demo and durability check. "make lint" is a separate
 # CI gate (it needs golangci-lint installed).
-acceptance: check check-integration check-tools check-exports replay-gate smoke demo durability
+acceptance: check check-integration check-tools check-exports check-acp replay-gate smoke demo durability
 
 smoke: build
 	sh verification/smoke.sh ./irrigator
@@ -80,4 +91,7 @@ durability: build
 install: build
 	install -d "$(DESTDIR)$(PREFIX)/bin"
 	install -m 755 irrigator "$(DESTDIR)$(PREFIX)/bin/irrigator"
+
+clean:
+	rm -rf irrigator build/ dist/ coverage.out *.test tools/__pycache__ verification/__pycache__
 

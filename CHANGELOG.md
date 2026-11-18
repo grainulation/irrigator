@@ -5,16 +5,53 @@ release. Versioned plan and worker protocols are tracked separately from the CLI
 
 ## Unreleased
 
-### Changed
+### Added
 
-- First-use help now leads with the credential-free path. The quickstart uses
-  a fresh demo directory on each invocation, and demos print inspection and
-  starter-plan commands when they finish.
-- Added a versioned release checklist covering source gates, native candidate
-  archives and promotion of the exact tested bytes.
+- Explicit role/difficulty routing into a new managed plan with `profiles route`;
+  existing profile allowlists and admitted runs remain unchanged.
+- Exact-attempt provider limit/reset advisories and paginated captured output,
+  with source-bound cursors, redaction and separate capture-loss metadata.
+- Selective-file change application with guarded undo and checks against the
+  assembled files, plus a read-only delivery summary of selections, conflicts
+  and recorded check outcomes.
+- An offline mock benchmark with held-out correctness checks; it does not
+  establish provider cost savings or model quality.
+
+## 1.1.0 — 2026-11-17
 
 ### Added
 
+- Opt-in command sandboxing: `--sandbox-verify` isolates test/build execution via platform sandboxes (`bubblewrap` on Linux, `sandbox-exec` on macOS).
+- Seed ignored files with CoW / reflink (`--seed-ignored`): speeds up worktree provisioning while preserving task isolation.
+- Read-only run prefix auto-resolution: CLI subcommands and MCP server resolve short run prefixes without requiring full paths.
+- Live progress streaming (`last_activity`): heartbeats and elapsed duration reported during long-running tasks.
+- Coder diagnostics sidecars: captures failed command logs and error snippets in `.irrigator/diagnostics/` for post-run analysis.
+- OpenTelemetry GenAI semantic attributes: standard `gen_ai.*` semantics (`gen_ai.usage.input_tokens`, `gen_ai.usage.output_tokens`, `gen_ai.response.model`) across telemetry.
+- Model Context Protocol (MCP) `ToolAnnotations`: adds `readOnlyHint`, `destructiveHint`, and `idempotentHint` metadata across all tools.
+- Canonical recipes & documentation alignment: recipes for monorepos, CI pipelines, and multi-agent loops; full alignment with 1.x compatibility guidelines.
+- A [Homebrew tap in this repository](docs/homebrew.md), with a development source formula, private-prefix recipe acceptance, and a stable formula pinned to verified release archives.
+
+## 1.0.0 — 2026-11-15
+
+### Added
+
+- A documented [1.x compatibility policy](docs/compatibility.md), with explicit
+  stable interfaces and experimental exclusions, plus fixed synthetic legacy-run
+  upgrade tests for provenance, migration backups, uncertainty and spending consent.
+
+
+- Antigravity as a managed execution profile: `init --managed --profile agy:MODEL` and adapter kind `agy_cli`
+  (structured output via `--json-schema`, tools denied by a strict session, token-only accounting; `swarm/v4`+).
+- `irrigator agents` (and `doctor`) warn when an installed Claude, Codex or agy CLI stops listing a flag
+  `irrigator code` passes.
+- `irrigator triage RUN`: read-only explanation of uncertain and failed cells (confirmed exit, live workers, cost,
+  last progress, and for `irrigator code` cells the branch, commits and uncommitted worktree changes) with one
+  recommended command each. `--fix` walks through them at a terminal and runs the chosen `resolve` (including
+  accepting a code cell's branch), `retry` or `cancel`. See [recovery](docs/recovery.md#triage-stuck-cells).
+- `irrigator code`: run Claude Code, Codex or Antigravity (`--agent claude|codex|agy`) on a repository, one
+  task per git worktree, with results as review branches; `irrigator code cleanup` removes a run's worktrees.
+  It replaces the Python `examples/coder` scripts (same branch layout, outcomes, verification, retries and
+  `--continue-from`). See [coding cells](docs/coding-cells.md).
 - Antigravity plugin: `agy plugin install https://github.com/grainulation/irrigator` installs the skills and the
   read-only `irrigator mcp` server (root `plugin.json` with the Agent Plugins schema, `mcp_config.json`, `mcp.json`).
   New [agent setup](docs/agent-setup.md) guide for Claude Code, Codex, Antigravity and other MCP agents.
@@ -24,8 +61,52 @@ release. Versioned plan and worker protocols are tracked separately from the CLI
   fixture (`irrigator.replay-fixture/v1`) of a run, and `make replay-gate` replays the committed
   dev and held-out fixtures through the real executor path. See [docs/debug-workflow.md](docs/debug-workflow.md).
 
+
+- Explicit reviewed provider executable migration for paused managed runs,
+  preserving original plans, historical bindings, results, and budget receipts.
+- Worker boundary snapshots and model schemas for remaining depth, turns,
+  helpers, and task capacity; known invalid final-turn waits fail admission.
+- `make check-fast` for contributor feedback alongside the unchanged full race
+  gate, and a manual four-platform CLI candidate packaging/install workflow.
+
+- Offline managed-plan scaffolding with executable pinning, explicit context-file
+  imports, and optional per-profile deadlines. Resume preserves saved call limits.
+
+- Reproducible macOS/Linux CLI archives with source provenance, checksums and
+  isolated installation acceptance in the platform workflow.
+- Internal checkpoint transaction, attempt executor and immutable artifact-store
+  boundaries, wired to local execution and exports, with alternate-adapter
+  conformance tests and a staged hosting architecture plan.
+- Stable terminal swarm slots, distinct state markers and static/no-color modes.
+- Machine-readable command help derived from actual flag definitions.
+- A generated plan JSON Schema for editor assistance.
+- A first-run tutorial, tool comparison and contributor conduct guidelines.
+
 ### Changed
 
+- Coding-cell verification stays bound to the collected commit and branch.
+  A verifier that changes either identity leaves the attempt uncertain, even
+  when it commits its changes and leaves a clean worktree.
+- Antigravity coding cells require correctly typed zero-token usage for a
+  pre-session rejection. Malformed or contradictory rejection evidence remains
+  uncertain instead of authorizing safe replay.
+- First-use help now leads with the credential-free path. The quickstart uses
+  a fresh demo directory on each invocation, and demos print inspection and
+  starter-plan commands when they finish.
+- Added a versioned release checklist covering source gates, native candidate
+  archives and promotion of the exact tested bytes.
+
+
+- `irrigator code` with agy: agy's own time limit or an interruption is `uncertain` (partial work is possible),
+  and a run agy rejects before starting (for example an unknown model) is `not_started`; subagent starts appear
+  in the cell's progress.
+- Integration tests no longer depend on sub-second mock delays: tests that need a mock task to keep running hold
+  it open explicitly (`IRRIGATOR_TEST_MOCK_GATE`, test-only, mock backends only) and release it. The Windows
+  (WSL) workflow no longer retries failed integration tests and runs them under the race detector like the
+  native jobs.
+- `approvals notify --via ntfy` (and run notifications over ntfy) refuse the public `ntfy.sh` without
+  `IRRIGATOR_NTFY_TOKEN`, since notices carry live approve/deny links. Set the token for a reserved topic, use
+  your own server, or set `IRRIGATOR_NTFY_ALLOW_PUBLIC=1` to send anyway.
 - The minimum Go version is now 1.26.7 (the `go.mod` directive), required by `charm.land/lipgloss/v2` v2.1.0.
 - Source layout: the entry point is now only `main.go` at the module root; the runtime lives in `internal/<domain>`
   packages with unit tests beside them (see [docs/architecture.md](docs/architecture.md)). No change to
@@ -57,34 +138,18 @@ release. Versioned plan and worker protocols are tracked separately from the CLI
   Managed plans continue to use their declared profiles; resume keeps the
   admitted backend. There is no implicit paid provider.
 - `--call-budget` names the per-call limit; `--budget` remains a compatible alias.
-- Go 1.26 is the minimum supported toolchain (the `go.mod` directive). Older
+- Go 1.26.7 is the minimum supported toolchain (the `go.mod` directive). Older
   reduced-capability fallback builds have been removed; development and CI pin
   Go 1.27.2.
 - Terminal rendering and provider environment policy have separate internal modules.
 
-### Added
-
-- Explicit reviewed provider executable migration for paused managed runs,
-  preserving original plans, historical bindings, results, and budget receipts.
-- Worker boundary snapshots and model schemas for remaining depth, turns,
-  helpers, and task capacity; known invalid final-turn waits fail admission.
-- `make check-fast` for contributor feedback alongside the unchanged full race
-  gate, and a manual four-platform CLI candidate packaging/install workflow.
-
-- Offline managed-plan scaffolding with executable pinning, explicit context-file
-  imports, and optional per-profile deadlines. Resume preserves saved call limits.
-
-- Reproducible macOS/Linux CLI archives with source provenance, checksums and
-  isolated installation acceptance in the platform workflow.
-- Internal checkpoint transaction, attempt executor and immutable artifact-store
-  boundaries, wired to local execution and exports, with alternate-adapter
-  conformance tests and a staged hosting architecture plan.
-- Stable terminal swarm slots, distinct state markers and static/no-color modes.
-- Machine-readable command help derived from actual flag definitions.
-- A generated plan JSON Schema for editor assistance.
-- A first-run tutorial, tool comparison and contributor conduct guidelines.
-
 ### Fixed
+
+- Managed agy rejections require unambiguous evidence that no session started;
+  earlier activity, malformed turn counts and contradictory usage remain uncertain.
+- First-use smoke verification uses a private home, registry and local executor,
+  independent of the caller's launch and session settings.
+
 
 - Preserve admitted child graphs and historical spending when retrying failed
   parents; report retry no-ops and backup execution-authority boundaries.

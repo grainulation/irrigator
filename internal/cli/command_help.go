@@ -4,6 +4,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"sort"
 	"strings"
 
@@ -13,6 +14,7 @@ import (
 	"github.com/grainulation/irrigator/internal/buildinfo"
 	"github.com/grainulation/irrigator/internal/campaign"
 	"github.com/grainulation/irrigator/internal/checkpoint"
+	"github.com/grainulation/irrigator/internal/coder"
 	"github.com/grainulation/irrigator/internal/commandflags"
 	"github.com/grainulation/irrigator/internal/composition"
 	"github.com/grainulation/irrigator/internal/debug"
@@ -26,6 +28,7 @@ import (
 	"github.com/grainulation/irrigator/internal/selfupdate"
 	"github.com/grainulation/irrigator/internal/session"
 	"github.com/grainulation/irrigator/internal/telemetry"
+	"github.com/grainulation/irrigator/internal/triage"
 )
 
 type commandEntry struct {
@@ -46,6 +49,11 @@ func commands() map[string]commandEntry {
 	}
 	commands["_worker"] = commandEntry{run: func(args []string) (int, error) { return builtinCLI(append([]string{"_worker"}, args...)) }, Hidden: true}
 	commands["_supervise"] = commandEntry{run: func([]string) (int, error) { return launch.Supervise(), nil }, Hidden: true}
+	commands["_code-worker"] = commandEntry{run: coder.WorkerCLI, Hidden: true}
+	commands["triage"] = commandEntry{run: triageCLI}
+	commands["code"] = commandEntry{run: func(args []string) (int, error) {
+		return coder.CodeCLI(args, func(applyArgs []string) (int, error) { return builtinCLI(append([]string{"apply"}, applyArgs...)) })
+	}, additionalProbes: [][]string{{"cleanup"}}, subcommands: []string{"cleanup"}}
 	commands["help"] = commandEntry{run: helpCLI}
 	commands["schema"] = commandEntry{run: checkpoint.SchemaCLI}
 	commands["contracts"] = commandEntry{run: runtimeContractsCLI, probe: []string{"plan"}, additionalProbes: [][]string{{"receipt"}, {"git"}}, subcommands: []string{"plan", "receipt", "git"}}
@@ -62,7 +70,7 @@ func commands() map[string]commandEntry {
 	commands["context"] = commandEntry{run: launch.LaunchContextCLI, probe: []string{"inspect"}, subcommands: []string{"create", "inspect"}}
 	commands["helpers"] = commandEntry{run: graph.TurnHelpersCLI, probe: []string{"METADATA_ONLY", "METADATA_ONLY"}}
 	commands["turn-shape"] = commandEntry{run: graph.TurnShapeCLI}
-	commands["debug"] = commandEntry{run: debug.DebugCLI, additionalProbes: [][]string{{"fixture", "export"}}, subcommands: []string{"fixture"}}
+	commands["debug"] = commandEntry{run: debugCLI, additionalProbes: [][]string{{"fixture", "export"}}, subcommands: []string{"fixture"}}
 	commands["delivery-status"] = commandEntry{run: graph.DeliveryStatusCLI}
 	commands["delivery-summary"] = commandEntry{run: deliverySummaryCLI}
 	commands["quota"] = commandEntry{run: providerLimitCLI}
@@ -165,4 +173,72 @@ func helpCLI(args []string) (int, error) {
 	}
 	fmt.Print(Usage)
 	return 0, nil
+}
+
+func triageCLI(args []string) (int, error) {
+	fs := flag.NewFlagSet("triage", flag.ContinueOnError)
+	fs.SetOutput(io.Discard)
+	asJSON := fs.Bool("json", false, "")
+	fix := fs.Bool("fix", false, "")
+	var positional []string
+	rest := args
+	for {
+		if err := commandflags.ParseCommandFlags(fs, rest); err != nil {
+			return triage.CLI(args, builtinCLI)
+		}
+		if fs.NArg() == 0 {
+			break
+		}
+		positional = append(positional, fs.Arg(0))
+		rest = fs.Args()[1:]
+	}
+	if len(positional) != 1 || *fix {
+		return triage.CLI(args, builtinCLI)
+	}
+	resolved, err := checkpoint.ResolveReadOnlyRunDir(positional[0])
+	if err != nil {
+		return 1, err
+	}
+	resolvedArgs := []string{resolved}
+	if *asJSON {
+		resolvedArgs = append(resolvedArgs, "--json")
+	}
+	return triage.CLI(resolvedArgs, builtinCLI)
+}
+
+func debugCLI(args []string) (int, error) {
+	if len(args) > 1 && args[0] == "fixture" && args[1] == "export" {
+		return debug.DebugCLI(args)
+	}
+	fs := flag.NewFlagSet("debug", flag.ContinueOnError)
+	fs.SetOutput(io.Discard)
+	asJSON := fs.Bool("json", false, "")
+	node := fs.String("node", "", "")
+	var positional []string
+	rest := args
+	for {
+		if err := commandflags.ParseCommandFlags(fs, rest); err != nil {
+			return debug.DebugCLI(args)
+		}
+		if fs.NArg() == 0 {
+			break
+		}
+		positional = append(positional, fs.Arg(0))
+		rest = fs.Args()[1:]
+	}
+	if len(positional) != 1 {
+		return debug.DebugCLI(args)
+	}
+	resolved, err := checkpoint.ResolveReadOnlyRunDir(positional[0])
+	if err != nil {
+		return 1, fmt.Errorf("debug: run state unreadable: %w", err)
+	}
+	resolvedArgs := []string{resolved}
+	if *asJSON {
+		resolvedArgs = append(resolvedArgs, "--json")
+	}
+	if *node != "" {
+		resolvedArgs = append(resolvedArgs, "--node", *node)
+	}
+	return debug.DebugCLI(resolvedArgs)
 }

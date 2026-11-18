@@ -13,8 +13,10 @@ import (
 type ProgramStatus struct {
 	State    string // idle, working, done, blocked or error
 	Progress int    // 0..100; only sent while working
-	Title    string
-	Message  string
+	// Kind refines a blocked report: permission, question or auth.
+	Kind    string
+	Title   string
+	Message string
 	// Counts is Message without the cost, short enough for a tab title.
 	Counts string
 	// ID marks a child record for one worker cell. Empty is the run's root report.
@@ -81,6 +83,11 @@ func (p ProgramStatus) OSC() string {
 	if p.State == "working" {
 		fields = append(fields, fmt.Sprintf("progress=%d", clamp(p.Progress, 0, 100)))
 	}
+	if p.State == "blocked" {
+		if k := blockedKind(p.Kind); k != "" {
+			fields = append(fields, "kind="+k)
+		}
+	}
 	if p.Title != "" {
 		fields = append(fields, "title="+base64.StdEncoding.EncodeToString([]byte(p.Title)))
 	}
@@ -88,6 +95,19 @@ func (p ProgramStatus) OSC() string {
 		fields = append(fields, "msg="+base64.StdEncoding.EncodeToString([]byte(p.Message)))
 	}
 	return "\x1b]7501;" + strings.Join(fields, ":") + "\x1b\\"
+}
+
+func blockedKind(k string) string {
+	switch k {
+	case "permission", "approval":
+		return "permission"
+	case "question", "uncertain", "triage":
+		return "question"
+	case "auth":
+		return "auth"
+	default:
+		return ""
+	}
 }
 
 // safeID keeps a cell id inside one ':'-separated, unquoted field.
@@ -116,7 +136,7 @@ func CellStatus(id string, r Row) (ProgramStatus, bool) {
 	case "failed":
 		st.State, st.Message = "error", "failed"
 	case "uncertain":
-		st.State, st.Message = "blocked", "outcome uncertain; needs a decision"
+		st.State, st.Kind, st.Message = "blocked", "question", "outcome uncertain; needs a decision"
 	case "cancelled":
 		st.State, st.Message = "idle", "cancelled"
 	default:

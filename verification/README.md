@@ -29,6 +29,23 @@ files and cannot replace that gate.
 The ACP tests run local fake HTTP/agent processes. A restricted host must allow
 localhost listeners for those checks; a sandbox refusal is not a provider failure.
 
+## Verification suite matrix
+
+| Gate | Needs | Scope | Expected outcome | Command |
+| --- | --- | --- | --- | --- |
+| `build` | Go 1.26.7+ | Compile `./irrigator` with `-trimpath` | Exit `0`; `./irrigator version` prints `1.1.0` | `make build` |
+| `check-fast` | Go 1.27.2, `tmux` ≥3.2 | Unit tests across `./internal/...` + `go vet` | Exit `0` | `make check-fast` |
+| `check` | Go 1.27.2, `tmux` ≥3.2 | Default suite under `-race` + `go vet` | Exit `0` | `make check` |
+| `check-integration` | Go 1.27.2, `tmux` ≥3.2 | Full tree with `-tags integration -race -count=1` | Exit `0` | `make check-integration` |
+| `check-tools` | Python 3 | Packaging, archive verification, and repo consistency | Exit `0`; unittest reports `OK` | `make check-tools` |
+| `check-homebrew` | Homebrew, Go 1.26.7+ | Actual source formula recipe and mock demo/export in a private prefix; no installed keg | Exit `0`; `PASS: Homebrew head recipe` | `make check-homebrew` |
+| `check-exports` | Go 1.27.2 | Strict minimal exported surface check on `internal/` | Exit `0` | `make check-exports` |
+| `replay-gate` | POSIX shell, Go | Redacted failure fixtures replay to recorded states | Exit `0` (no network/spend) | `make replay-gate` |
+| `smoke` | `./irrigator` | Private `HOME` and registry; local mock `init` → `plan` → `prepare` → `resume` → `status` → `export` → `graph` → `doctor` | Exit `0`; `First-use smoke passed.` | `make smoke` |
+| `demo` | `./irrigator` | Adaptive revision and recovery with mock workers | Exit `0`; `4/4 verified` | `make demo` |
+| `durability` | Python 3, `./irrigator` | Stop mid-swarm and resume without repeating verified work | Exit `0`; `PASS:` | `make durability` |
+| `lint` | `golangci-lint` v2.15.0 | Static analysis (default + `integration` tags), `gofmt`, `go mod tidy -diff` | Exit `0`; `0 issues.` | `make lint` |
+
 ## Regression boundaries
 
 - GC only prunes obsolete attempt logs from a validated stopped run. It preserves

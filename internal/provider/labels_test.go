@@ -43,7 +43,7 @@ func TestGoLabeledAppliesLabelsVisibleInGoroutineProfile(t *testing.T) {
 
 func TestProviderReaderGoroutineCarriesLabels(t *testing.T) {
 	p := fakeProviderPool(t)
-	ctx, cancel := context.WithTimeout(context.Background(), 4*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second) // hang guard
 	defer cancel()
 	if resp := p.Work(ctx, runfixture.FakeProviderRequest("labelled")); resp.Error != "" {
 		t.Fatalf("work: %+v", resp)

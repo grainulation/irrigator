@@ -59,11 +59,12 @@ From Windows, the WSL home is reachable in Explorer at `\\wsl$\Ubuntu-24.04\home
 
 ## Agent tools run inside WSL too
 
-Irrigator starts provider CLIs (for example `claude` or `codex`) as Linux
+Irrigator starts provider CLIs (for example `claude`, `codex` or `agy`) as Linux
 processes, so install and sign in to them inside the Ubuntu terminal. Copies
 installed on the Windows side are not used. The same applies to the
-[Claude Code](claude-plugin.md) and [Codex](codex-plugin.md) plugins: run the host
-inside WSL so it finds the Linux `irrigator` on `PATH`.
+[Claude Code](claude-plugin.md), [Codex](codex-plugin.md) and
+[Antigravity](agent-setup.md#antigravity) plugins: run the host inside WSL so it
+finds the Linux `irrigator` on `PATH`.
 
 Windows Terminal supports the terminal features the dashboard uses (progress,
 hyperlinks, clipboard); see [monitoring](monitoring.md).
@@ -76,14 +77,9 @@ Linux filesystem:
 
 - `make build`, `make smoke` and `make demo` (first use with mock workers);
 - `make check`: the untagged test suite under the race detector, and `go vet`;
-- the integration suite (`go test -tags integration ./...`: process supervision,
-  controller drain, CLI re-exec) **without** the race detector. Under the race
-  detector some integration tests overrun their fixed deadlines on this runner;
-  race coverage of that suite comes from the native Linux and macOS jobs. Many
-  integration tests watch a mock task during a sub-second window, which slower
-  process startup under WSL can miss, so failed tests are re-run by name up to
-  twice and each retry is reported as a workflow warning. The native jobs do not
-  retry.
+- `make check-integration`: the integration suite (process supervision,
+  controller drain, CLI re-exec) under the race detector, as on Linux and macOS.
+  Failed tests are not retried.
 
 Not verified under WSL:
 

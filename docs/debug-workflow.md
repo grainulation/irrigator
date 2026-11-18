@@ -46,14 +46,3 @@ Diagnosis needs no spending authorization. Retry, resolve, resume and cancel sta
 ## Host names
 
 Claude Code namespace: `irrigator`, so `/irrigator:debug` when the host discovers the skill. Codex: `$debug` when discovered. Neither discovery path, nor installation, has been tested. There is no global install step, and the skill never installs itself.
-
-## Integration notes (for the integrator, not applied here)
-
-- `internal/cli/command_help.go` registers `debug` in the command table (`debug.DebugCLI`, with its `fixture export` probe).
-- `verification/plugin-contract-test.py`: add `"debug": {"json", "node"}` to `COMMAND_FLAGS`, and `debug` to `SKILLS` and `FROZEN_FILES` for `skills/debug/SKILL.md`. Until then, documented `irrigator debug` lines fail the surface check.
-- `tools/package-plugin.py`: `skills` and `docs` are already included. Add `'debug'` to `REQUIRED_SKILLS` only once the packaging owner accepts it.
-- A shared observer debug helper, if one is later defined, replaces `debugProject` through a single call. None is consumed today.
-
-## Not done here
-
-Nothing was compiled or run when this was written. Go tests are in `internal/debug/debug_cli_test.go`. Native plugin discovery, a real binary run and independent QA are open.

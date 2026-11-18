@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/grainulation/irrigator/internal/coder"
 	"github.com/grainulation/irrigator/internal/commandflags"
 	"github.com/grainulation/irrigator/internal/jsonio"
 	"github.com/grainulation/irrigator/internal/launch"
@@ -36,6 +37,25 @@ type agentStatus struct {
 	Profile        string   `json:"profile,omitempty"`
 	Models         []string `json:"models,omitempty"`
 	Authentication string   `json:"authentication,omitempty"`
+	// CodeMissingFlags lists flags `irrigator code` passes that the installed CLI
+	// no longer lists in its help: the agent CLI changed and cells may fail.
+	CodeMissingFlags []string `json:"code_missing_flags,omitempty"`
+}
+
+// codeFlagDrift runs the agent's help (bounded) and reports flags irrigator code
+// uses that it no longer lists. Unreadable help reports nothing rather than guess.
+func codeFlagDrift(agent string) []string {
+	help, flags, ok := coder.CodeFlags(agent)
+	if !ok {
+		return nil
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	out, _ := exec.CommandContext(ctx, agent, help...).CombinedOutput()
+	if ctx.Err() != nil || len(out) == 0 {
+		return nil
+	}
+	return coder.MissingFlags(string(out), flags)
 }
 
 func parseAgentVersion(v string) ([3]int, bool) {
@@ -159,7 +179,7 @@ func detectAgents() []agentStatus {
 		{"claude", "Claude Code", true},
 		{"codex", "Codex", true},
 		{"gemini", "Gemini CLI", false},
-		{"agy", "Antigravity", false},
+		{"agy", "Antigravity", true},
 	} {
 		a := agentStatus{ID: host.id, Name: host.name, MainAgent: true, SwarmWorker: host.worker, Authentication: "unchecked"}
 		if host.worker {
@@ -187,6 +207,12 @@ func detectAgents() []agentStatus {
 				}
 			} else {
 				a.Available, a.Status, a.Version, a.Detail = true, "ok", version, "Installed; authentication has not been checked."
+			}
+			if a.Available {
+				if missing := codeFlagDrift(host.id); len(missing) > 0 {
+					a.CodeMissingFlags = missing
+					a.Detail += " irrigator code passes flags this " + host.name + " no longer lists (" + strings.Join(missing, ", ") + "); its cells may fail until Irrigator is updated."
+				}
 			}
 		} else {
 			a.Status = "not_installed"

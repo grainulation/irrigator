@@ -163,7 +163,7 @@ func ValidateExecutionCatalog(c model.ExecutionCatalog) error {
 			if len(a.Command) != 0 || a.ExecutableSHA256 != "" {
 				return errors.New("mock adapter cannot declare an executable")
 			}
-		case "claude_cli", "codex_cli":
+		case "claude_cli", "codex_cli", "agy_cli":
 			if len(a.Command) != 1 || !filepath.IsAbs(a.Command[0]) || filepath.Clean(a.Command[0]) != a.Command[0] || !ContextText(a.Command[0], 4096) {
 				return errors.New("CLI adapter requires exactly one clean absolute executable path; argv options are unsupported")
 			}
@@ -189,11 +189,11 @@ func ValidateExecutionCatalog(c model.ExecutionCatalog) error {
 		if (adapter.Kind == "mock" || adapter.Kind == "ollama_http") && len(instance.CredentialRefs) != 0 {
 			return errors.New("mock instance cannot use credentials")
 		}
-		if (adapter.Kind == "claude_cli" || adapter.Kind == "codex_cli") && len(instance.CredentialRefs) != 1 {
+		if (adapter.Kind == "claude_cli" || adapter.Kind == "codex_cli" || adapter.Kind == "agy_cli") && len(instance.CredentialRefs) != 1 {
 			return errors.New("CLI adapter requires exactly one explicit credential reference")
 		}
 		for _, ref := range instance.CredentialRefs {
-			if ref.Kind == "host_session" && ((adapter.Kind == "claude_cli" && ref.Name == "claude") || (adapter.Kind == "codex_cli" && ref.Name == "codex")) {
+			if ref.Kind == "host_session" && ((adapter.Kind == "claude_cli" && ref.Name == "claude") || (adapter.Kind == "codex_cli" && ref.Name == "codex") || (adapter.Kind == "agy_cli" && ref.Name == "agy")) {
 				continue
 			}
 			if ref.Kind == "env" && executionEnvName.MatchString(ref.Name) {
@@ -244,6 +244,9 @@ func ValidateExecutionCatalog(c model.ExecutionCatalog) error {
 		} else {
 			if a.Kind == "codex_cli" && p.Effort != "low" {
 				return errors.New("current codex adapter supports low effort only")
+			}
+			if a.Kind == "agy_cli" && p.Effort != "low" {
+				return errors.New("agy adapter supports low effort only; choose the effort through the agy model id (for example gemini-3.8-flash-low)")
 			}
 			if p.Effort != "low" && p.Effort != "medium" && p.Effort != "high" {
 				return errors.New("unsupported claude effort")
@@ -317,7 +320,7 @@ func ResolveExecutionCatalog(c model.ExecutionCatalog, path, name string) (model
 	instance := c.Instances[p.Instance]
 	adapter := c.Adapters[instance.Adapter]
 	verified := false
-	if adapter.Kind == "claude_cli" || adapter.Kind == "codex_cli" {
+	if adapter.Kind == "claude_cli" || adapter.Kind == "codex_cli" || adapter.Kind == "agy_cli" {
 		f, err := OpenContextFile(adapter.Command[0], os.O_RDONLY, 0)
 		if err != nil {
 			return result, err

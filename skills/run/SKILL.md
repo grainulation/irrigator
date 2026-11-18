@@ -38,6 +38,25 @@ still applies within its stated scope; configuration alone grants none.
 
 $ARGUMENTS
 
+## Coding tasks on a repository
+
+When the user wants coding agents to change their repository (one task per
+branch), use `irrigator code` instead of writing a plan by hand; see
+`docs/coding-cells.md`. Each `--task ID=PROMPT` becomes a cell that runs one agent
+(`--agent claude|codex|agy`) in its own git worktree and lands as a branch.
+
+1. Show the plan first: `irrigator code --repo DIR --base BRANCH --task ... --plan-only`.
+   Give every task that can have one an objective `--verify ID=COMMAND`.
+2. Every cell is a real agent run. Get the explicit authorization in Gate 2 for the
+   agent, `--workers`, `--call-budget` (per cell), `--timeout` and the aggregate cap
+   before running `irrigator code` without `--plan-only`. Codex and agy accept no
+   USD cap and report cost as unknown: the timeout and the number of cells are the
+   limits, so say so.
+3. Report each cell's outcome and branch, then review with
+   `irrigator review list --workspace DIR --base BRANCH`. Never merge or push for the
+   user. Remove worktrees only when asked: `irrigator code cleanup --repo DIR --run RUNID`
+   (`--dry-run` first; never `--force` without the user's go-ahead).
+
 ## Gate 1: Preconditions
 
 1. A plan file path exists and validates: `irrigator plan PLAN.json`. If not, use the plan skill first.

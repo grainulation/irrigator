@@ -89,6 +89,9 @@ func (u *TerminalUI) Render(s *model.State, now time.Time) {
 		cells := terminalview.CellStatuses(snap)
 		st, ok := terminalview.Status(snap, u.root)
 		if ok {
+			if st.State == "blocked" && st.Kind == "" {
+				st.Kind = blockedRunKind(s)
+			}
 			if osc := st.OSC(); osc != u.lastStatus {
 				b.WriteString(osc)
 				u.lastStatus = osc
@@ -263,6 +266,22 @@ func terminalSafe(s string) string {
 }
 func terminalClip(s string, width int) string {
 	return terminalview.Clip(s, width)
+}
+
+func blockedRunKind(s *model.State) string {
+	for _, r := range s.Tasks {
+		if r != nil && r.Status == "uncertain" {
+			return "question"
+		}
+	}
+	if s.Mailbox != nil {
+		for _, e := range s.Mailbox.Entries {
+			if e.Receipt == nil {
+				return "permission"
+			}
+		}
+	}
+	return ""
 }
 
 // terminalSnapshot copies presentation data out of State.

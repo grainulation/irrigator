@@ -14,7 +14,7 @@ make install PREFIX="$HOME/.local"   # then add $HOME/.local/bin to PATH
 | Agent | Install | What you get |
 | --- | --- | --- |
 | [Claude Code](#claude-code) | Local marketplace from a checkout | Skills and `irrigator mcp` |
-| [Codex](#codex) | Local plugin from a checkout | Skills (MCP: see [Codex setup](codex-plugin.md)) |
+| [Codex](#codex) | Local plugin from a checkout | Skills and `irrigator mcp` |
 | [Antigravity](#antigravity) | `agy plugin install https://github.com/grainulation/irrigator` | Skills and `irrigator mcp` |
 | [Other agents](#other-agents) | Add `irrigator mcp` to the agent's MCP settings | MCP tools only |
 
@@ -29,8 +29,9 @@ a local marketplace and installs the `irrigator` plugin from it.
 
 ## Codex
 
-Follow [Codex setup](codex-plugin.md). Codex loads the shared `plugin.json` and
-the `.codex-plugin/` overlay from a local checkout.
+Follow [Codex setup](codex-plugin.md). Codex loads the shared `plugin.json`, the
+`.codex-plugin/` overlay and `mcp.json` (which registers `irrigator mcp`) from a
+local checkout.
 
 ## Antigravity
 

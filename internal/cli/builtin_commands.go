@@ -413,7 +413,7 @@ func cmdStatus(command, target string, watch, asJSON bool, interval time.Duratio
 			}
 		}
 		if asJSON {
-			if err := jsonio.PrintJSON(dashboard.NewStatusReport(s, target)); err != nil {
+			if err := jsonio.PrintJSON(statusJSONReport(s, target)); err != nil {
 				return 1, err
 			}
 		} else if ui != nil {
@@ -431,6 +431,39 @@ func cmdStatus(command, target string, watch, asJSON bool, interval time.Duratio
 		case <-time.After(interval):
 		}
 	}
+}
+
+func statusJSONReport(s *model.State, root string) any {
+	base := dashboard.NewStatusReport(s, root)
+	activities := map[string]*runops.CellActivity{}
+	for id, row := range s.Tasks {
+		if row == nil {
+			continue
+		}
+		if act := runops.ReadCellLastActivity(root, id, row.Attempt); act != nil {
+			activities[id] = act
+		}
+	}
+	if len(activities) == 0 {
+		return base
+	}
+	raw, err := json.Marshal(base)
+	if err != nil {
+		return base
+	}
+	var doc map[string]any
+	if err := json.Unmarshal(raw, &doc); err != nil {
+		return base
+	}
+	doc["last_activity"] = activities
+	if tasksMap, ok := doc["tasks"].(map[string]any); ok {
+		for id, act := range activities {
+			if cellMap, ok := tasksMap[id].(map[string]any); ok {
+				cellMap["last_activity"] = act
+			}
+		}
+	}
+	return doc
 }
 
 func liveWorkers(root string, s *model.State) bool {

@@ -1,0 +1,98 @@
+{
+  "api_version": "swarm/v1",
+  "name": "Managed mixed-provider pipeline with cost tracking and model roles",
+  "max_tasks": 4,
+  "tasks": [
+    {
+      "id": "planning",
+      "provider": "mock",
+      "effort": "high",
+      "prompt": "Analyze system requirements, decompose into independent subtasks, and define cost budget constraints.",
+      "requires": [
+        "task_decomposition",
+        "budget_envelope"
+      ],
+      "mock_result": {
+        "task_decomposition": "Decompose into module parser and module serializer.",
+        "budget_envelope": "Max token budget: 50,000 tokens; max execution wall time: 120s."
+      }
+    },
+    {
+      "id": "codegen",
+      "depends_on": [
+        "planning"
+      ],
+      "input_fields": {
+        "planning": [
+          "task_decomposition"
+        ]
+      },
+      "provider": "mock",
+      "effort": "high",
+      "prompt": "Generate code implementation according to task decomposition.",
+      "requires": [
+        "code_artifact",
+        "token_report"
+      ],
+      "mock_result": {
+        "code_artifact": "package parser\nfunc Parse(...) { ... }",
+        "token_report": "Generated 4,250 tokens in 2 calls; zero retries."
+      }
+    },
+    {
+      "id": "advisory_verification",
+      "depends_on": [
+        "planning",
+        "codegen"
+      ],
+      "input_fields": {
+        "planning": [
+          "budget_envelope"
+        ],
+        "codegen": [
+          "code_artifact",
+          "token_report"
+        ]
+      },
+      "provider": "mock",
+      "effort": "medium",
+      "prompt": "Run fast offline verification of code artifact and audit token usage against budget envelope.",
+      "requires": [
+        "compliance_report",
+        "budget_status"
+      ],
+      "mock_result": {
+        "compliance_report": "Artifact syntax verified; test suite passed.",
+        "budget_status": "Within envelope (4,250 / 50,000 tokens used; status: nominal)."
+      }
+    },
+    {
+      "id": "final_synthesis",
+      "depends_on": [
+        "planning",
+        "codegen",
+        "advisory_verification"
+      ],
+      "input_fields": {
+        "planning": [
+          "task_decomposition"
+        ],
+        "codegen": [
+          "code_artifact"
+        ],
+        "advisory_verification": [
+          "compliance_report",
+          "budget_status"
+        ]
+      },
+      "provider": "mock",
+      "prompt": "Package verified delivery with full provenance and telemetry audit.",
+      "requires": [
+        "release_manifest"
+      ],
+      "mock_result": {
+        "release_manifest": "Release ready: artifacts verified within budget envelope."
+      }
+    }
+  ]
+}

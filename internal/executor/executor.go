@@ -260,6 +260,9 @@ func (e localAttemptExecutor) execute(ctx context.Context, r attemptExecutionReq
 		case <-ctx.Done():
 			err = ctx.Err()
 		case <-clock.ActiveClock.After(delay):
+			err = clock.WaitMockGate(ctx, req.Task.ID)
+		}
+		if err == nil {
 			response.Output = req.Task.MockResult
 			if response.Output == nil {
 				response.Output = map[string]string{}

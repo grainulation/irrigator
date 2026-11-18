@@ -1,241 +1,197 @@
 <p align="center">
-  <img src="docs/mascot.png" width="144" alt="Irrigator mascot">
+  <a href="https://irrigator.dev"><img src="docs/mascot.png" alt="Irrigator mascot" width="146"></a>
 </p>
 
 <h1 align="center">Irrigator</h1>
-<p align="center"><strong>Durable local workflows for agent work.</strong></p>
+
+<p align="center"><strong>Durable local workflows for the coding agents you already use.</strong></p>
+
 <p align="center">
-  <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-blue"></a>
-  <a href="docs/platform-support.md"><img alt="Runtime: macOS, Linux and Windows via WSL 2" src="https://img.shields.io/badge/runtime-macOS%20%7C%20Linux%20%7C%20WSL%202-476b46"></a>
-</p>
-<p align="center">
-  <a href="https://github.com/grainulation/irrigator/actions/workflows/platforms.yml"><img alt="macOS and Linux CI" src="https://github.com/grainulation/irrigator/actions/workflows/platforms.yml/badge.svg"></a>
-  <a href="https://github.com/grainulation/irrigator/actions/workflows/windows-wsl.yml"><img alt="Windows (WSL) CI" src="https://github.com/grainulation/irrigator/actions/workflows/windows-wsl.yml/badge.svg"></a>
+  Plan the graph. Run in parallel. Inspect or resume from your terminal.<br>
+  Explicit state, retries, and spending boundaries for local agent work.
 </p>
 
-Irrigator is for developers who want coding agents to work in parallel without
-losing track of results, retries, or spending. Turn a task into an explicit graph,
-run it locally, and inspect or resume the work from your terminal.
+<p align="center">
+  <a href="https://irrigator.dev/"><img src="https://img.shields.io/badge/website-irrigator.dev-fcc830?style=for-the-badge" alt="See the Irrigator homepage"></a>
+</p>
 
-Use the **CLI** directly or through the **Claude Code, Codex and Antigravity plugins**. The
-interface is the terminal: `status --watch`, `graph`, `review tui`, `session`,
-and a read-only [MCP server](docs/mcp.md) for agent hosts.
+<p align="center">
+  <a href="docs/platform-support.md"><img src="https://img.shields.io/badge/go-%E2%89%A51.26.7-00ADD8?logo=go&logoColor=white" alt="Go 1.26.7 or later"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green" alt="MIT license"></a>
+  <a href="https://deepwiki.com/grainulation/irrigator"><img src="https://img.shields.io/badge/docs-DeepWiki-1f6feb" alt="Docs on DeepWiki"></a>
+</p>
 
-[First run](docs/first-run.md) · [Plugins](#plugins) · [Documentation](docs/index.md) · [Architecture](docs/architecture.md) ·
-[Contributing](CONTRIBUTING.md)
+<p align="center">
+  <a href="https://github.com/grainulation/irrigator/actions/workflows/platforms.yml"><img src="https://github.com/grainulation/irrigator/actions/workflows/platforms.yml/badge.svg?branch=main" alt="macOS and Linux CI"></a>
+  <a href="https://github.com/grainulation/irrigator/actions/workflows/windows-wsl.yml"><img src="https://github.com/grainulation/irrigator/actions/workflows/windows-wsl.yml/badge.svg?branch=main" alt="Windows (WSL) CI"></a>
+</p>
+
+<p align="center">
+  <a href="#try-it-without-credentials">Quick start</a> ·
+  <a href="docs/first-run.md">First run</a> ·
+  <a href="#plugins">Plugins</a> ·
+  <a href="docs/agent-setup.md">Agent setup</a> ·
+  <a href="docs/index.md">Documentation</a> ·
+  <a href="CHANGELOG.md">Changelog</a>
+</p>
+
+---
+
+
+## What it adds
+
+Irrigator runs coding agents in parallel while keeping results, retries and
+spending evidence on disk. Use the CLI directly or through **Claude Code,
+Codex and Antigravity plugins**. Inspect the work and resume from your terminal.
+
+| Capability | What it gives you |
+| --- | --- |
+| **Durable execution** | Saved plans, attempts and accepted artifacts that survive interruptions. |
+| **Coding cells** | One task per git worktree, with branches and objective checks to review. |
+| **Bounded delegation** | Explicit task graphs, worker concurrency and provider limits. |
+| **Recovery decisions** | Uncertain external work stays visible and is never silently replayed. |
+| **Terminal review** | `status --watch`, `graph`, `review tui` and a read-only MCP view. |
 
 ## Try it without credentials
 
-You need Go 1.26.7 or newer (the module's `go` directive), `make`, and a POSIX
-shell. Development and CI checks pin the Go 1.27.2 toolchain. The executable
-source is `main.go` (the entry point) and `internal/` (the packages; see [Architecture](#architecture)).
-From the repository root:
+Requires **Go 1.26.7+**, `make` and a POSIX shell. Development and CI pin Go 1.27.2.
+From a source checkout:
 
 ```sh
+git clone https://github.com/grainulation/irrigator.git
+cd irrigator
 make build
 ./irrigator doctor
 ./irrigator demo
 ```
 
-The demo runs a small swarm of mock workers, with a live terminal map of task
-states. It needs no credentials and makes no model calls. Each invocation creates a
-fresh run directory and prints commands to inspect it. To choose where the run is
-saved, pass `--run ./runs/first-demo` with a new directory name.
-See the [first-run guide](docs/first-run.md) for your own plan,
-provider selection, and recovery.
+The demo uses mock workers, needs no credentials and makes no model calls.
+Each invocation creates a fresh run directory and prints inspection commands.
+For your own plan, follow the [first-run guide](docs/first-run.md).
 
-## Why Irrigator?
+To install from this checkout, run `make install PREFIX="$HOME/.local"` and add
+`$HOME/.local/bin` to `PATH`. Installation copies the CLI; agent plugins and
+provider tools have their own setup. CLI archives and their installation checks
+are described in [runtime releases](docs/runtime-release.md).
 
-A shell script or Makefile is often enough for a fixed sequence of commands.
-Irrigator adds durable task identities, accepted artifacts, bounded agent
-expansion, and an explicit recovery decision when a provider's outcome is unknown.
-It is designed for local agent workflows, rather than a hosted workflow service.
-See [choosing a tool](docs/alternatives.md) for the tradeoffs.
+Homebrew users can install the stable CLI from this repository's [tap](docs/homebrew.md):
 
 ```sh
-make smoke   # First-use workflow and artifact export
-make demo    # Failed acceptance, revision, and recovery with mock workers
-make check   # Race tests and static analysis
-make check-integration  # Tagged supervisor/drain tests (not part of make check)
-make replay-gate        # Experimental: redacted failure fixtures replay through the real executor path
-make acceptance         # check + check-integration + tool checks + replay-gate + smoke + demo + durability
+brew tap grainulation/irrigator https://github.com/grainulation/irrigator
+brew install grainulation/irrigator/irrigator
+irrigator demo
 ```
 
-To install the CLI explicitly into your user prefix:
+The stable formula installs a pinned release archive and does not need Go.
+For a development source build, use `brew install --HEAD grainulation/irrigator/irrigator`.
+See the [Homebrew guide](docs/homebrew.md) for supported platforms, upgrades and checks.
+
+### Ask your agent to start
+
+Give Claude Code, Codex or Antigravity this prompt from the checkout:
+
+```text
+Read README.md and AGENTS.md in the Irrigator repository. Build ./irrigator with make build,
+run ./irrigator agents and ./irrigator demo, and report the exit codes and final status lines.
+Tell me which routes below this machine can run. Ask before any model-backed or paid run.
+```
+
+| Route | What it does | Needs | Cost and limits |
+| --- | --- | --- | --- |
+| **1. Mock demo and starter plan** | `demo`, `init`, `plan`, `apply --backend mock` | Local CLI | No model calls or API spend |
+| **2. Local models** | Managed tasks using [Ollama](docs/managed-ollama.md) | CLI, Ollama and a local model | Local compute; no API spend |
+| **3. Managed CLI profiles** | Turn/helper graphs via `claude:MODEL`, `codex:MODEL`, `agy:MODEL` | CLI and authenticated provider | Cost tracking by default; explicit enforced-budget profiles available |
+| **4. Coding cells** | [`irrigator code`](docs/coding-cells.md), with branches to review | CLI, git repo and an agent CLI | Per-cell timeout; Claude USD cap; Codex/agy cost unknown, no USD cap |
+
+Real providers use your account or local compute. New managed plans track
+estimates without blocking when costs are unavailable; tracking thresholds warn.
+Enforced budgets control admission and reservations and can still be overrun by
+a provider. Unknown cost never means free execution. See
+[cost tracking and enforced budgets](docs/execution-profiles.md#best-effort-cost-tracking).
+
+## Put it to work
+
+Start with a plan, validate it, then choose a backend explicitly:
 
 ```sh
-make install PREFIX="$HOME/.local"
+./irrigator init --out plan.json
+./irrigator plan plan.json
+./irrigator apply plan.json --run runs/first --backend mock
+./irrigator status runs/first
 ```
 
-Alternatively, `go install .` installs from this checkout into
-`GOBIN` (or the default Go bin directory).
+Use new plan filenames and run directories. For repository changes, coding
+cells accept `--task ID=PROMPT` and `--verify ID=COMMAND`; results land on local
+branches for review. A verification timeout or exit 77 leaves the result uncertain, as does a
+successful check that changes the worktree or Git identity. See [coding cells](docs/coding-cells.md)
+for setup, spending limits and recovery.
 
-Add `$HOME/.local/bin` to your `PATH` when using `make install`. Building or running the demo does not install
-skills, configure an agent host, download models, or start a background service.
-
-## What it provides
-
-- **Durable execution.** Immutable admitted plans, recorded attempts, accepted
-  artifacts, and transactional revisions of unfinished work.
-- **Explicit contracts.** Required outputs and configured acceptance checks gate
-  downstream work. Reusable workflows support bounded typed JSON artifacts.
-- **Bounded delegation.** Separate main-agent identities, optional sequential
-  turns, and terminal helpers. Worker concurrency is an independent setting.
-  Dependencies pass result data between tasks; git preparation, acceptance and
-  settlement are explicit steps. Per-task git worktrees keep concurrent
-  checkouts apart. They are not a host security sandbox.
-- **Provider accountability.** Pinned execution profiles, operation reservations,
-  and receipts. A budget is an admission and reservation control, so a provider
-  can still overrun it. Unknown charges and uncertain effects remain visible.
-- **Approvals.** An approval records a workflow decision bound to a specific
-  head. It is not a security boundary and never merges anything.
-- **Recovery with provenance.** Back up run evidence or transfer execution
-  authority through exclusive recovery. An uncertain call is not silently replayed.
-- **Observation and review.** `status --watch` and `graph` display execution
-  state. `review tui` supports interactive review, including recording head-bound
-  approvals and change requests; it does not merge changes or start graph work.
-
-Real providers require their own installed tools or server, configuration, and
-credentials. Start with [execution profiles](docs/execution-profiles.md) and
-[local Ollama](docs/managed-ollama.md). Authorize spending explicitly: reservation
-limits control admission and do not guarantee the final provider invoice.
-
-## Choose your execution shape
-
-| You want | Plan and execution path |
-| --- | --- |
-| Recursive delegation, where children may create further children | `A×D×S` spawning trees: mock, built-in Haiku, or a configured command provider implementing the worker contract. Roots × total levels × maximum children per parent. |
-| Explicit model/provider selection with run-level budget reservations | Managed execution profiles with turns and terminal helpers (`X×Y×Z`). Main agents × maximum turns × helper setting. |
-
-These are different expansion contracts, not interchangeable notation. Managed
-turn helpers cannot recursively spawn. For examples and capacity rules, see
-[recursive spawning](docs/swarm-shapes.md), [turn shapes](docs/turn-shapes.md), and
-[execution profiles](docs/execution-profiles.md). Worker concurrency is a separate
-setting in both paths.
-
-## Choose your interface
-
-| Interface | Start here |
-| --- | --- |
-| CLI and terminal dashboard | [Linux guide](docs/linux.md), [workflow composition](docs/workflow-composition.md) |
-| Agent skills | [Host integration](docs/host-integration.md), [skills](skills) |
-| Agent plugins (Claude Code, Codex, Antigravity) | [Agent setup](docs/agent-setup.md) |
-| Other MCP hosts (Cursor, OpenCode and others) | [MCP server](docs/mcp.md) |
-| Terminal workspace with Swarm and Review | [Workspace guide](docs/terminal-workspace.md), [local code review](docs/local-review.md) |
-| Recovery and accounting | [Recovery](docs/recovery.md), [billing reconciliation](docs/billing-reconciliation.md) |
-
-Skills use a separately installed `irrigator` executable under the host's normal
-execution permissions.
+For graphs that grow during execution, choose
+[recursive spawning](docs/swarm-shapes.md) or
+[managed turns and helpers](docs/turn-shapes.md). These have separate execution
+rules; worker concurrency is independent of graph size.
 
 ## Plugins
 
-Claude Code, Codex and Antigravity get a full plugin from this repository; other
-MCP agents (Cursor, opencode and others) connect to `irrigator mcp`. Start with
-[agent setup](docs/agent-setup.md).
+Install the `irrigator` runtime separately, then follow
+[agent setup](docs/agent-setup.md) for your host:
 
-| Host | Package metadata | Setup |
-| --- | --- | --- |
-| Claude Code | [.claude-plugin/](.claude-plugin) | [Claude Code installation](docs/claude-plugin.md) |
-| Codex | [.codex-plugin/](.codex-plugin) and [plugin.json](plugin.json) | [Codex setup](docs/codex-plugin.md) |
-| Antigravity | [plugin.json](plugin.json), [mcp_config.json](mcp_config.json) and [mcp.json](mcp.json) | `agy plugin install https://github.com/grainulation/irrigator` ([agent setup](docs/agent-setup.md#antigravity)) |
+| Host | Setup |
+| --- | --- |
+| Claude Code | [Claude Code plugin](docs/claude-plugin.md) |
+| Codex | [Codex plugin or manual workflow](docs/codex-plugin.md) |
+| Antigravity | [Antigravity plugin](docs/agent-setup.md#antigravity) |
+| Other MCP hosts | [`irrigator mcp`](docs/mcp.md) |
 
-These are thin host-specific metadata layers around the same [Markdown skills](skills)
-and local CLI. Install the runtime separately, then follow the setup guide for
-your host. See [host integration](docs/host-integration.md) for installation and discovery
-checks in your host. Antigravity replaced Gemini CLI; there is no separate Gemini plugin.
+The plugins share [Markdown skills](skills) and the local CLI under the host's
+normal execution permissions. [Host integration](docs/host-integration.md)
+covers installation and discovery checks; static package checks alone do not
+establish that a host can load or invoke a plugin.
 
-## Platform status
+## Explore the docs
 
-The CLI and terminal dashboard support **macOS and Linux**. On **Windows, use
-[WSL 2](docs/windows-wsl.md)**: the Linux build inside Ubuntu, checked in CI.
-Native Windows is not supported yet (planned).
+| Guide | Start here for… |
+| --- | --- |
+| [First run](docs/first-run.md) | Your own plan, provider selection and inspection. |
+| [Coding cells](docs/coding-cells.md) | Parallel repository tasks and verification commands. |
+| [Workflow diagnostics](docs/workflow-diagnostics.md) | Role routing, quota/reset advisories, delivery summaries and the offline benchmark. |
+| [Attempt output](docs/attempt-output.md) | Paginated captured output with redaction and capture-loss metadata. |
+| [Local review](docs/local-review.md) | Selective-file application, assembled-file checks and guarded undo. |
+| [Workflow composition](docs/workflow-composition.md) | Reusable graphs and artifact contracts. |
+| [Terminal workspace](docs/terminal-workspace.md) | Swarm dashboard and local review. |
+| [Recovery](docs/recovery.md) | Interrupted calls, retries and execution authority. |
+| [Architecture](docs/architecture.md) | Source layout, package layers and durable state. |
+| [Compatibility](docs/compatibility.md) | The supported 1.x interfaces and saved-run formats. |
+| [Documentation index](docs/index.md) | Accounting, providers, command references and more. |
 
-[macOS and Linux CI](https://github.com/grainulation/irrigator/actions/workflows/platforms.yml)
-runs builds, mock demos, race tests, package checks, and cross-builds.
-[Windows (WSL) CI](https://github.com/grainulation/irrigator/actions/workflows/windows-wsl.yml)
-runs the build, mock demos and test suites inside WSL 2 on a Windows runner. See
-[platform support](docs/platform-support.md) for tested configurations.
+## Verification and limits
 
-This is a pre-release source distribution. See [CHANGELOG](CHANGELOG.md) for
-compatibility changes and [SECURITY](SECURITY.md) for the local trust model.
-Maintainers can prepare [CLI archives](docs/runtime-release.md); that step does
-not publish a release.
+The CLI supports **macOS and Linux**. Windows users run the Linux build inside
+[WSL 2](docs/windows-wsl.md); native Windows is planned.
+[Platform support](docs/platform-support.md) records the tested configurations.
 
-## Architecture
+Worktrees keep concurrent checkouts apart; they are not a host sandbox.
+Approvals record a decision bound to a specific head and never merge changes.
+See [SECURITY.md](SECURITY.md) for the local trust model.
 
-Irrigator is one local executable. Durable run state on disk decides what runs next; terminal
-commands, the [MCP server](docs/mcp.md) and host skills read or drive that state and never keep a second
-copy. The long form, with a package-by-package table, is [docs/architecture.md](docs/architecture.md).
+CI runs builds, mock workflows, race tests and package checks. Native host and
+live-provider acceptance are separate. Run the development gates with:
 
-### Entry points to packages
+```sh
+make acceptance
+make lint
+```
 
-| Entry point | Goes through | Responsibility |
-| --- | --- | --- |
-| `main.go` | `internal/cli` | `os.Exit(cli.Main(os.Args))`: dispatch, help table, built-in commands |
-| terminal commands (`apply`, `resume`, `status`, `cancel`, `retry`, `deliver`, ...) | `runops`, `delivery`, `dashboard`, `graph`, `checkpoint` | controller loop, cancel/retry/resolve, inspect, journaled delivery, status UI |
-| `irrigator mcp` | `mcpserver` | MCP view of run state; read-only unless started with `--allow-control` |
-| worker process (`_worker`, `_supervise`) | `executor`, `launch`, `managed`, `provider` | one task attempt, process supervision, provider adapters |
+The [verification matrix](verification/README.md) details their scope, including
+integration tests. [Contributing](CONTRIBUTING.md) covers setup and changes;
+[choosing a tool](docs/alternatives.md) explains the tradeoffs.
+See the [changelog](CHANGELOG.md) for releases and the
+[release checklist](docs/versioned-release.md) for artifact promotion.
 
-### Layers and dependency arrows
+---
 
-Each package lives in a numbered layer and may import only lower layers. The compiler rejects cycles,
-and every package's `doc.go` states its layer and its actual imports. Arrows point from a layer to what
-it builds on:
-
-    main -> cli (32)
-      -> mcpserver (31) -> delivery (30) -> runops (29) -> dashboard (28)
-      -> selfupdate, gitcontract, branchreview, debug, telemetry (27..23)
-      -> session, approvals, executor, provider (22..19)
-      -> backup, sizing, observer, composition, campaign, messaging, graph, managed (18..11)
-      -> checkpoint (10) -> artifactstore (9) -> launch (8) -> model (7)
-      -> leaves (6..0): commandflags, terminalview, localfs, jsonio, buildinfo, cost, clock
-
-`textsafe`, `providerenv`, `store`, `review` and `reviewtui` predate the split and sit outside the numbering.
-
-### Persistence invariants
-
-Each line names a test that pins it (test names are stable; the files sit beside the owning package).
-
-- State changes go through `checkpoint` transactions: the callback runs once on a private snapshot, only a
-  successful callback is published, and a failed publication is not retried (`TestCheckpointStorePublicationFailureDoesNotRetry`,
-  `TestCheckpointStoreConformance`).
-- Artifacts are immutable and verified on read; resolution cannot escape the run directory
-  (`TestStoreRoundtripImmutable`, `TestStoreRejectsPartialOrIncorrectContent`, `TestLocalNestedKeysAndParentEscape`).
-- A copied or restored run has no authority until recovery admits it (`TestRecoveryNestedAliasCannotAcquireLease`,
-  `TestRecoveryTargetReplacementAndArchiveTampering`).
-- Process supervision never trusts a persisted PID, and an unconfirmed cleanup blocks replay
-  (`TestWorkerDeathRetainsLeaseUntilProviderStops`, `TestUnconfirmedSupervisorCleanupBlocksSafeReplay`).
-- Uncertain external work stays uncertain; it is never replayed automatically (`TestSupervisorDeathMakesReplaySafeNodeUncertain`).
-- An approval link yields at most one decision (`TestApprovalsConcurrentPostsDecideOnce`).
-- Plans are strict: typos and trailing data are rejected (`TestPlanRejectsTyposAndTrailingData`).
-
-### Tests
-
-    make check-fast          # fast feedback: every internal package's unit tests + vet
-    make check               # untagged race suite + vet
-    make check-integration   # whole tree with -tags integration under the race detector
-    make check-tools         # Python tool and repository-consistency tests
-    make lint                # golangci-lint, gofmt, go mod tidy -diff
-    make check-exports       # exported-surface report (internal packages)
-    make acceptance          # everything above plus replay gate, smoke, demo, durability
-
-Plain `go test ./...` does not run the integration tests (they carry the `integration` build tag); use
-`go test -tags integration ./...` or `make check-integration`.
-
-## Contribute
-
-Start with [CONTRIBUTING.md](CONTRIBUTING.md) for development checks, architecture
-invariants, and focused pull requests. Report vulnerabilities through the process
-in [SECURITY.md](SECURITY.md).
-
-Irrigator is licensed under [MIT](LICENSE). Third-party components retain their
-own licenses; see the [license inventory](docs/license-inventory.md).
-
-### Cost and usage
-
-New managed plans track cost estimates without blocking work when a provider
-cannot report them. USD estimates, token usage, and externally verified charges
-are separate; unavailable cost never means free execution. Tracking thresholds
-warn rather than stop a run. Existing enforced-budget plans retain their limits,
-and uncertain execution still requires safe recovery. See
-[cost tracking and enforced budgets](docs/execution-profiles.md#best-effort-cost-tracking).
+<p align="center">
+  Built by <a href="https://grainulation.com">Grainulation</a> ·
+  <a href="LICENSE">MIT licensed</a> ·
+  <a href="https://github.com/grainulation/irrigator/issues">Issues & ideas</a>
+</p>

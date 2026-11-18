@@ -4,4 +4,4 @@ Usage of init:
   -out string
     	new plan file (default "irrigator.json")
   -profile string
-    	managed profile selector: claude:MODEL or codex:MODEL
+    	managed profile selector: claude:MODEL, codex:MODEL or agy:MODEL

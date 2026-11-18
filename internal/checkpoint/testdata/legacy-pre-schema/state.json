@@ -1,0 +1,81 @@
+{
+  "version": 1,
+  "plan": {
+    "api_version": "swarm/v1",
+    "name": "Synthetic pre-schema upgrade fixture",
+    "tasks": [
+      {
+        "id": "draft",
+        "prompt": "Produce a fixture brief.",
+        "requires": [
+          "brief"
+        ]
+      },
+      {
+        "id": "publish",
+        "prompt": "Publish the accepted fixture brief.",
+        "depends_on": [
+          "draft"
+        ],
+        "requires": [
+          "receipt"
+        ]
+      }
+    ]
+  },
+  "plan_hash": "a1448b6db76f15bc97f8c869b256b6e30e05870431e282bb11926c00b2c188bd",
+  "backend": "mock",
+  "control": "blocked",
+  "tasks": {
+    "draft": {
+      "spec": {
+        "id": "draft",
+        "prompt": "Produce a fixture brief.",
+        "requires": [
+          "brief"
+        ]
+      },
+      "status": "verified",
+      "attempt": 2,
+      "result": {
+        "brief": "accepted fixture brief"
+      },
+      "reported_cost_usd": 0.125,
+      "validation": "structural"
+    },
+    "publish": {
+      "spec": {
+        "id": "publish",
+        "prompt": "Publish the accepted fixture brief.",
+        "depends_on": [
+          "draft"
+        ],
+        "requires": [
+          "receipt"
+        ]
+      },
+      "status": "uncertain",
+      "attempt": 1,
+      "error": "worker lost; reconcile external outcome before retry",
+      "reported_cost_usd": 0
+    }
+  },
+  "events": [
+    {
+      "time": "2025-01-02T03:04:05Z",
+      "kind": "failed",
+      "task": "draft",
+      "detail": "fixture first attempt failed"
+    },
+    {
+      "time": "2025-01-02T03:05:05Z",
+      "kind": "verified",
+      "task": "draft"
+    },
+    {
+      "time": "2025-01-02T03:06:05Z",
+      "kind": "recovered",
+      "task": "publish"
+    }
+  ]
+}

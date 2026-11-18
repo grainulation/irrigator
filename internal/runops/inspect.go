@@ -6,12 +6,15 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"regexp"
 	"sort"
 	"strconv"
 	"strings"
+	"time"
+	"unicode/utf8"
 
 	"github.com/grainulation/irrigator/internal/artifactstore"
 	"github.com/grainulation/irrigator/internal/checkpoint"
@@ -20,7 +23,96 @@ import (
 	"github.com/grainulation/irrigator/internal/localfs"
 	"github.com/grainulation/irrigator/internal/managed"
 	"github.com/grainulation/irrigator/internal/model"
+	"github.com/grainulation/irrigator/internal/textsafe"
 )
+
+const (
+	maxActivityTailBytes = 4 * 1024
+	maxActivityRunes     = 200
+)
+
+// CellActivity is a bounded, read-only snapshot of the latest progress line
+// from a cell attempt's stderr log.
+type CellActivity struct {
+	Attempt   int    `json:"attempt"`
+	Line      string `json:"line"`
+	Truncated bool   `json:"truncated"`
+	UpdatedAt string `json:"updated_at"`
+}
+
+// ReadCellLastActivity reads at most the last 4 KiB of
+// <root>/cells/<id>/<attempt>.stderr.log (regular file only, no symlinks),
+// extracts the last non-empty line, sanitizes it via textsafe.Terminal, and
+// caps it at 200 runes.
+func ReadCellLastActivity(root, id string, attempt int) *CellActivity {
+	if root == "" || id == "" || attempt < 1 {
+		return nil
+	}
+	cellsDir := filepath.Join(root, "cells")
+	if info, err := os.Lstat(cellsDir); err != nil || !info.IsDir() {
+		return nil
+	}
+	cellDir := filepath.Join(cellsDir, id)
+	if info, err := os.Lstat(cellDir); err != nil || !info.IsDir() {
+		return nil
+	}
+	logPath := filepath.Join(cellDir, strconv.Itoa(attempt)+".stderr.log")
+	linfo, err := os.Lstat(logPath)
+	if err != nil || !linfo.Mode().IsRegular() || linfo.Size() <= 0 {
+		return nil
+	}
+	f, err := os.Open(logPath)
+	if err != nil {
+		return nil
+	}
+	defer f.Close()
+	finfo, err := f.Stat()
+	if err != nil || !finfo.Mode().IsRegular() || !os.SameFile(linfo, finfo) || finfo.Size() <= 0 {
+		return nil
+	}
+	size := finfo.Size()
+	offset := int64(0)
+	readLen := size
+	if size > maxActivityTailBytes {
+		offset = size - maxActivityTailBytes
+		readLen = maxActivityTailBytes
+	}
+	buf := make([]byte, readLen)
+	n, err := f.ReadAt(buf, offset)
+	if n <= 0 || (err != nil && !errors.Is(err, io.EOF)) {
+		return nil
+	}
+	chunk := string(buf[:n])
+	if offset > 0 {
+		for len(chunk) > 0 && !utf8.RuneStart(chunk[0]) {
+			chunk = chunk[1:]
+		}
+	}
+	lines := strings.Split(chunk, "\n")
+	rawLine := ""
+	for i := len(lines) - 1; i >= 0; i-- {
+		if trimmed := strings.TrimSpace(lines[i]); trimmed != "" {
+			rawLine = trimmed
+			break
+		}
+	}
+	if rawLine == "" {
+		return nil
+	}
+	clean := textsafe.Terminal(rawLine)
+	runes := []rune(clean)
+	truncated := false
+	if len(runes) > maxActivityRunes {
+		clean = string(runes[:maxActivityRunes])
+		truncated = true
+	}
+	return &CellActivity{
+		Attempt:   attempt,
+		Line:      clean,
+		Truncated: truncated,
+		UpdatedAt: finfo.ModTime().UTC().Format(time.RFC3339),
+	}
+}
 
 func GraphMermaid(s *model.State) string {
 	var out strings.Builder
@@ -49,7 +141,11 @@ func InspectNode(root, id string) (map[string]any, error) {
 	if r == nil {
 		return nil, errors.New("unknown node")
 	}
-	return map[string]any{"node": r, "provider": checkpoint.ProviderName(s, r.Spec), "replay_safe": graph.ReplaySafe(s, r.Spec), "cell": filepath.Join(root, "cells", id), "descendants": managed.Descendants(s, id)[1:]}, nil
+	out := map[string]any{"node": r, "provider": checkpoint.ProviderName(s, r.Spec), "replay_safe": graph.ReplaySafe(s, r.Spec), "cell": filepath.Join(root, "cells", id), "descendants": managed.Descendants(s, id)[1:]}
+	if act := ReadCellLastActivity(root, id, r.Attempt); act != nil {
+		out["last_activity"] = act
+	}
+	return out, nil
 }
 func ExportArtifacts(root, out, dir string) error {
 	// Check the file destination before quarantine traversal: an existing regular

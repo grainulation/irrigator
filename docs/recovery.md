@@ -43,6 +43,41 @@ its SHA-256 is recorded alongside the backup SHA-256 in both receipts. Normal
 recovery without this flag retains the original checkpoint version.
 
 
+## Triage stuck cells
+
+`irrigator triage RUN` explains every uncertain or failed cell and changes
+nothing. For each cell it shows:
+
+- whether the provider's exit was confirmed (the attempt's process record), and
+  whether a worker or the controller is still running;
+- reported cost, or that the cost is unknown (never shown as $0);
+- the last progress lines from the attempt's log;
+- for [`irrigator code`](coding-cells.md) cells: the branch, its commits beyond
+  the base and their diffstat, and uncommitted changes left in the worktree;
+- one recommended next step with the exact commands.
+
+| Situation | Recommendation |
+| --- | --- |
+| A worker or the controller is still running | Wait, or `irrigator down RUN`; never retry while it runs |
+| Code cell with uncommitted changes | Review them, commit or discard, then triage again |
+| Code cell whose branch has commits | Review them; accept the branch as the result (`resolve`) or retry to continue it |
+| Code cell with no work | Retry (it continues the branch), or cancel |
+| Other uncertain cells | Check the provider and external system; `resolve` with the result, or retry |
+| Failed cell that is safe to replay | Retry and resume |
+
+`--confirm-stopped` appears in the commands only when the exit was not confirmed.
+`--json` prints the same evidence.
+
+`irrigator triage RUN --fix` walks through the cells at a terminal. For each it
+offers only the steps that fit: commit leftover worktree changes, accept a code
+cell's branch (it writes `cells/<id>/triage-result-<attempt>.json` with `branch`,
+`commit`, `diffstat` and `summary`, then runs `resolve`), record a result file you
+provide, retry, cancel or skip. Any step that attests the agent has stopped,
+when its exit was not confirmed, needs you to type `stopped`. It refuses to start
+while a controller runs this run, and offers `irrigator resume RUN` at the end.
+It runs the same `resolve`, `retry` and `cancel` commands described below, so
+their checks still apply; uncertain work is never replayed without your choice.
+
 ## Explicit retry and provider cleanup
 
 `resume --retry-failed` only resets replay-safe failures. It lists skipped paid or

@@ -6,7 +6,7 @@ Linux build inside **WSL 2**; see the [Windows (WSL) guide](windows-wsl.md).
 
 | Component | macOS | Linux | Windows (WSL 2) |
 | --- | --- | --- | --- |
-| Runtime and CLI | Local execution, race-suite, and first-use verification; hosted macOS 15 ARM64 CI checks | ARM64: actual Linux execution, full race suite, static analysis, and first-use checks. AMD64: hosted Ubuntu 24.04 CI checks | Linux AMD64 build in Ubuntu 24.04 on a hosted Windows Server 2025 runner: first-use checks, race suite, integration suite without the race detector |
+| Runtime and CLI | Local execution, race-suite, and first-use verification; hosted macOS 15 ARM64 CI checks | ARM64: actual Linux execution, full race suite, static analysis, and first-use checks. AMD64: hosted Ubuntu 24.04 CI checks | Linux AMD64 build in Ubuntu 24.04 on a hosted Windows Server 2025 runner: first-use checks, race suite and integration race suite |
 | Terminal dashboard and MCP server | `status --watch`, `graph`, `review tui`, `irrigator mcp` | Same commands | Same commands (Linux build) |
 | Markdown skills | Requires a working CLI and the host's execution permission | Same contract; installing skills does not establish host-specific integration | Same contract, with the host running inside WSL |
 

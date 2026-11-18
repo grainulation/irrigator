@@ -71,6 +71,15 @@ class RepositoryConsistency(unittest.TestCase):
         self.assertIn('-tags integration', text('Makefile'))
         self.assertIn('check-integration', text('.github/workflows/platforms.yml'))
 
+    def test_verification_suite_matrix_matches_makefile(self):
+        makefile = text('Makefile')
+        matrix = text('verification/README.md')
+        rows = re.findall(r'^\|\s*`([a-z0-9-]+)`\s*\|.*\|\s*`make\s+([a-z0-9-]+)`\s*\|$', matrix, re.M)
+        self.assertGreaterEqual(len(rows), 10, 'verification/README.md suite matrix should list Makefile gates')
+        for gate, cmd_target in rows:
+            self.assertEqual(gate, cmd_target)
+            self.assertRegex(makefile, rf'(?m)^{re.escape(gate)}:', f'Makefile missing target {gate}')
+
 
 if __name__ == '__main__':
     unittest.main()

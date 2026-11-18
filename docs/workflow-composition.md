@@ -139,3 +139,34 @@ only verified dependency artifacts become downstream inputs. Duplicate keys,
 wrong types, unknown properties, oversized arrays, nonfinite numbers, malformed
 JSON, and null fail acceptance. Typed plans require `swarm/v6`. Parent byte/profile limits and immutable
 pins, namespaces, and provenance remain authoritative.
+
+## Canonical 5-stage workflow recipe
+
+[examples/analyze-plan-implement-verify-revise.json](../examples/analyze-plan-implement-verify-revise.json)
+provides a reference `swarm/v1` plan showing explicit `input_fields` scoping
+and independent verification across five stages:
+
+1. **`analyze`**: Explores the problem and emits `architecture_facts` and a
+   shared `interface_packet`.
+2. **`plan`**: Consumes `architecture_facts` and `interface_packet` via
+   `input_fields` and emits disjoint `cell_spec_a` and `cell_spec_b`.
+3. **`implement_a` & `implement_b` (parallel)**: Each cell receives only the
+   shared `interface_packet` and its own `cell_spec_*` via `input_fields`,
+   producing `diff_a`/`diff_b` alongside a separate `self_assessment`.
+4. **`verify_and_review`**: An independent reviewer receives `interface_packet`,
+   `diff_a`, and `diff_b` via `input_fields`—explicitly excluding producer
+   `self_assessment` summaries—and outputs `review_verdict` and `revision_notes`.
+5. **`revise`**: A bounded revision step consumes `interface_packet`, `diff_a`,
+   `diff_b`, and `revision_notes` to produce the checked `accepted_patch`.
+
+Validate and run the recipe locally without model spend using
+`irrigator plan examples/analyze-plan-implement-verify-revise.json` and
+`irrigator apply examples/analyze-plan-implement-verify-revise.json --run runs/example --backend mock`.
+When combining multi-stage workflows with `irrigator code --add-dir`, keep generated `--run` directories and
+`--worktrees` separate from reference directories; `irrigator code` refuses
+`--add-dir` paths pointing at or inside `--run` or `--worktrees`.
+
+## Additional reference recipes
+
+- **Isolated coding cell recipe**: [examples/coding-cell-recipe.json](../examples/coding-cell-recipe.json) demonstrates an isolated coding cell workflow importing plan context flags (`sandbox_verify` and `seed_ignored`), with independent verification excluding producer self-assessment and a clean merge gate.
+- **Mixed-provider pipeline**: [examples/managed-mixed-providers.json](../examples/managed-mixed-providers.json) demonstrates a multi-stage pipeline coordinating planner, implementer, and advisory verification roles with token reporting and budget envelope checks. Validate with `irrigator plan examples/managed-mixed-providers.json` and run with `--backend mock`.
