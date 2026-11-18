@@ -85,6 +85,11 @@ jobs:
           python3 -m unittest discover -s tools -p 'test_*.py'
           python3 verification/package-safety-test.py
           python3 -I verification/monitoring-sensor-test.py
+      - name: ACP worker acceptance
+        run: |
+          cd examples/acp
+          npm ci --ignore-scripts
+          npm test
       - name: Standalone plugin consumer contract
         run: |
           python3 -I verification/plugin-validator-regression.py

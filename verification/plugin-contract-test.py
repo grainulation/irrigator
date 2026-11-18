@@ -558,6 +558,9 @@ def t_manifests(c):
                     r.check("claims.manifest-mcp", False, "%s: %s references an MCP tool" % (label, p))
                 if v.startswith("./") and ".." not in v and not (c.root / v).exists():
                     r.check("manifest.paths", False, "%s: %s -> %s does not exist (resolved from plugin root)" % (label, p, v))
+                if k in ("logo", "icon") and not re.match(r"^[a-z][a-z0-9+.-]*://", v):
+                    target = "/".join(b for b in v.split("/") if b not in ("", "."))
+                    r.check("manifest.paths", (c.root / target).exists(), "%s: declared %s %s must exist in package" % (label, k, v))
                 if ".." in v.split("/") and v.startswith("."):
                     r.check("manifest.paths", False, "%s: %s escapes plugin root" % (label, p))
     r.check("claims.no-mcp-file", not c.exists(".mcp.json"), "no .mcp.json (the MCP server is registered inline in the Claude manifest)")

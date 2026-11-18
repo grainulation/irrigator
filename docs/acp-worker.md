@@ -4,8 +4,8 @@
 coding agent over the [Agent Client Protocol](https://agentclientprotocol.com)
 (ACP) and puts every approval request in front of a person. It is a Node example
 (ESM, no build step) that uses the official client SDK,
-`@agentclientprotocol/sdk` 2.4.0, and spawns `@agentclientprotocol/claude-agent-acp`
-0.101.0 from `node_modules`. Both versions are pinned in `package.json` and
+`@agentclientprotocol/sdk` 2.6.0, and spawns `@agentclientprotocol/claude-agent-acp`
+0.106.0 from `node_modules`. Both versions are pinned in `package.json` and
 `package-lock.json`.
 
 ```sh
