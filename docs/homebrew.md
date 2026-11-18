@@ -33,6 +33,10 @@ for updating an archive-based formula. The published v1.0.0 archives are
 unsigned. Their hashes and embedded provenance identify the installed bytes;
 they do not independently authenticate the publisher.
 
+Version 1.2.0 source is being validated for the next binary release. Its stable
+formula will be promoted after all four exact-commit native archives pass and
+those same bytes are published, following the [release checklist](versioned-release.md).
+
 ## Move an existing source-repository tap installation
 
 If you installed from `grainulation/irrigator`, first add the shared tap with

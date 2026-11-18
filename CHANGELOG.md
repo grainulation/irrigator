@@ -3,7 +3,7 @@
 Changes below describe source revisions. A source commit is not a signed binary
 release. Versioned plan and worker protocols are tracked separately from the CLI.
 
-## Unreleased
+## 1.2.0 — 2026-11-18
 
 ### Added
 
@@ -22,7 +22,8 @@ release. Versioned plan and worker protocols are tracked separately from the CLI
 - Homebrew installation now uses the shared `grainulation/homebrew` tap, with
   explicit migration instructions for the former source-repository tap. Formula
   promotion can check the complete published archive checksum set and records
-  its frozen source identity. Stable remains v1.0.0 pending v1.1.0 binary assets.
+  its frozen source identity. Stable formula promotion follows publication of
+  the verified native release archives.
 
 ### Fixed
 
