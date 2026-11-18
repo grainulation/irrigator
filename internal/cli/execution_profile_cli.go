@@ -13,6 +13,9 @@ import (
 )
 
 func executionProfilesCLI(args []string) (int, error) {
+	if len(args) > 0 && args[0] == "route" {
+		return profileRoutingCLI(args[1:])
+	}
 	if len(args) == 0 {
 		return 2, errors.New("usage: profiles inspect|resolve --catalog ABS_FILE [--profile NAME]")
 	}
@@ -20,7 +23,7 @@ func executionProfilesCLI(args []string) (int, error) {
 		return provider.ProviderMigrationCLI(args)
 	}
 	if args[0] == "--help" || args[0] == "-h" {
-		fmt.Println("profiles inspect --catalog ABS_FILE\nprofiles resolve --catalog ABS_FILE [--profile NAME]\nprofiles migrate-prepare --run RUN --profile NAME --executable FILE --out PROPOSAL\nprofiles migrate-apply --run RUN --proposal FILE --approve DIGEST --confirm-stopped\nInspect/resolve/prepare do not dispatch or change run configuration. Apply records an explicitly approved future executable binding.")
+		fmt.Println("profiles inspect --catalog ABS_FILE\nprofiles resolve --catalog ABS_FILE [--profile NAME]\nprofiles route PLAN --policy FILE [--out NEWPLAN]\nprofiles migrate-prepare --run RUN --profile NAME --executable FILE --out PROPOSAL\nprofiles migrate-apply --run RUN --proposal FILE --approve DIGEST --confirm-stopped\nInspect/resolve/route/prepare do not dispatch or change run configuration. Route writes a new plan only with --out. Apply records an explicitly approved future executable binding.")
 		return 0, nil
 	}
 	if args[0] != "inspect" && args[0] != "resolve" {

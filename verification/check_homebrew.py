@@ -55,7 +55,7 @@ def check(formula, archive=None):
             if help_result.returncode == 0:
                 run(["trust", "--formula", f"{tap}/irrigator"])
             args = ["ruby", str(ROOT / "verification/homebrew-formula-test.rb"),
-                    str(installed_formula), str(source), spec,
+                    f"{tap}/irrigator", str(installed_formula), str(source), spec,
                     str(archive.resolve()) if archive is not None else "", go or ""]
             run(args)
         finally:

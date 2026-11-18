@@ -50,17 +50,20 @@ func TestMCPToolAnnotationsAndSchemas(t *testing.T) {
 		readOnly, destructive, idempotent, openWorld bool
 	}
 	specs := map[string]wantHints{
-		"list_runs":       {true, false, true, false},
-		"run_status":      {true, false, true, false},
-		"run_logs":        {true, false, true, false},
-		"inspect_cell":    {true, false, true, false},
-		"review_list":     {true, false, true, false},
-		"validate_plan":   {true, false, true, false},
-		"apply":           {false, true, false, false},
-		"pause":           {false, false, true, false},
-		"resume":          {false, false, false, false},
-		"retry_cell":      {false, true, false, false},
-		"decide_approval": {false, true, false, false},
+		"list_runs":        {true, false, true, false},
+		"run_status":       {true, false, true, false},
+		"run_logs":         {true, false, true, false},
+		"attempt_output":   {true, false, true, false},
+		"provider_limit":   {true, false, true, false},
+		"delivery_summary": {true, false, true, false},
+		"inspect_cell":     {true, false, true, false},
+		"review_list":      {true, false, true, false},
+		"validate_plan":    {true, false, true, false},
+		"apply":            {false, true, false, false},
+		"pause":            {false, false, true, false},
+		"resume":           {false, false, false, false},
+		"retry_cell":       {false, true, false, false},
+		"decide_approval":  {false, true, false, false},
 	}
 
 	if len(res.Tools) != len(specs) {

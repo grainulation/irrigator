@@ -11,6 +11,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/grainulation/irrigator/internal/buildinfo"
 	"github.com/grainulation/irrigator/internal/clitest"
 	"github.com/grainulation/irrigator/internal/commandflags"
 	"github.com/grainulation/irrigator/internal/runfixture"
@@ -80,6 +81,7 @@ func TestCommandMetadataSnapshotMatchesRuntime(t *testing.T) {
 	}
 	var snapshot struct {
 		Schema   string                           `json:"schema"`
+		Version  string                           `json:"version"`
 		Commands []commandflags.CommandDefinition `json:"commands"`
 	}
 	if err = json.Unmarshal(raw, &snapshot); err != nil {
@@ -89,7 +91,7 @@ func TestCommandMetadataSnapshotMatchesRuntime(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if snapshot.Schema != "irrigator.cli/v1" || !reflect.DeepEqual(snapshot.Commands, actual) {
+	if snapshot.Schema != "irrigator.cli/v1" || snapshot.Version != buildinfo.Version || !reflect.DeepEqual(snapshot.Commands, actual) {
 		t.Fatal("generated CLI contract is stale; rebuild CLI and run irrigator help --json > verification/cli-contract.json")
 	}
 }

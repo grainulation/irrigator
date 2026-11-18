@@ -7,7 +7,9 @@ RUN apk add --no-cache git ca-certificates
 COPY go.mod go.sum ./
 RUN go mod download
 
-COPY . .
+COPY main.go ./
+COPY internal/ ./internal/
+COPY examples/embed.go examples/terminal-swarm.json ./examples/
 RUN CGO_ENABLED=0 go build -ldflags="-s -w" -o /app/irrigator .
 
 # Runtime stage

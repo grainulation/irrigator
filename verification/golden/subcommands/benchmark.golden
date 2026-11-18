@@ -1,0 +1,5 @@
+Usage of benchmark:
+  -dir string
+    	new private benchmark directory
+  -runs int
+    	repetitions per serial/parallel arm (1..10) (default 2)

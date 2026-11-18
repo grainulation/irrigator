@@ -24,7 +24,7 @@ func (l *reviewFileList) String() string     { return strings.Join(*l, ",") }
 func (l *reviewFileList) Set(v string) error { *l = append(*l, v); return nil }
 
 // changeActions are the review subcommands that operate on branches.
-var changeActions = map[string]bool{"list": true, "change": true, "diff": true, "viewed": true, "unviewed": true, "approve": true, "request-changes": true, "prune": true, "tui": true}
+var changeActions = map[string]bool{"list": true, "change": true, "diff": true, "viewed": true, "unviewed": true, "approve": true, "request-changes": true, "prune": true, "tui": true, "apply": true, "undo": true, "applied": true}
 
 // reviewChangeDispatch routes branch review commands; ok is false for the
 // snapshot commands handled by reviewCLI.
@@ -57,10 +57,17 @@ func changeCLI(action string, args []string) (int, error) {
 	var files reviewFileList
 	var line, olderThan int
 	var apply, uncommitted bool
+	var applyHead, verifyJSON string
+	var verifyTimeout time.Duration
 	if action != "prune" {
 		fs.StringVar(&base, "base", "", "branch or commit to compare against (default: the remote default branch, then main or master)")
 	}
 	switch action {
+	case "apply":
+		fs.Var(&files, "file", "changed file to apply (repeatable; renames include both endpoints)")
+		fs.StringVar(&applyHead, "head", "", "exact source commit inspected with review change; required")
+		fs.StringVar(&verifyJSON, "verify", "", "explicit JSON argv to check the assembled working tree; required; no shell is added")
+		fs.DurationVar(&verifyTimeout, "timeout", 5*time.Minute, "verification timeout (maximum 1h)")
 	case "diff":
 		fs.StringVar(&commit, "commit", "", "show only this commit of the change")
 		fs.StringVar(&file, "file", "", "show only this file")
@@ -99,6 +106,46 @@ func changeCLI(action string, args []string) (int, error) {
 		branch = fs.Arg(0)
 	}
 	switch action {
+	case "apply":
+		var argv []string
+		if err := json.Unmarshal([]byte(verifyJSON), &argv); err != nil {
+			return 2, errors.New("--verify must be a JSON array of command arguments")
+		}
+		result, applyErr := applySelectedChange(ws, branch, base, applyHead, files, argv, verifyTimeout)
+		if *asJSON && result != nil {
+			if err := jsonio.PrintJSON(result); err != nil {
+				return 1, err
+			}
+		}
+		if applyErr != nil {
+			return 1, applyErr
+		}
+		if !*asJSON {
+			fmt.Printf("Applied and verified %d path(s). Journal: %s\nCandidate: %s\nUndo from the target workspace: irrigator review undo %s\n", len(result.Paths), result.ID, result.Verification.CandidateSHA256, result.ID)
+		}
+		return 0, nil
+	case "undo", "applied":
+		if branch == "" {
+			return 2, errors.New("name the apply journal ID")
+		}
+		var result *appliedChange
+		var err error
+		if action == "undo" {
+			result, err = undoSelectedChange(ws, branch)
+		} else {
+			result, err = readApplied(ws, branch)
+		}
+		if err != nil {
+			return 1, err
+		}
+		if *asJSON {
+			return 0, jsonio.PrintJSON(result)
+		}
+		fmt.Printf("Selective apply %s: %s (%d paths)\n", result.ID, result.Status, len(result.Paths))
+		if result.Verification != nil {
+			fmt.Printf("Verification: %s, candidate %s\n", result.Verification.Status, result.Verification.CandidateSHA256)
+		}
+		return 0, nil
 	case "list":
 		q, err := ListReviews(ws, base)
 		if err != nil {

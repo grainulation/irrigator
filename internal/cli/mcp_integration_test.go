@@ -87,7 +87,7 @@ func mcpToolNames(t *testing.T, cs *mcp.ClientSession) []string {
 func TestMCPControlToolsAbsentWithoutAllowControl(t *testing.T) {
 	cs := mcpConnect(t, mcpserver.McpConfig{Workspace: t.TempDir()})
 	got := strings.Join(mcpToolNames(t, cs), ",")
-	if got != "inspect_cell,list_runs,review_list,run_logs,run_status,validate_plan" {
+	if got != "attempt_output,delivery_summary,inspect_cell,list_runs,provider_limit,review_list,run_logs,run_status,validate_plan" {
 		t.Fatalf("read-only tool set: %s", got)
 	}
 	for _, name := range []string{"apply", "pause", "resume", "retry_cell", "decide_approval"} {
@@ -96,7 +96,7 @@ func TestMCPControlToolsAbsentWithoutAllowControl(t *testing.T) {
 		}
 	}
 	cs = mcpConnect(t, mcpserver.McpConfig{Workspace: t.TempDir(), AllowControl: true})
-	if got := strings.Join(mcpToolNames(t, cs), ","); got != "apply,decide_approval,inspect_cell,list_runs,pause,resume,retry_cell,review_list,run_logs,run_status,validate_plan" {
+	if got := strings.Join(mcpToolNames(t, cs), ","); got != "apply,attempt_output,decide_approval,delivery_summary,inspect_cell,list_runs,pause,provider_limit,resume,retry_cell,review_list,run_logs,run_status,validate_plan" {
 		t.Fatalf("control tool set: %s", got)
 	}
 }

@@ -1,6 +1,6 @@
 {
   "schema": "irrigator.cli/v1",
-  "version": "1.0.0",
+  "version": "1.2.0",
   "commands": [
     {
       "name": "agents",
@@ -208,6 +208,35 @@
       "hidden": true
     },
     {
+      "name": "attempt-output",
+      "flags": [
+        {
+          "name": "attempt",
+          "default": "0",
+          "usage": "explicit historical attempt number (required)",
+          "boolean": false
+        },
+        {
+          "name": "cursor",
+          "default": "",
+          "usage": "next_cursor from the same source snapshot",
+          "boolean": false
+        },
+        {
+          "name": "max-bytes",
+          "default": "4096",
+          "usage": "presentation bytes per page (4..8192)",
+          "boolean": false
+        },
+        {
+          "name": "stream",
+          "default": "stdout",
+          "usage": "stdout or stderr",
+          "boolean": false
+        }
+      ]
+    },
+    {
       "name": "backup",
       "flags": [
         {
@@ -233,6 +262,23 @@
         "create",
         "verify",
         "restore"
+      ]
+    },
+    {
+      "name": "benchmark",
+      "flags": [
+        {
+          "name": "dir",
+          "default": "",
+          "usage": "new private benchmark directory",
+          "boolean": false
+        },
+        {
+          "name": "runs",
+          "default": "2",
+          "usage": "repetitions per serial/parallel arm (1..10)",
+          "boolean": false
+        }
       ]
     },
     {
@@ -640,6 +686,10 @@
       "flags": []
     },
     {
+      "name": "delivery-summary",
+      "flags": []
+    },
+    {
       "name": "demo",
       "flags": [
         {
@@ -987,7 +1037,13 @@
         {
           "name": "out",
           "default": "",
-          "usage": "new proposal file",
+          "usage": "new routed plan file; omitted previews only",
+          "boolean": false
+        },
+        {
+          "name": "policy",
+          "default": "",
+          "usage": "explicit roles/difficulty JSON policy",
           "boolean": false
         },
         {
@@ -1012,6 +1068,7 @@
       "subcommands": [
         "inspect",
         "resolve",
+        "route",
         "migrate-prepare",
         "migrate-apply"
       ]
@@ -1019,6 +1076,17 @@
     {
       "name": "propose",
       "flags": []
+    },
+    {
+      "name": "quota",
+      "flags": [
+        {
+          "name": "attempt",
+          "default": "0",
+          "usage": "exact attempt number (required)",
+          "boolean": false
+        }
+      ]
     },
     {
       "name": "recover",
@@ -1253,6 +1321,12 @@
           "boolean": false
         },
         {
+          "name": "head",
+          "default": "",
+          "usage": "exact source commit inspected with review change; required",
+          "boolean": false
+        },
+        {
           "name": "json",
           "default": "false",
           "usage": "print structured review snapshot and comments",
@@ -1289,6 +1363,12 @@
           "boolean": false
         },
         {
+          "name": "timeout",
+          "default": "5m0s",
+          "usage": "verification timeout (maximum 1h)",
+          "boolean": false
+        },
+        {
           "name": "title",
           "default": "",
           "usage": "review title (1–200 UTF-8 bytes)",
@@ -1299,6 +1379,12 @@
           "default": "false",
           "usage": "describe working-tree edits against HEAD instead of a branch (saves nothing)",
           "boolean": true
+        },
+        {
+          "name": "verify",
+          "default": "",
+          "usage": "explicit JSON argv to check the assembled working tree; required; no shell is added",
+          "boolean": false
         },
         {
           "name": "workspace",
@@ -1321,7 +1407,10 @@
         "request",
         "show",
         "comment",
-        "feedback"
+        "feedback",
+        "apply",
+        "undo",
+        "applied"
       ]
     },
     {

@@ -66,6 +66,59 @@ Risk ordering is built in: secrets, authentication, migrations, dependency
 manifests and build/CI files come first; lockfiles and generated files last.
 It orders attention and approves nothing.
 
+### Apply selected files and undo
+
+Applying changes is a separate explicit action from approving a review. First
+inspect the source branch and retain its exact `head` from `review change --json`.
+Then select files and supply the actual verification command as JSON argv:
+
+```sh
+irrigator review change agent-1 --json
+irrigator review apply agent-1 --head REVIEWED_COMMIT --file app.go --file app_test.go --verify '["go","test","./..."]'
+irrigator review applied APPLY_ID --json
+irrigator review undo APPLY_ID
+```
+
+`--workspace DIR` selects the target repository root. `--base REF` selects the
+source comparison base. Repeat `--file` for each changed path; selecting a renamed
+destination includes the old path as well. `--head` must match the source branch
+now, so an old review cannot apply a newly changed branch. The selected binary
+Git patch is applied to the target index and working tree; no commit, merge,
+push or review approval is created. Unrelated staged, unstaged and untracked
+files remain in place. Selected paths must match target HEAD and its index;
+local changes, assume-unchanged and skip-worktree flags on those paths are
+refused rather than overwritten. Conflicting patches fail before application.
+
+The required `--verify` command runs against the resulting target workspace,
+including its unrelated local changes. No shell is added; an operator can
+explicitly choose one in argv when needed. `--timeout` defaults to `5m` and is
+limited to `1h`. The verifier uses supervised process cleanup. A receipt records
+argv, actual observed exit status when available, output digests, both source
+and target heads, selected paths and a digest of the candidate's HEAD, complete
+index and tracked/nonignored review inventory. Ignored files, environmental
+inputs and external effects are outside that digest. A zero exit cannot earn a
+passed receipt if the candidate or source head changed during verification.
+Verification failures leave the applied changes visible, return nonzero and
+retain their receipt; they do not silently roll back user work.
+
+Private journals and bounded verifier output live under `.irrigator/applied/`.
+`review applied APPLY_ID --json` shows the pre/post file and index snapshots and
+verification result; these private artifacts can include source contents. The
+journal digest detects accidental changes, not hostile rewriting by its owner.
+`review undo` restores only the selected paths and their index entries, including
+binary data, executable modes, additions, deletions and symlink text. It never
+follows a file's symlink target. It refuses if target HEAD, a selected path's
+contents/mode/index/flags, or the saved journal changed after application.
+Unrelated later edits survive. Undo also requires a stopped verifier marker;
+uncertain process cleanup and interrupted apply/undo states require inspection
+and are never replayed automatically. A passed receipt describes its historical
+candidate; undo or any later edit does not transfer that result to another tree.
+
+Bounds are 256 selected paths, 2 MiB per file and 12 MiB of selected contents in
+each snapshot, within the existing 24 MiB review inventory limit. Directory/file
+replacements, submodules and symlink ancestors are refused as non-file content.
+Worktrees and these local guards do not establish a host sandbox.
+
 ### Interactive review
 
 ```sh

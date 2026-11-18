@@ -3,6 +3,33 @@
 Changes below describe source revisions. A source commit is not a signed binary
 release. Versioned plan and worker protocols are tracked separately from the CLI.
 
+## 1.2.0 — 2026-11-18
+
+### Added
+
+- Explicit role/difficulty routing into a new managed plan with `profiles route`;
+  existing profile allowlists and admitted runs remain unchanged.
+- Exact-attempt provider limit/reset advisories and paginated captured output,
+  with source-bound cursors, redaction and separate capture-loss metadata.
+- Selective-file change application with guarded undo and checks against the
+  assembled files, plus a read-only delivery summary of selections, conflicts
+  and recorded check outcomes.
+- An offline mock benchmark with held-out correctness checks; it does not
+  establish provider cost savings or model quality.
+
+### Changed
+
+- Homebrew installation now uses the shared `grainulation/homebrew` tap, with
+  explicit migration instructions for the former source-repository tap. Formula
+  promotion can check the complete published archive checksum set and records
+  its frozen source identity. Stable formula promotion follows publication of
+  the verified native release archives.
+
+### Fixed
+
+- Homebrew recipe verification resolves the registered, trusted formula by name
+  and checks its path, supporting Homebrew versions that reject path loading.
+
 ## 1.1.0 — 2026-11-17
 
 ### Added

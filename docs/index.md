@@ -40,6 +40,8 @@ Start with [your first run](first-run.md): mock workers, your own plan, an optio
 
 - [Coding cells](coding-cells.md): `irrigator code` runs Claude Code, Codex or Antigravity in git worktrees with optional OS sandboxing (`--sandbox-verify`), landing as review branches.
 - [Local review](local-review.md): the review queue, change review and cleanup.
+- [Workflow diagnostics](workflow-diagnostics.md): explicit role routing, provider limit advisories, delivery summaries and the offline mock benchmark.
+- [Attempt output](attempt-output.md): bounded, redacted pages of exact historical attempt captures.
 - [Recovery](recovery.md): triage stuck cells, explicit retry, exclusive transfer and checkpoint migration.
 - [Approvals](approvals.md): phone approve/deny through single-use links.
 - [Read-only monitoring](monitoring.md): bounded observations, selected evidence and explicit judgments.

@@ -102,6 +102,10 @@ checksums into a versioned release after the full platform checks pass. Retain
 per-target checksums when downloading multiple candidate artifacts; their
 `SHA256SUMS` filenames otherwise collide in a shared extraction directory.
 
-This repository also serves as the [Homebrew tap](homebrew.md). Its stable formula
-is pinned to the four tested release archives and promoted in a separate
+The shared [Homebrew tap](homebrew.md) is `grainulation/homebrew`. Its stable
+formula is pinned to the four tested release archives and promoted in a separate
 distribution-only commit; the optional HEAD recipe builds development source.
+`Formula/irrigator.rb` here is the generator template and compatibility mirror
+for the former source-repository tap. Keep both formula copies identical when
+promoting a release. A tag or release page without all four published archives
+does not qualify for a stable formula update.

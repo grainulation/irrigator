@@ -1,46 +1,77 @@
 # Homebrew installation
 
-The Irrigator repository also serves as its Homebrew tap. It provides the CLI
+The shared [Grainulation tap](https://github.com/grainulation/homebrew) provides the CLI
 on macOS and Linux, including Linux inside WSL 2. Native Windows is unsupported.
 
 ## Stable installation
 
-Install the pinned v1.0.0 release with:
+Install the pinned stable release with:
 
 ```sh
-brew tap grainulation/irrigator https://github.com/grainulation/irrigator
-brew install grainulation/irrigator/irrigator
+brew tap grainulation/homebrew https://github.com/grainulation/homebrew
+brew install grainulation/homebrew/irrigator
 irrigator version
 irrigator demo
 ```
 
-The explicit repository URL is required: this tap lives in `irrigator`, rather
-than a separate `homebrew-irrigator` repository. The formula is
-[`Formula/irrigator.rb`](https://github.com/grainulation/irrigator/blob/main/Formula/irrigator.rb). It installs only the CLI;
+The explicit repository URL is required: the shared repository is named
+`homebrew`, rather than Homebrew's inferred `homebrew-homebrew`. The formula is
+[`Formula/irrigator.rb`](https://github.com/grainulation/homebrew/blob/main/Formula/irrigator.rb). It installs only the CLI;
 agent plugins and provider tools still use their own [setup](agent-setup.md).
 The stable formula chooses the verified release archive for the host's OS and
 architecture, checks its SHA-256, and installs without a Go compiler.
 If your Homebrew version requests formula trust, review the formula and run
-`brew trust --formula grainulation/irrigator/irrigator`, then retry installation.
+`brew trust --formula grainulation/homebrew/irrigator`, then retry installation.
 
-Use `brew upgrade grainulation/irrigator/irrigator` for subsequent stable
-formula releases, and `brew test grainulation/irrigator/irrigator` to run the
+Use `brew upgrade grainulation/homebrew/irrigator` for subsequent stable
+formula releases, and `brew test grainulation/homebrew/irrigator` to run the
 credential-free installation check. Uninstall with `brew uninstall irrigator`.
+
+See the tap's [available formulae](https://github.com/grainulation/homebrew#available-formulae)
+for the current stable version. Stable promotion requires all four exact-commit
+native archives to pass and those same bytes to be published, following the
+[release checklist](versioned-release.md). A source tag alone is insufficient
+for updating an archive-based formula. These CLI archives are unsigned. Their
+hashes and embedded provenance identify the installed bytes; they do not
+independently authenticate the publisher.
+
+## Move an existing source-repository tap installation
+
+If you installed from `grainulation/irrigator`, first add the shared tap with
+its explicit URL, then reinstall from the fully qualified destination:
+
+```sh
+brew tap grainulation/homebrew https://github.com/grainulation/homebrew
+brew info grainulation/homebrew/irrigator
+brew reinstall --formula grainulation/homebrew/irrigator
+brew test grainulation/homebrew/irrigator
+brew info --json=v2 grainulation/homebrew/irrigator
+```
+
+Review the destination formula and grant formula trust if Homebrew requests it.
+Homebrew preserves the installed stable or HEAD selection during reinstall.
+Check the tap's version table for the stable release it will select. Reinstallation replaces the
+executable; it does not migrate, delete or rewrite Irrigator runs,
+plans, checkpoints or provider configuration. Check the installed formula's tap
+in the final `brew info` output before optionally running
+`brew untap grainulation/irrigator`. Keep the old tap if another installed
+formula still needs it. The source repository retains a compatibility formula
+mirror, so existing installations have time to move explicitly.
 
 ## Development source installation
 
 To build the current `main` branch instead, use the same tap with:
 
 ```sh
-brew install --HEAD grainulation/irrigator/irrigator
+brew install --HEAD grainulation/homebrew/irrigator
 ```
 
 `--HEAD` builds the current `main` branch and requires Homebrew's Go build
-dependency (Go 1.26.7 or newer). It is a mutable development version, not a pinned
-1.0.0 release. The build uses the installed compiler without automatic toolchain
+dependency (Go 1.26.7 or newer). It is a mutable development version.
+The build uses the installed compiler without automatic toolchain
 downloads; an older compiler fails against `go.mod` rather than downloading the
 development pin. For an existing development installation, use
-`brew upgrade --fetch-HEAD grainulation/irrigator/irrigator`.
+`brew upgrade --fetch-HEAD grainulation/homebrew/irrigator`.
 
 ## Validate the recipe before release
 
@@ -96,14 +127,24 @@ the loaded formula checksum against the candidate, installs its actual binary
 recipe in a private prefix, and runs its exact-version/mock demo/export test.
 It does not contact the release URL or install a keg globally.
 
-Publish those same bytes following the [release checklist](versioned-release.md),
-then copy the generated formula to `Formula/irrigator.rb` in a separate
-distribution-only commit. Retain the release tag at the frozen runtime commit.
+Publish those same bytes following the [release checklist](versioned-release.md).
+Download the four published archives and their `SHA256SUMS` into a fresh
+directory, then rerun the generator with those downloads and
+`--published-checksums path/to/SHA256SUMS`. This rejects missing, extra, duplicate
+or mismatched published checksums. Checking a downloaded checksum file against
+downloaded bytes verifies consistency, not publisher authentication.
+
+The generated comments record the frozen runtime commit and common source hash.
+Compare them with the intended release before promotion. Copy the reviewed,
+tested formula to `Formula/irrigator.rb` in `grainulation/homebrew` in a separate
+distribution-only commit, and keep `Formula/irrigator.rb` in this source
+repository identical as the generator template and compatibility mirror.
+Retain the release tag at the frozen runtime commit.
 Committing formula hashes into that frozen commit would change archive
 provenance and therefore change the hashes again. Do not rebuild or retag the
 tested release to include its own hashes.
 
-After that formula commit is available on `main` and its release assets are
+After the shared tap formula commit is available on `main` and its release assets are
 published, the stable installation commands above select the updated release.
 The formula does not install skills, provider credentials, background services,
 or a hosted application.
