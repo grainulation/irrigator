@@ -5,7 +5,7 @@ on macOS and Linux, including Linux inside WSL 2. Native Windows is unsupported.
 
 ## Stable installation
 
-Install the pinned v1.0.0 release with:
+Install the pinned stable release with:
 
 ```sh
 brew tap grainulation/homebrew https://github.com/grainulation/homebrew
@@ -27,15 +27,13 @@ Use `brew upgrade grainulation/homebrew/irrigator` for subsequent stable
 formula releases, and `brew test grainulation/homebrew/irrigator` to run the
 credential-free installation check. Uninstall with `brew uninstall irrigator`.
 
-The stable formula remains at v1.0.0. As of November 18, 2026, the public v1.1.0
-release has no downloadable binary assets; a source tag alone is insufficient
-for updating an archive-based formula. The published v1.0.0 archives are
-unsigned. Their hashes and embedded provenance identify the installed bytes;
-they do not independently authenticate the publisher.
-
-Version 1.2.0 source is being validated for the next binary release. Its stable
-formula will be promoted after all four exact-commit native archives pass and
-those same bytes are published, following the [release checklist](versioned-release.md).
+See the tap's [available formulae](https://github.com/grainulation/homebrew#available-formulae)
+for the current stable version. Stable promotion requires all four exact-commit
+native archives to pass and those same bytes to be published, following the
+[release checklist](versioned-release.md). A source tag alone is insufficient
+for updating an archive-based formula. These CLI archives are unsigned. Their
+hashes and embedded provenance identify the installed bytes; they do not
+independently authenticate the publisher.
 
 ## Move an existing source-repository tap installation
 
@@ -51,8 +49,8 @@ brew info --json=v2 grainulation/homebrew/irrigator
 ```
 
 Review the destination formula and grant formula trust if Homebrew requests it.
-Homebrew preserves the installed stable or HEAD selection during reinstall;
-an existing stable installation stays on v1.0.0. Reinstallation replaces the
+Homebrew preserves the installed stable or HEAD selection during reinstall.
+Check the tap's version table for the stable release it will select. Reinstallation replaces the
 executable; it does not migrate, delete or rewrite Irrigator runs,
 plans, checkpoints or provider configuration. Check the installed formula's tap
 in the final `brew info` output before optionally running
@@ -69,8 +67,8 @@ brew install --HEAD grainulation/homebrew/irrigator
 ```
 
 `--HEAD` builds the current `main` branch and requires Homebrew's Go build
-dependency (Go 1.26.7 or newer). It is a mutable development version, not a pinned
-1.0.0 release. The build uses the installed compiler without automatic toolchain
+dependency (Go 1.26.7 or newer). It is a mutable development version.
+The build uses the installed compiler without automatic toolchain
 downloads; an older compiler fails against `go.mod` rather than downloading the
 development pin. For an existing development installation, use
 `brew upgrade --fetch-HEAD grainulation/homebrew/irrigator`.

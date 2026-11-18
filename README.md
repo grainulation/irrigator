@@ -83,9 +83,8 @@ irrigator demo
 ```
 
 The stable formula installs a pinned release archive and does not need Go.
-The stable formula currently installs v1.0.0. Version 1.2.0 source is being
-validated for the next binary release; stable promotion requires the tested
-release archives and a shared-tap formula update. For a development source build, use
+See the tap's [available formulae](https://github.com/grainulation/homebrew#available-formulae)
+for the current stable version. For a development source build, use
 `brew install --HEAD grainulation/homebrew/irrigator`.
 See the [Homebrew guide](docs/homebrew.md) for supported platforms, upgrades and checks.
 
