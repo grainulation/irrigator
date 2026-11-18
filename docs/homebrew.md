@@ -5,8 +5,7 @@ on macOS and Linux, including Linux inside WSL 2. Native Windows is unsupported.
 
 ## Stable installation
 
-Once the v1.0.0 release archives are published and the formula is merged into
-`main`, install the pinned release with:
+Install the pinned v1.0.0 release with:
 
 ```sh
 brew tap grainulation/irrigator https://github.com/grainulation/irrigator

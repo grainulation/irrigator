@@ -1,6 +1,3 @@
-// Package coder runs coding agents (Claude Code, Codex, Antigravity) in git
-// worktrees: the hidden `_code-worker` command speaks swarm.worker/v1 for one
-// cell, and `irrigator code` builds and applies a plan of such cells.
 package coder
 
 import (

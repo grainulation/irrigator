@@ -4,7 +4,7 @@ Irrigator is a single-host local execution tool. This document states what the r
 
 ## Supported versions
 
-Security fixes target the current maintained branch and release candidate. There is no hosted service or guaranteed response-time commitment.
+Security fixes target the current maintained branch and latest 1.x release. There is no hosted service or guaranteed response-time commitment.
 
 ## Reporting a vulnerability
 
@@ -94,7 +94,7 @@ and [billing reconciliation](docs/billing-reconciliation.md).
 
 ## Plugins and skills
 
-The plugin and skill files are Markdown and JSON instructions for a host agent that drives the local `irrigator` CLI. The Claude Code plugin also registers the local [MCP server](docs/mcp.md) (`irrigator mcp` over stdio, without `--allow-control`, so it can inspect runs but not drive them); the Codex plugin registers none. The plugins do not grant host permissions or send messages. Installing a plugin into a host is a local action the user takes under that host's own permission model; this repository does not install anything automatically. The packaging step is local only and does not publish. Review any skill before enabling it, because a skill steers an agent that can run commands.
+The plugin and skill files are Markdown and JSON instructions for a host agent that drives the local `irrigator` CLI. The plugins (via `.claude-plugin/plugin.json`, `mcp.json`, and `mcp_config.json`) also register the local [MCP server](docs/mcp.md) (`irrigator mcp` over stdio, without `--allow-control`, so it can inspect runs but not drive them). The plugins do not grant host permissions or send messages. Installing a plugin into a host is a local action the user takes under that host's own permission model; this repository does not install anything automatically. The packaging step is local only and does not publish. Review any skill before enabling it, because a skill steers an agent that can run commands.
 
 ## Out of scope
 

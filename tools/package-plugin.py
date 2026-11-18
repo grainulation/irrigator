@@ -92,7 +92,7 @@ SECRET_FILENAME = re.compile(r'[.]env.*|[.]?credentials?(?:[.].*)?|[.]?settings[
 PATH_FIELD_WORDS = {'path', 'file', 'dir', 'directory', 'folder', 'icon', 'logo', 'image',
                     'screenshot', 'skill', 'agent', 'hook', 'entry', 'source', 'binary', 'executable'}
 
-# Irrigator has no MCP server and the plugin makes no permission or pricing claims.
+# Only the read-only `irrigator mcp` registration is allowed; the plugin makes no permission or pricing claims.
 FORBIDDEN_MANIFEST_KEYS = {'mcpServers', 'mcp_servers', 'permissions', 'pricing', 'price', 'userConfig'}
 # Present only with owner authorization; warn so they are never added by accident.
 REMOTE_METADATA_KEYS = {'homepage', 'repository', 'websiteURL', 'privacyPolicyURL', 'termsOfServiceURL'}
@@ -379,7 +379,7 @@ def check_manifest_claims(root, rel, data, rep, has_license):
         if here.startswith('/mcpServers/') and backed_mcp:
             continue
         if key in FORBIDDEN_MANIFEST_KEYS:
-            rep.error('%s: key %s is forbidden (no MCP server, permission or pricing claims)' % (rel, here))
+            rep.error('%s: key %s is forbidden (no arbitrary MCP server, permission or pricing claims)' % (rel, here))
         if key in REMOTE_METADATA_KEYS and not (isinstance(val, str) and val in AUTHORIZED_REMOTE_METADATA.get(key, ())):
             rep.warn('%s: %s is set; add homepage/repository style fields only with owner authorization' % (rel, here))
         if isinstance(val, str) and (val.startswith('./') or val.startswith('../')):

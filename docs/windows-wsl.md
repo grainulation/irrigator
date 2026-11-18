@@ -59,11 +59,12 @@ From Windows, the WSL home is reachable in Explorer at `\\wsl$\Ubuntu-24.04\home
 
 ## Agent tools run inside WSL too
 
-Irrigator starts provider CLIs (for example `claude` or `codex`) as Linux
+Irrigator starts provider CLIs (for example `claude`, `codex` or `agy`) as Linux
 processes, so install and sign in to them inside the Ubuntu terminal. Copies
 installed on the Windows side are not used. The same applies to the
-[Claude Code](claude-plugin.md) and [Codex](codex-plugin.md) plugins: run the host
-inside WSL so it finds the Linux `irrigator` on `PATH`.
+[Claude Code](claude-plugin.md), [Codex](codex-plugin.md) and
+[Antigravity](agent-setup.md#antigravity) plugins: run the host inside WSL so it
+finds the Linux `irrigator` on `PATH`.
 
 Windows Terminal supports the terminal features the dashboard uses (progress,
 hyperlinks, clipboard); see [monitoring](monitoring.md).

@@ -10,10 +10,10 @@
 // # Allowed dependencies
 //
 // Layer 32. May import only lower layers; today it imports approvals, backup, branchreview,
-// buildinfo, campaign, checkpoint, commandflags, composition, dashboard, debug, delivery,
+// buildinfo, campaign, checkpoint, coder, commandflags, composition, dashboard, debug, delivery,
 // executor, gitcontract, graph, jsonio, launch, localfs, managed, mcpserver, messaging, model,
-// provider, runops, selfupdate, session, sizing, telemetry. Third-party: none. The compiler
-// rejects import cycles; the layer order is recorded in docs/architecture.md.
+// provider, runops, selfupdate, session, sizing, telemetry, triage. Third-party: none. The
+// compiler rejects import cycles; the layer order is recorded in docs/architecture.md.
 //
 // # Invariants
 //

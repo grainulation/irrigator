@@ -177,7 +177,7 @@ its external outcome and any surviving process. See [recovery](recovery.md) and
 
 ## Next steps
 
-- Use the [Claude Code](claude-plugin.md) or [Codex](codex-plugin.md) skills.
+- Set up the [Claude Code](claude-plugin.md), [Codex](codex-plugin.md), or [Antigravity](agent-setup.md#antigravity) plugin and skills.
 - Add [main-agent turns and terminal helpers](turn-shapes.md).
 - Configure [providers and run budgets](execution-profiles.md).
 - Compose [reusable workflows](workflow-composition.md).

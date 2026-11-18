@@ -10,7 +10,7 @@ For the Go CLI archives (macOS and Linux builds signed in the update format), se
 - It packages manifests, Markdown skills, docs and the verification scripts. It does not build or bundle the Go runtime. Build that yourself with `make build`.
 - It creates no license file. A `LICENSE*` or `NOTICE*` file is included only if one already exists in the tree. The project includes its [MIT license](../LICENSE).
 - The archive is not an installer. It makes no claim about a public listing, a marketplace entry or host endorsement.
-- The packager runs no MCP server. Only `.claude-plugin/plugin.json` may register one, and only the read-only `irrigator mcp` server (see [MCP](mcp.md)).
+- The packager runs no MCP server. Only `.claude-plugin/plugin.json`, `mcp.json`, and `mcp_config.json` may register one, and only the read-only `irrigator mcp` server (see [MCP](mcp.md)).
 
 ## What is packaged
 
@@ -19,7 +19,7 @@ Only an allowlist is packaged. Everything else is ignored.
 | Entry | Notes |
 | --- | --- |
 | `.claude-plugin/`, `.codex-plugin/`, `skills/`, `docs/` | Text files only (`.md`, `.json`, `.py`, `.txt`, `.sh`, `.toml`, `.yaml`, `.yml`). |
-| `plugin.json`, `README.md`, `CONTRIBUTING.md`, `SECURITY.md`, `CHANGELOG.md`, `CODE_OF_CONDUCT.md` | Root files. |
+| `plugin.json`, `mcp.json`, `mcp_config.json`, `README.md`, `CONTRIBUTING.md`, `SECURITY.md`, `CHANGELOG.md`, `CODE_OF_CONDUCT.md` | Root files. |
 | `verification/plugin-contract-test.py`, `verification/plugin-validator-regression.py`, `verification/plugin-consumer-test.py`, `tools/package-plugin.py`, `tools/test_parity_package.py`, `tools/host-plugin-probe.py`, `tools/host-agent-events.py`, `verification/host-agent-events-test.py` | Fixed list, so the archive can check itself and consumer docs can point at these scripts. |
 | `verification/cli-contract.json`, `docs/plan.schema.json` | Generated command and editor contracts. |
 | `LICENSE*`, `NOTICE*` | Only if already present. |
@@ -82,7 +82,7 @@ After writing, the tool reads the new archive back and compares every member wit
 ## Validation before packaging
 
 - Manifests: valid JSON, `name` is `irrigator`, a semver `version` that agrees across `plugin.json`, `.codex-plugin/plugin.json`, `.claude-plugin/plugin.json` and the marketplace entry.
-- No `permissions`, pricing or `userConfig` keys, and no `mcpServers` key except the read-only `irrigator mcp` registration (no `--allow-control`) in `.claude-plugin/plugin.json`. No license key unless a license file exists. Homepage and repository fields warn unless they use the authorized project URLs: `https://irrigator.dev` (with an optional trailing slash) for `homepage`, and `https://github.com/grainulation/irrigator` (with an optional `.git` suffix) for `repository`. Other remote metadata fields still warn.
+- No `permissions`, pricing or `userConfig` keys, and no `mcpServers` key in a plugin manifest except the read-only `irrigator mcp` registration (no `--allow-control`) in `.claude-plugin/plugin.json` (plus root `mcp.json` and `mcp_config.json`, which also register only read-only `irrigator mcp`). No license key unless a license file exists. Homepage and repository fields warn unless they use the authorized project URLs: `https://irrigator.dev` (with an optional trailing slash) for `homepage`, and `https://github.com/grainulation/irrigator` (with an optional `.git` suffix) for `repository`. Other remote metadata fields still warn.
 - Every `./` path in a manifest exists, stays inside the plugin root and does not pass through a symlink.
 - Manifest fields that name a location (keys ending in path, file, dir, icon, logo, image, screenshot, skill, agent, hook, entry, source, binary or executable) must not hold an absolute, `~`, `$VAR`, drive-letter, backslash, `file:` or `..` path. Descriptions, prompts and public `https://` URLs are not treated as paths.
 - All nine skills exist: `irrigator`, `router`, `plan`, `run`, `resume`, `observe`, `budget`, `swarm`, `debug`. Each has frontmatter whose `name` equals its directory name.
