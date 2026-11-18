@@ -59,15 +59,15 @@ same machine. The repository must contain the base branch.
 ```sh
 irrigator code --repo DIR --task ID=PROMPT [--task ID=PROMPT ...]
   [--agent claude|codex|agy] [--model M] [--base main]
-  [--verify ID=COMMAND] [--depends ID=DEP[,DEP]] [--add-dir DIR]
-  [--seed-ignored RELPATH[,RELPATH]] [--continue-from RUNID]
+  [--verify ID=COMMAND] [--sandbox-verify] [--depends ID=DEP[,DEP]]
+  [--add-dir DIR] [--seed-ignored RELPATH[,RELPATH]] [--continue-from RUNID]
   [--worktrees DIR] [--name NAME] [--run DIR] [--workers 2]
   [--timeout 30m] [--call-budget 1] [--out FILE] [--plan-only]
 ```
 
 - `--task ID=PROMPT`: one cell. IDs use letters, digits, `_` and `-`.
 - `--depends tests=docs`: run `tests` after `docs` and show it `docs`'s summary.
-- `--verify`, `--add-dir`, `--seed-ignored`, `--continue-from`: see the sections below.
+- `--verify`, `--sandbox-verify`, `--add-dir`, `--seed-ignored`, `--continue-from`: see the sections below.
 - `--workers`, `--timeout` and `--call-budget` are passed to `apply`. The plan
   embeds the absolute path of the `irrigator` executable and the repository;
   regenerate it if they move, and never edit an admitted plan.
@@ -155,6 +155,21 @@ Inspect an uncertain cell's worktree, branch and verification output before an
 explicit recovery or retry decision. Verification commands should inspect the
 agent's committed result and leave it unchanged.
 
+Pass `--sandbox-verify` (which sets `context.sandbox_verify: "true"` on verified
+tasks) to run `/bin/sh -c <command>` inside an opt-in OS-native network-off
+worktree sandbox instead of directly on the host:
+
+- **Preflight**: before executing, the worker checks for `sandbox-exec` on macOS
+  (`darwin`) or `bwrap` on Linux (`linux`). If the sandbox tool is missing or the
+  host OS is unsupported, verification fails closed with exit `77`
+  (`uncertain`), never silently running unsandboxed.
+- **macOS (`darwin`)**: wraps `/bin/sh -c` in `sandbox-exec -p <profile>` that
+  denies network access (`(deny network*)`) and restricts file writes to `/dev/null`,
+  an attempt-scoped temporary directory (`TMPDIR`), and the resolved cell worktree
+  path—blocking writes to the main repository checkout and parent directories.
+- **Linux (`linux`)**: wraps `/bin/sh -c` in `bwrap --unshare-net --ro-bind / / --tmpfs /tmp --dev /dev --proc /proc --bind <worktree> <worktree> --chdir <worktree>`.
+- Omitting `--sandbox-verify` preserves the default unsandboxed behavior.
+
 When verification fails, times out, exits `77`, leaves uncommitted work, or
 changes `HEAD`/branch identity (or when partial stream usage is recorded), the
 worker records bounded before/after Git-status snapshots (`git status --porcelain=v1 -z --untracked-files=all`)
@@ -178,6 +193,12 @@ inspection.
 
 `--add-dir DIR` (repeatable) lets agents read reference material outside the
 worktree. It is passed to each agent's own `--add-dir`.
+
+To prevent generated runtime evidence or sibling cell worktrees from leaking into
+an agent's reference context, `irrigator code` validates every `--add-dir` path
+and refuses any directory pointing at or inside `--run` or `--worktrees`
+(including the default `irrigator-worktrees` sibling directory). Keep runtime
+logs, checkpoints, and worktrees separate from read-only reference directories.
 
 ## Worktree seeding
 
@@ -304,7 +325,8 @@ stream format (success, leftovers, agent error, usage limit, timeout, missing
 result, no changes, setup failure, missing binary, retries, dirty-worktree
 refusal, previous-attempts context, passing and failing verification,
 non-additive token validation, partial usage observations, before/after
-verification git-status sidecars, `--seed-ignored`, `--add-dir`,
+verification git-status sidecars, `--seed-ignored`, `--add-dir` runtime
+evidence placement hygiene, `--sandbox-verify` preflight and isolation,
 `--continue-from`, cleanup). It uses no network and no model.
 
 For agents over ACP, with Irrigator's approval links gating each tool call, see

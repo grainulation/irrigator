@@ -402,6 +402,12 @@
           "boolean": false
         },
         {
+          "name": "sandbox-verify",
+          "default": "false",
+          "usage": "run --verify commands inside an OS-native network-off worktree sandbox",
+          "boolean": true
+        },
+        {
           "name": "seed-ignored",
           "default": "",
           "usage": "gitignored relative paths to seed into each worktree (comma-separated or repeatable)",

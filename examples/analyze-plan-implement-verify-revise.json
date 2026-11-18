@@ -1,0 +1,153 @@
+{
+  "api_version": "swarm/v1",
+  "name": "Canonical 5-stage analyze -> plan -> implement -> verify -> revise workflow",
+  "max_tasks": 6,
+  "tasks": [
+    {
+      "id": "analyze",
+      "prompt": "Explore the repository layout, module boundaries, and existing tests. Produce verified architecture_facts and a concise shared interface_packet locking types, signatures, and invariants for parallel implementers.",
+      "requires": [
+        "architecture_facts",
+        "interface_packet"
+      ],
+      "mock_result": {
+        "architecture_facts": "Parser lives in internal/parser; formatter lives in internal/format; both depend only on internal/model.",
+        "interface_packet": "Contract: Token{Kind string, Value string}; Parse(src string) ([]Token, error); Format(tokens []Token) (string, error)."
+      }
+    },
+    {
+      "id": "plan",
+      "depends_on": [
+        "analyze"
+      ],
+      "input_fields": {
+        "analyze": [
+          "architecture_facts",
+          "interface_packet"
+        ]
+      },
+      "prompt": "Using architecture_facts and interface_packet, split implementation into disjoint cell_spec_a and cell_spec_b scopes with explicit file ownership and acceptance checks.",
+      "requires": [
+        "cell_spec_a",
+        "cell_spec_b"
+      ],
+      "mock_result": {
+        "cell_spec_a": "Cell A owns internal/parser: implement Parse(src string) ([]Token, error) and unit tests.",
+        "cell_spec_b": "Cell B owns internal/format: implement Format(tokens []Token) (string, error) and unit tests."
+      }
+    },
+    {
+      "id": "implement_a",
+      "depends_on": [
+        "analyze",
+        "plan"
+      ],
+      "input_fields": {
+        "analyze": [
+          "interface_packet"
+        ],
+        "plan": [
+          "cell_spec_a"
+        ]
+      },
+      "prompt": "Implement cell_spec_a strictly against the shared interface_packet. Return diff_a and a separate self_assessment.",
+      "requires": [
+        "diff_a",
+        "self_assessment"
+      ],
+      "mock_result": {
+        "diff_a": "diff --git a/internal/parser/parse.go b/internal/parser/parse.go\n+func Parse(src string) ([]Token, error) { ... }",
+        "self_assessment": "Producer note: parser handles quoted tokens and passed local tests."
+      }
+    },
+    {
+      "id": "implement_b",
+      "depends_on": [
+        "analyze",
+        "plan"
+      ],
+      "input_fields": {
+        "analyze": [
+          "interface_packet"
+        ],
+        "plan": [
+          "cell_spec_b"
+        ]
+      },
+      "prompt": "Implement cell_spec_b strictly against the shared interface_packet. Return diff_b and a separate self_assessment.",
+      "requires": [
+        "diff_b",
+        "self_assessment"
+      ],
+      "mock_result": {
+        "diff_b": "diff --git a/internal/format/format.go b/internal/format/format.go\n+func Format(tokens []Token) (string, error) { ... }",
+        "self_assessment": "Producer note: formatter round-trips tokens cleanly."
+      }
+    },
+    {
+      "id": "verify_and_review",
+      "depends_on": [
+        "analyze",
+        "implement_a",
+        "implement_b"
+      ],
+      "input_fields": {
+        "analyze": [
+          "interface_packet"
+        ],
+        "implement_a": [
+          "diff_a"
+        ],
+        "implement_b": [
+          "diff_b"
+        ]
+      },
+      "prompt": "Independently verify diff_a and diff_b against interface_packet without producer self-assessment summaries. Return review_verdict and concrete revision_notes.",
+      "requires": [
+        "review_verdict",
+        "revision_notes"
+      ],
+      "mock_result": {
+        "review_verdict": "changes_requested",
+        "revision_notes": "Ensure Format escapes trailing backslashes identically to Parse unescaping rules in interface_packet."
+      }
+    },
+    {
+      "id": "revise",
+      "depends_on": [
+        "analyze",
+        "implement_a",
+        "implement_b",
+        "verify_and_review"
+      ],
+      "input_fields": {
+        "analyze": [
+          "interface_packet"
+        ],
+        "implement_a": [
+          "diff_a"
+        ],
+        "implement_b": [
+          "diff_b"
+        ],
+        "verify_and_review": [
+          "revision_notes"
+        ]
+      },
+      "prompt": "Apply revision_notes to diff_a and diff_b while keeping full compliance with interface_packet, and produce accepted_patch.",
+      "requires": [
+        "accepted_patch"
+      ],
+      "checks": [
+        {
+          "kind": "min_length",
+          "field": "accepted_patch",
+          "minimum": 16
+        }
+      ],
+      "mock_result": {
+        "accepted_patch": "Combined patch aligning internal/parser and internal/format backslash escaping with interface_packet; all verification checks pass."
+      }
+    }
+  ]
+}

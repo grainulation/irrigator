@@ -5,10 +5,12 @@ package coder
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -508,9 +510,28 @@ func TestBuildPlan(t *testing.T) {
 		{agent: "claude", tasks: []string{"a=x"}, verify: []string{"b=true"}},
 		{agent: "claude", tasks: []string{"a=x"}, seedIgnored: []string{"../outside"}},
 		{agent: "claude", tasks: []string{"a=x"}, seedIgnored: []string{".git/config"}},
+		{agent: "claude", repo: "/repo", run: "/tmp/runs/r1", tasks: []string{"a=x"}, addDirs: []string{"/tmp/runs/r1"}},
+		{agent: "claude", repo: "/repo", run: "/tmp/runs/r1", tasks: []string{"a=x"}, addDirs: []string{"/tmp/runs/r1/evidence"}},
+		{agent: "claude", repo: "/repo", worktrees: "/tmp/wt", tasks: []string{"a=x"}, addDirs: []string{"/tmp/wt"}},
+		{agent: "claude", repo: "/repo", worktrees: "/tmp/wt", tasks: []string{"a=x"}, addDirs: []string{"/tmp/wt/01234567/other-a1"}},
+		{agent: "claude", repo: "/repo/checkout", tasks: []string{"a=x"}, addDirs: []string{"/repo/irrigator-worktrees/run1"}},
 	} {
 		if _, err := buildPlan(bad); err == nil {
 			t.Fatalf("accepted %+v", bad)
+		}
+	}
+
+	sbPlan, err := buildPlan(planOptions{
+		agent: "claude", repo: "/repo", base: "main", executable: "/bin/irrigator",
+		tasks: []string{"t1=Fix bug"}, verify: []string{"t1=go test ./..."}, sandboxVerify: true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	sbRaw, _ := json.Marshal(sbPlan)
+	for _, want := range []string{`"sandbox_verify":"true"`, `"context":["verify_t1","sandbox_verify"]`} {
+		if !strings.Contains(string(sbRaw), want) {
+			t.Fatalf("sandbox plan lacks %s:\n%s", want, sbRaw)
 		}
 	}
 }
@@ -896,6 +917,165 @@ func TestSeedIgnoredWorktreeSeeding(t *testing.T) {
 		badResp := f.run(call{mode: "success", cell: "bad-" + name, seedIgnored: []string{badSeed}})
 		if badResp["outcome"] != "not_started" || !strings.Contains(badResp["error"].(string), "worktree seeding failed") {
 			t.Fatalf("%s: expected not_started seeding failure, got %v", name, badResp)
+		}
+	}
+}
+
+func TestSandboxVerify(t *testing.T) {
+	t.Run("preflight missing tool returns exit 77 and wraps darwin and linux commands", func(t *testing.T) {
+		f := newFixture(t)
+		wt := f.root
+		tmp := t.TempDir()
+		missing := func(string) (string, error) { return "", errors.New("not found") }
+
+		if _, _, _, err := buildSandboxVerifyCommand("darwin", "true", wt, tmp, missing); err == nil || !strings.Contains(err.Error(), "sandbox-verify requested but sandbox-exec is not available") {
+			t.Fatalf("darwin missing tool err = %v", err)
+		}
+		if _, _, _, err := buildSandboxVerifyCommand("linux", "true", wt, "", missing); err == nil || !strings.Contains(err.Error(), "sandbox-verify requested but bwrap is not available") {
+			t.Fatalf("linux missing tool err = %v", err)
+		}
+		if _, _, _, err := buildSandboxVerifyCommand("windows", "true", wt, "", missing); err == nil || !strings.Contains(err.Error(), "not supported on windows") {
+			t.Fatalf("windows err = %v", err)
+		}
+
+		// Verify runVerify fails closed with exit 77 when sandbox tool is absent on PATH.
+		emptyPath := t.TempDir()
+		t.Setenv("PATH", emptyPath)
+		code, tail, timedOut := runVerify("true", wt, 5*time.Second, true)
+		if timedOut || code != 77 || !strings.Contains(tail, "sandbox-verify requested but") {
+			t.Fatalf("runVerify missing tool: code=%d timedOut=%v tail=%q", code, timedOut, tail)
+		}
+
+		// Check darwin sandbox-exec profile and args.
+		bin, args, env, err := buildSandboxVerifyCommand("darwin", "go test ./...", wt, tmp, func(name string) (string, error) {
+			return "/usr/bin/" + name, nil
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		resolvedTmp, _ := filepath.EvalSymlinks(tmp)
+		if bin != "/usr/bin/sandbox-exec" || len(args) != 5 || args[0] != "-p" || args[2] != "/bin/sh" || args[3] != "-c" || args[4] != "go test ./..." {
+			t.Fatalf("darwin wrap: bin=%q args=%q", bin, args)
+		}
+		profile := args[1]
+		for _, want := range []string{"(deny network*)", "(deny file-write*)", `(literal "/dev/null")`, wt, resolvedTmp} {
+			if !strings.Contains(profile, want) {
+				t.Fatalf("darwin profile missing %q:\n%s", want, profile)
+			}
+		}
+		if len(env) != 1 || env[0] != "TMPDIR="+resolvedTmp {
+			t.Fatalf("darwin envOverrides = %q", env)
+		}
+
+		// Check linux bwrap args.
+		bin, args, env, err = buildSandboxVerifyCommand("linux", "go test ./...", wt, "", func(name string) (string, error) {
+			return "/usr/bin/" + name, nil
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		wantLinux := []string{
+			"--unshare-net", "--ro-bind", "/", "/", "--tmpfs", "/tmp",
+			"--dev", "/dev", "--proc", "/proc", "--bind", wt, wt,
+			"--chdir", wt, "/bin/sh", "-c", "go test ./...",
+		}
+		if bin != "/usr/bin/bwrap" || strings.Join(args, "\x00") != strings.Join(wantLinux, "\x00") {
+			t.Fatalf("linux wrap: bin=%q args=%q", bin, args)
+		}
+		if len(env) != 1 || env[0] != "TMPDIR=/tmp" {
+			t.Fatalf("linux envOverrides = %q", env)
+		}
+	})
+
+	t.Run("add-dir validation rejects run and worktrees via CodeCLI", func(t *testing.T) {
+		f := newFixture(t)
+		runDir := filepath.Join(f.root, "runs", "r1")
+		wtDir := filepath.Join(f.root, "wt")
+		for _, tc := range []struct {
+			name string
+			args []string
+		}{
+			{"at run", []string{"--repo", f.repo, "--run", runDir, "--add-dir", runDir, "--task", "a=do work", "--plan-only"}},
+			{"inside run", []string{"--repo", f.repo, "--run", runDir, "--add-dir", filepath.Join(runDir, "sub"), "--task", "a=do work", "--plan-only"}},
+			{"at worktrees", []string{"--repo", f.repo, "--worktrees", wtDir, "--add-dir", wtDir, "--task", "a=do work", "--plan-only"}},
+			{"inside worktrees", []string{"--repo", f.repo, "--worktrees", wtDir, "--add-dir", filepath.Join(wtDir, "01234567", "cell-a1"), "--task", "a=do work", "--plan-only"}},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				code, err := CodeCLI(tc.args, func([]string) (int, error) { return 0, nil })
+				if code != 2 || err == nil {
+					t.Fatalf("expected refusal (exit 2), got code=%d err=%v", code, err)
+				}
+			})
+		}
+	})
+
+	if runtime.GOOS == "darwin" {
+		if _, err := exec.LookPath("sandbox-exec"); err == nil {
+			t.Run("darwin sandbox-exec enforces write scope and denies network", func(t *testing.T) {
+				f := newFixture(t)
+
+				// Allowed: reads worktree, writes $TMPDIR and /dev/null.
+				okResp := f.run(call{
+					mode: "success",
+					cell: "sbok",
+					context: map[string]string{
+						"verify_sbok":    `test -f hello.txt && echo ok > "$TMPDIR/ok.txt" && echo ok > /dev/null`,
+						"sandbox_verify": "true",
+					},
+				})
+				if okResp["outcome"] != "settled" || okResp["error"] != nil {
+					t.Fatalf("sandboxed passing verify failed: %v", okResp)
+				}
+
+				// Denied: write to main repo checkout.
+				repoEscape := filepath.Join(f.repo, "escape.txt")
+				repoResp := f.run(call{
+					mode: "success",
+					cell: "sbrepo",
+					context: map[string]string{
+						"verify_sbrepo":  fmt.Sprintf("echo escaped > %q", repoEscape),
+						"sandbox_verify": "true",
+					},
+				})
+				if repoResp["outcome"] != "settled" || !strings.Contains(fmt.Sprint(repoResp["error"]), "verification failed") {
+					t.Fatalf("expected repo write denial, got %v", repoResp)
+				}
+				if _, err := os.Stat(repoEscape); !os.IsNotExist(err) {
+					t.Fatalf("sandbox failed to block write to main repo %s", repoEscape)
+				}
+
+				// Denied: write to parent directory of worktree.
+				wtParentEscape := filepath.Join(f.root, "wt", "escape-parent.txt")
+				parentResp := f.run(call{
+					mode: "success",
+					cell: "sbparent",
+					context: map[string]string{
+						"verify_sbparent": fmt.Sprintf("echo escaped > %q", wtParentEscape),
+						"sandbox_verify":  "true",
+					},
+				})
+				if parentResp["outcome"] != "settled" || !strings.Contains(fmt.Sprint(parentResp["error"]), "verification failed") {
+					t.Fatalf("expected parent dir write denial, got %v", parentResp)
+				}
+				if _, err := os.Stat(wtParentEscape); !os.IsNotExist(err) {
+					t.Fatalf("sandbox failed to block write to worktree parent %s", wtParentEscape)
+				}
+
+				// Denied: network access.
+				if _, err := exec.LookPath("python3"); err == nil {
+					netResp := f.run(call{
+						mode: "success",
+						cell: "sbnet",
+						context: map[string]string{
+							"verify_sbnet":   `python3 -c "import socket; s=socket.socket(); s.settimeout(1); s.connect(('127.0.0.1', 1))"`,
+							"sandbox_verify": "true",
+						},
+					})
+					if netResp["outcome"] != "settled" || !strings.Contains(fmt.Sprint(netResp["error"]), "verification failed") {
+						t.Fatalf("expected network denial, got %v", netResp)
+					}
+				}
+			})
 		}
 	}
 }

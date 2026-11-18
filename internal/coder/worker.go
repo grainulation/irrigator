@@ -14,6 +14,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"sort"
 	"strconv"
 	"strings"
@@ -322,7 +323,8 @@ func work(o workerOptions, req model.WorkRequest, p *progress) map[string]any {
 		}
 		p.say(cell, "verify: "+verify)
 		before := captureWorktreeStatus(worktree, statusTimeout)
-		code, tail, vTimedOut := runVerify(verify, worktree, time.Duration(math.Max(60, seconds)*float64(time.Second)))
+		sandboxVerify := strings.TrimSpace(req.Context["sandbox_verify"]) == "true"
+		code, tail, vTimedOut := runVerify(verify, worktree, time.Duration(math.Max(60, seconds)*float64(time.Second)), sandboxVerify)
 		after := captureWorktreeStatus(worktree, statusTimeout)
 		dirtied := diffStatusEntries(before.Entries, after.Entries)
 		verDiag := &verificationDiagnostics{
@@ -491,11 +493,36 @@ func collect(worktree, cell, branch, baseSHA, summary string, p *progress) (map[
 	return map[string]string{"branch": branch, "commit": head, "diffstat": diffstat, "summary": summary}, commits, nil
 }
 
-func runVerify(command, dir string, limit time.Duration) (code int, tail string, timedOut bool) {
+func runVerify(command, dir string, limit time.Duration, sandbox bool) (code int, tail string, timedOut bool) {
 	ctx, cancel := context.WithTimeout(context.Background(), limit)
 	defer cancel()
-	cmd := exec.CommandContext(ctx, "/bin/sh", "-c", command)
+	bin := "/bin/sh"
+	args := []string{"-c", command}
+	var envOverrides []string
+	if sandbox {
+		var attemptTmp string
+		if runtime.GOOS == "darwin" {
+			if _, err := exec.LookPath("sandbox-exec"); err != nil {
+				return 77, "sandbox-verify requested but sandbox-exec is not available", false
+			}
+			tmpDir, err := os.MkdirTemp("", "irrigator-verify-*")
+			if err != nil {
+				return 77, "sandbox-verify temp dir setup failed: " + err.Error(), false
+			}
+			defer os.RemoveAll(tmpDir)
+			attemptTmp = tmpDir
+		}
+		var err error
+		bin, args, envOverrides, err = buildSandboxVerifyCommand(runtime.GOOS, command, dir, attemptTmp, exec.LookPath)
+		if err != nil {
+			return 77, err.Error(), false
+		}
+	}
+	cmd := exec.CommandContext(ctx, bin, args...)
 	cmd.Dir = dir
+	if len(envOverrides) > 0 {
+		cmd.Env = applyEnvOverrides(os.Environ(), envOverrides)
+	}
 	var out bytes.Buffer
 	cmd.Stdout, cmd.Stderr = &out, &out
 	ownGroup(cmd)
@@ -516,6 +543,73 @@ func runVerify(command, dir string, limit time.Duration) (code int, tail string,
 		return 127, err.Error(), false
 	}
 	return 0, t, false
+}
+
+func buildSandboxVerifyCommand(goos, command, dir, attemptTmp string, lookPath func(string) (string, error)) (bin string, args []string, envOverrides []string, err error) {
+	switch goos {
+	case "darwin":
+		tool, err := lookPath("sandbox-exec")
+		if err != nil {
+			return "", nil, nil, errors.New("sandbox-verify requested but sandbox-exec is not available")
+		}
+		resolvedDir, err := filepath.EvalSymlinks(dir)
+		if err != nil {
+			return "", nil, nil, fmt.Errorf("sandbox-verify resolve worktree: %w", err)
+		}
+		resolvedTmp, err := filepath.EvalSymlinks(attemptTmp)
+		if err != nil {
+			return "", nil, nil, fmt.Errorf("sandbox-verify resolve temp dir: %w", err)
+		}
+		for _, p := range []string{resolvedDir, resolvedTmp} {
+			if strings.ContainsAny(p, "\x00\r\n") {
+				return "", nil, nil, errors.New("sandbox-verify path contains invalid control characters")
+			}
+		}
+		profile := fmt.Sprintf(
+			"(version 1)\n(allow default)\n(deny network*)\n(deny file-write*)\n(allow file-write*\n  (literal \"/dev/null\")\n  (subpath %s)\n  (subpath %s))\n",
+			strconv.Quote(resolvedDir),
+			strconv.Quote(resolvedTmp),
+		)
+		return tool, []string{"-p", profile, "/bin/sh", "-c", command}, []string{"TMPDIR=" + resolvedTmp}, nil
+	case "linux":
+		tool, err := lookPath("bwrap")
+		if err != nil {
+			return "", nil, nil, errors.New("sandbox-verify requested but bwrap is not available")
+		}
+		resolvedDir, err := filepath.EvalSymlinks(dir)
+		if err != nil {
+			return "", nil, nil, fmt.Errorf("sandbox-verify resolve worktree: %w", err)
+		}
+		return tool, []string{
+			"--unshare-net",
+			"--ro-bind", "/", "/",
+			"--tmpfs", "/tmp",
+			"--dev", "/dev",
+			"--proc", "/proc",
+			"--bind", resolvedDir, resolvedDir,
+			"--chdir", resolvedDir,
+			"/bin/sh", "-c", command,
+		}, []string{"TMPDIR=/tmp"}, nil
+	default:
+		return "", nil, nil, fmt.Errorf("sandbox-verify requested but OS-native sandbox is not supported on %s", goos)
+	}
+}
+
+func applyEnvOverrides(base, overrides []string) []string {
+	keys := make(map[string]bool, len(overrides))
+	for _, ov := range overrides {
+		if k, _, ok := strings.Cut(ov, "="); ok {
+			keys[k] = true
+		}
+	}
+	out := make([]string, 0, len(base)+len(overrides))
+	for _, entry := range base {
+		if k, _, ok := strings.Cut(entry, "="); ok && keys[k] {
+			continue
+		}
+		out = append(out, entry)
+	}
+	return append(out, overrides...)
 }
 
 func promptFor(req model.WorkRequest, worktree, branch, base, previous string) string {

@@ -342,6 +342,9 @@ func (t *mcpTools) runStatus(_ context.Context, _ *mcp.CallToolRequest, in mcpRu
 		if row.Model != "" {
 			cell["model"] = row.Model
 		}
+		if act := runops.ReadCellLastActivity(root, spec.ID, row.Attempt); act != nil {
+			cell["last_activity"] = act
+		}
 		cells = append(cells, cell)
 	}
 	verified, total := mcpVerified(s)

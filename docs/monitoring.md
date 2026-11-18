@@ -125,6 +125,12 @@ The stream reports what the run recorded. An absent event is not evidence that
 nothing happened, and a cell whose last event is a start may be running, stopped
 or uncertain: check `irrigator status` or `inspect` before acting.
 
+### Read-only run prefix resolution and detached `last_activity`
+
+Read-only inspection commands (`status`, `inspect`, `logs`, `debug`, `graph`, `triage` without `--fix`, and `cost`) accept an existing run directory path, an exact directory basename under `./runs/<name>`, or an unambiguous prefix of at least 4 characters matching a run directory name or `state.json` `run_id` under `./runs/` (and registered runs in `.irrigator/current-session.json`). If zero runs match, the command fails with a not-found error; if more than one run matches the prefix, it fails closed and lists the ambiguous candidates. Mutating commands (`apply`, `prepare`, `resume`, `retry`, `resolve`, `cancel`, `deliver`, `recover`, `gc`, `down`, `pause`) never resolve prefixes or implicit names and always require an explicit run path.
+
+When a cell attempt has written a non-empty regular file `<run>/cells/<id>/<attempt>.stderr.log` (symlinks are refused), `irrigator status --json`, `irrigator inspect`, and `irrigator mcp` ([MCP server](mcp.md) `run_status` and `inspect_cell`) include a bounded `last_activity` snapshot (`attempt`, `line`, `truncated`, `updated_at` in RFC 3339 UTC) taken from at most the last 4 KiB of that attempt's stderr log, sanitized with `textsafe` and capped at 200 runes (`truncated: true` when longer).
+
 ### Terminal status: OSC 7501
 
 The live view (`apply`, `resume` and `status --watch` on a terminal) also sends

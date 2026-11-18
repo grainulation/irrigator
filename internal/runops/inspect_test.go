@@ -9,6 +9,8 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"time"
+	"unicode/utf8"
 
 	"github.com/grainulation/irrigator/internal/checkpoint"
 	"github.com/grainulation/irrigator/internal/jsonio"
@@ -147,5 +149,85 @@ func TestGraphUsesSafeMermaidIdentifiers(t *testing.T) {
 	output := GraphMermaid(runfixture.Read(t, root))
 	if !strings.Contains(output, `n0["end: pending"]`) || !strings.Contains(output, "n0 --> n1") {
 		t.Fatalf("unsafe or missing Mermaid nodes: %s", output)
+	}
+}
+
+func TestReadCellLastActivityAndInspectNode(t *testing.T) {
+	root := acceptedFixture(t, nil)
+	cellDir := filepath.Join(root, "cells", "a")
+	logPath := filepath.Join(cellDir, "3.stderr.log")
+
+	// Absent stderr log -> nil activity and omitted in InspectNode.
+	if act := ReadCellLastActivity(root, "a", 3); act != nil {
+		t.Fatalf("expected nil when stderr log missing, got %+v", act)
+	}
+	inspected, err := InspectNode(root, "a")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, exists := inspected["last_activity"]; exists {
+		t.Fatalf("unexpected last_activity when log missing: %v", inspected)
+	}
+
+	// Whitespace-only log -> nil activity.
+	if err := os.WriteFile(logPath, []byte("   \n\t\r\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if act := ReadCellLastActivity(root, "a", 3); act != nil {
+		t.Fatalf("expected nil on whitespace-only log, got %+v", act)
+	}
+
+	// Bounded tail (> 4 KiB) + control-character sanitization.
+	prefixNoise := strings.Repeat("old progress line that falls outside the 4 KiB tail window\n", 120)
+	if len(prefixNoise) <= 4*1024 {
+		t.Fatalf("prefixNoise too small: %d", len(prefixNoise))
+	}
+	lastLine := "running verification \x1b[31mstep 4\x07\x00\u202edone"
+	if err := os.WriteFile(logPath, []byte(prefixNoise+"intermediate line\n"+lastLine+"\n\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	mtime := time.Date(2026, 11, 17, 20, 30, 0, 0, time.UTC)
+	if err := os.Chtimes(logPath, mtime, mtime); err != nil {
+		t.Fatal(err)
+	}
+	act := ReadCellLastActivity(root, "a", 3)
+	if act == nil {
+		t.Fatal("expected non-nil activity")
+	}
+	wantSanitized := `running verification \e[31mstep 4\a\0\u202Edone`
+	if act.Attempt != 3 || act.Line != wantSanitized || act.Truncated || act.UpdatedAt != "2026-11-17T20:30:00Z" {
+		t.Fatalf("unexpected activity: %+v (want line %q)", act, wantSanitized)
+	}
+	inspected, err = InspectNode(root, "a")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if gotAct, ok := inspected["last_activity"].(*CellActivity); !ok || gotAct == nil || gotAct.Line != wantSanitized {
+		t.Fatalf("InspectNode last_activity mismatch: %#v", inspected["last_activity"])
+	}
+
+	// Truncation at 200 runes.
+	longLine := strings.Repeat("é", 250)
+	if err := os.WriteFile(logPath, []byte(longLine+"\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	act = ReadCellLastActivity(root, "a", 3)
+	if act == nil || !act.Truncated || utf8.RuneCountInString(act.Line) != 200 || act.Line != strings.Repeat("é", 200) {
+		t.Fatalf("expected 200-rune truncated line, got %+v (runes=%d)", act, utf8.RuneCountInString(act.Line))
+	}
+
+	// Symlink rejection: refuses symlinked stderr.log.
+	if err := os.Remove(logPath); err != nil {
+		t.Fatal(err)
+	}
+	outside := filepath.Join(t.TempDir(), "outside.log")
+	if err := os.WriteFile(outside, []byte("secret line\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(outside, logPath); err != nil {
+		t.Fatal(err)
+	}
+	if act := ReadCellLastActivity(root, "a", 3); act != nil {
+		t.Fatalf("expected symlinked stderr.log to be refused, got %+v", act)
 	}
 }

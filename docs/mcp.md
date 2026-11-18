@@ -27,9 +27,9 @@ Read-only (always registered; annotated with `readOnlyHint: true`, `destructiveH
 | Tool | Result |
 | --- | --- |
 | `list_runs` | Name, path, control state, verified/total cells and reported cost for each run under `--runs`. |
-| `run_status` | One run: per-cell status, attempts and errors (truncated to 1 KB). |
+| `run_status` | One run: per-cell status, attempts, errors (truncated to 1 KB), and `last_activity` (`attempt`, `line`, `truncated`, `updated_at` from the last 4 KiB of `<attempt>.stderr.log`, sanitized and capped at 200 runes) when an attempt stderr log exists. |
 | `run_logs` | Sequenced events with `since` and `limit` (default 100, at most 500); same data as `irrigator logs --json`. Continue with the returned `next_since`. |
-| `inspect_cell` | One cell's spec, attempts and result fields, as `irrigator inspect`. |
+| `inspect_cell` | One cell's spec, attempts, result fields, and `last_activity` (when `<attempt>.stderr.log` exists), as `irrigator inspect`. |
 | `review_list` | The review queue for a workspace and optional `base`, as `irrigator review list`. |
 | `validate_plan` | Validate a plan `path` or inline `json`; returns `valid` and the errors. An invalid plan is a normal result, not a tool error. |
 

@@ -365,7 +365,11 @@ func builtinCLI(args []string) (int, error) {
 	case "resolve":
 		return cmdResolve(target, positional[1], resultPath, confirmStopped)
 	case "inspect":
-		v, err := runops.InspectNode(target, positional[1])
+		resolved, err := checkpoint.ResolveReadOnlyRunDir(target)
+		if err != nil {
+			return 1, err
+		}
+		v, err := runops.InspectNode(resolved, positional[1])
 		if err != nil {
 			return 1, err
 		}
@@ -377,7 +381,11 @@ func builtinCLI(args []string) (int, error) {
 	case "decisions":
 		return cmdDecisions(target)
 	case "graph":
-		s, err := checkpoint.ReadState(target)
+		resolved, err := checkpoint.ResolveReadOnlyRunDir(target)
+		if err != nil {
+			return 1, err
+		}
+		s, err := checkpoint.ReadState(resolved)
 		if err != nil {
 			return 1, err
 		}
@@ -388,11 +396,23 @@ func builtinCLI(args []string) (int, error) {
 	case "gc":
 		return cmdGC(target, keep, apply, dryRun)
 	case "logs":
-		return cmdLogs(target, since, taskFilter, follow, asJSON)
+		resolved, err := checkpoint.ResolveReadOnlyRunDir(target)
+		if err != nil {
+			return 1, err
+		}
+		return cmdLogs(resolved, since, taskFilter, follow, asJSON)
 	case "cost":
-		return provider.CostStatement(target, asJSON)
+		resolved, err := checkpoint.ResolveReadOnlyRunDir(target)
+		if err != nil {
+			return 1, err
+		}
+		return provider.CostStatement(resolved, asJSON)
 	case "status", "events", "artifacts":
-		return cmdStatus(command, target, watch, asJSON, interval)
+		resolved, err := checkpoint.ResolveReadOnlyRunDir(target)
+		if err != nil {
+			return 1, err
+		}
+		return cmdStatus(command, resolved, watch, asJSON, interval)
 	}
 	return 0, nil
 }
