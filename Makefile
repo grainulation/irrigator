@@ -1,7 +1,7 @@
 GO ?= go
 PREFIX ?= $(HOME)/.local
 
-.PHONY: build test check check-fast check-integration check-tools check-homebrew check-exports lint replay-gate acceptance smoke demo durability install
+.PHONY: build test check check-fast check-integration check-tools check-homebrew check-exports lint replay-gate acceptance smoke demo durability install clean
 
 GOLANGCI_LINT_VERSION ?= v2.15.0
 LINT_NEW_FROM_REV ?=
@@ -84,4 +84,7 @@ durability: build
 install: build
 	install -d "$(DESTDIR)$(PREFIX)/bin"
 	install -m 755 irrigator "$(DESTDIR)$(PREFIX)/bin/irrigator"
+
+clean:
+	rm -rf irrigator build/ dist/ coverage.out *.test .irrigator/ tools/__pycache__ verification/__pycache__
 
