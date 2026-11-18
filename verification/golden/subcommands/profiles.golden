@@ -1,5 +1,6 @@
 profiles inspect --catalog ABS_FILE
 profiles resolve --catalog ABS_FILE [--profile NAME]
+profiles route PLAN --policy FILE [--out NEWPLAN]
 profiles migrate-prepare --run RUN --profile NAME --executable FILE --out PROPOSAL
 profiles migrate-apply --run RUN --proposal FILE --approve DIGEST --confirm-stopped
-Inspect/resolve/prepare do not dispatch or change run configuration. Apply records an explicitly approved future executable binding.
+Inspect/resolve/route/prepare do not dispatch or change run configuration. Route writes a new plan only with --out. Apply records an explicitly approved future executable binding.

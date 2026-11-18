@@ -34,12 +34,14 @@ From the repository root:
 ```sh
 make build
 ./irrigator doctor
-./irrigator demo --run ./runs/first-demo
+./irrigator demo
 ```
 
 The demo runs a small swarm of mock workers, with a live terminal map of task
-states. It needs no credentials and makes no model calls. Use a fresh run directory
-for each demo. See the [first-run guide](docs/first-run.md) for your own plan,
+states. It needs no credentials and makes no model calls. Each invocation creates a
+fresh run directory and prints commands to inspect it. To choose where the run is
+saved, pass `--run ./runs/first-demo` with a new directory name.
+See the [first-run guide](docs/first-run.md) for your own plan,
 provider selection, and recovery.
 
 ## Why Irrigator?

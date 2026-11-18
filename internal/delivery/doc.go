@@ -8,7 +8,7 @@
 // # Allowed dependencies
 //
 // Layer 30. May import only lower layers; today it imports artifactstore, checkpoint, graph,
-// jsonio, launch, localfs, model, runops. Third-party: none. The compiler rejects import
+// jsonio, launch, localfs, model, runops, textsafe. Third-party: none. The compiler rejects import
 // cycles; the layer order is recorded in docs/architecture.md.
 //
 // # Invariants

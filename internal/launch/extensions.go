@@ -37,6 +37,7 @@ type cappedWriter struct {
 	file      *os.File
 	remaining int
 	overflow  bool
+	failed    bool
 	discard   bool
 }
 
@@ -46,6 +47,7 @@ func (w *cappedWriter) Write(p []byte) (int, error) {
 		w.overflow = true
 		if w.remaining > 0 {
 			if _, err := w.file.Write(p[:w.remaining]); err != nil {
+				w.failed = true
 				return 0, err
 			}
 			w.remaining = 0
@@ -56,6 +58,7 @@ func (w *cappedWriter) Write(p []byte) (int, error) {
 		return 0, errors.New("provider output exceeded limit")
 	}
 	written, err := w.file.Write(p)
+	w.failed = w.failed || err != nil || written != len(p)
 	w.remaining -= written
 	return written, err
 }
@@ -86,6 +89,14 @@ func runDirectProcess(ctx context.Context, cmd *exec.Cmd, prefix string, input [
 	defer stderr.Close()
 	output := &cappedWriter{file: out, remaining: model.MaxOutputBytes}
 	diagnostics := &cappedWriter{file: stderr, remaining: 1024 * 1024, discard: true}
+	captureObserved, captureComplete := false, false
+	defer func() {
+		if captureObserved {
+			// Supplementary capture metadata never changes execution certainty.
+			// On write failure readers conservatively report unknown capture loss.
+			_ = writeProcessCapture(prefix, output, diagnostics, captureComplete)
+		}
+	}()
 	cmd.Stdin, cmd.Stdout, cmd.Stderr = bytes.NewReader(input), output, diagnostics
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 	cmd.WaitDelay = 2 * time.Second
@@ -99,6 +110,7 @@ func runDirectProcess(ctx context.Context, cmd *exec.Cmd, prefix string, input [
 	go func() { done <- cmd.Wait() }()
 	select {
 	case err = <-done:
+		captureObserved, captureComplete = true, !errors.Is(err, exec.ErrWaitDelay)
 		// A provider must not leave descendants behind after completing its call.
 		if cleanupErr := stopProcessGroup(cmd.Process.Pid); cleanupErr != nil {
 			return nil, cleanupErr
@@ -106,7 +118,8 @@ func runDirectProcess(ctx context.Context, cmd *exec.Cmd, prefix string, input [
 	case <-ctx.Done():
 		_ = syscall.Kill(-cmd.Process.Pid, syscall.SIGTERM)
 		select {
-		case <-done: //nolint:errcheck // cancelled: wait for the exit only; ctx.Err() is the result
+		case waitErr := <-done:
+			captureObserved, captureComplete = true, !errors.Is(waitErr, exec.ErrWaitDelay)
 			if cleanupErr := stopProcessGroup(cmd.Process.Pid); cleanupErr != nil {
 				return nil, cleanupErr
 			}
@@ -115,12 +128,14 @@ func runDirectProcess(ctx context.Context, cmd *exec.Cmd, prefix string, input [
 				// Give Wait time to reap a killed leader even if descendants could
 				// not be confirmed gone. A failed kill must not block forever.
 				select {
-				case <-done: //nolint:errcheck // cancelled: wait for the exit only; ctx.Err() is the result
+				case waitErr := <-done:
+					captureObserved, captureComplete = true, !errors.Is(waitErr, exec.ErrWaitDelay)
 				case <-time.After(2 * time.Second):
 				}
 				return nil, cleanupErr
 			}
-			<-done //nolint:errcheck // cancelled: wait for the exit only; ctx.Err() is the result
+			waitErr := <-done
+			captureObserved, captureComplete = true, !errors.Is(waitErr, exec.ErrWaitDelay)
 		}
 		return nil, ctx.Err()
 	}

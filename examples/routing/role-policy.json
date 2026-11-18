@@ -1,0 +1,12 @@
+{
+  "schema": "irrigator.roles/v1",
+  "roles": {
+    "research": { "easy": "writer", "medium": "writer", "hard": "reviewer" },
+    "implementation": { "easy": "writer", "medium": "writer", "hard": "reviewer" },
+    "review": { "easy": "reviewer", "medium": "reviewer", "hard": "reviewer" }
+  },
+  "tasks": {
+    "agent_a": { "role": "implementation", "difficulty": "easy" },
+    "agent_b": { "role": "review", "difficulty": "hard" }
+  }
+}

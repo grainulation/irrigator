@@ -1,0 +1,9 @@
+Usage of attempt-output:
+  -attempt int
+    	explicit historical attempt number (required)
+  -cursor string
+    	next_cursor from the same source snapshot
+  -max-bytes int
+    	presentation bytes per page (4..8192) (default 4096)
+  -stream string
+    	stdout or stderr (default "stdout")

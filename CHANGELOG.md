@@ -5,6 +5,14 @@ release. Versioned plan and worker protocols are tracked separately from the CLI
 
 ## Unreleased
 
+### Changed
+
+- First-use help now leads with the credential-free path. The quickstart uses
+  a fresh demo directory on each invocation, and demos print inspection and
+  starter-plan commands when they finish.
+- Added a versioned release checklist covering source gates, native candidate
+  archives and promotion of the exact tested bytes.
+
 ### Added
 
 - Antigravity plugin: `agy plugin install https://github.com/grainulation/irrigator` installs the skills and the

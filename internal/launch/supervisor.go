@@ -122,6 +122,17 @@ type processSpec struct {
 	Lease    bool      `json:"lease"`
 }
 
+// processExitError keeps the existing supervisor error text while allowing a
+// caller to observe an actual nonnegative process exit status via ExitCode().
+// Launch/cleanup failures and signals never invent an exit status.
+type processExitError struct {
+	message string
+	code    int
+}
+
+func (e processExitError) Error() string { return e.message }
+func (e processExitError) ExitCode() int { return e.code }
+
 func RunProcess(ctx context.Context, cmd *exec.Cmd, prefix string, input []byte) ([]byte, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
@@ -180,6 +191,7 @@ func RunProcess(ctx context.Context, cmd *exec.Cmd, prefix string, input []byte)
 	var status struct {
 		Error      string `json:"error"`
 		NotStarted bool   `json:"not_started,omitempty"`
+		ExitCode   *int   `json:"exit_code,omitempty"`
 	}
 	if err := json.Unmarshal(response.Bytes(), &status); err != nil {
 		return nil, fmt.Errorf("invalid supervisor response: %w", err)
@@ -187,6 +199,9 @@ func RunProcess(ctx context.Context, cmd *exec.Cmd, prefix string, input []byte)
 	raw, readErr := os.ReadFile(prefix + ".stdout.json")
 	if status.Error != "" {
 		err := errors.New(status.Error)
+		if status.ExitCode != nil && *status.ExitCode >= 0 && !status.NotStarted {
+			err = processExitError{message: status.Error, code: *status.ExitCode}
+		}
 		if status.NotStarted {
 			return raw, model.MarkNotStarted(err)
 		}
@@ -285,10 +300,16 @@ func Supervise() int {
 	if err != nil {
 		message = err.Error()
 	}
+	var exitCode *int
+	if cmd.ProcessState != nil && cmd.ProcessState.Exited() && cmd.ProcessState.ExitCode() >= 0 {
+		code := cmd.ProcessState.ExitCode()
+		exitCode = &code
+	}
 	if err := json.NewEncoder(os.Stdout).Encode(struct {
 		Error      string `json:"error"`
 		NotStarted bool   `json:"not_started,omitempty"`
-	}{message, model.KnownNotStarted(err) && cmd.Process == nil}); err != nil {
+		ExitCode   *int   `json:"exit_code,omitempty"`
+	}{message, model.KnownNotStarted(err) && cmd.Process == nil, exitCode}); err != nil {
 		return 1
 	}
 	return 0

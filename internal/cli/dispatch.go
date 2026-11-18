@@ -25,6 +25,16 @@ import (
 
 const Usage = `Irrigator — durable local agent graphs
 
+Start here (no credentials or model calls):
+  irrigator demo                          Run a free demo in a fresh directory
+  irrigator init --out plan.json          Create your own starter plan
+  irrigator plan plan.json                Validate it before running
+  irrigator apply plan.json --run runs/first --backend mock
+
+From a source checkout after make build, use ./irrigator in these commands.
+Use new plan filenames and run directories.
+
+Commands:
   billing reconcile RUN RECEIPT --attest-external-billing  Record externally verified cost
   campaign init|admit|status|close          Reserve admission across managed runs
   experiments [--json]                    List opt-in experiments and their risks
@@ -38,6 +48,7 @@ const Usage = `Irrigator — durable local agent graphs
   init --out plan.json                    Create a starter plan
   update-check --manifest FILE --signature FILE --artifact FILE --public-key FILE --installed-sequence N  Verify an update offline
   profiles inspect|resolve --catalog FILE  Inspect or resolve offline execution profiles
+  profiles route PLAN --policy FILE [--out NEWPLAN]  Preview explicit role/difficulty routing
   profiles migrate-prepare|migrate-apply    Review and approve a stopped-run provider migration
   context create --workspace DIR --out FILE [--registry FILE]  Create validated launch context
   turn-shape XxYxZ [--json]              Preview turn/helper capacity; does not launch
@@ -51,6 +62,8 @@ const Usage = `Irrigator — durable local agent graphs
   retire RUN_ID --reason TEXT [--superseded-by RUN_ID] [--session-registry REG]  Explicitly retire a stopped registered run (registry only)
   status DIR [--json] [--watch]           Inspect overall state
   cost RUN [--json]                       Cost statement per cell with totals
+  quota RUN NODE --attempt N              Read-only provider reset/cooldown advisory
+  attempt-output RUN NODE --attempt N     Page one attempt's captured output
   inspect DIR NODE                       Inspect a node, operation, and attempts
   graph DIR                              Print dependency/ownership Mermaid graph
   helpers DIR NODE --operation OP --attempt N --request FILE  Admit bounded helpers during a running turn
@@ -66,6 +79,8 @@ const Usage = `Irrigator — durable local agent graphs
   mcp [--runs DIR]... [--workspace DIR] [--allow-control]  Serve runs to MCP hosts over stdio (read-only unless allowed)
   agents                                  Which agents can be the main agent or swarm workers here
   delivery-status RUN_DIR                 Read-only delivery stage/acceptance/recovery; no model call
+  delivery-summary RUN_DIR                Candidate identity, task/check outcomes and conflicts
+  benchmark --dir NEW_DIR [--runs 2]       Compare mock serial/parallel runs with held-out checks
   pause DIR | down DIR                    Drain or stop compute; retain state
   cancel DIR NODE                         Cancel a node and its descendants
   retry DIR NODE [--recursive]            Retry failed/cancelled work explicitly

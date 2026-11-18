@@ -57,8 +57,15 @@ func readFileCheckpoint(root string) (*model.State, error) {
 	if err != nil {
 		return nil, err
 	}
+	return DecodeState(root, data)
+}
+
+// DecodeState validates checkpoint bytes using the same contract as ReadState.
+// root supplies the run location for existing recovery-receipt validation.
+// Callers that already hold a confined file handle can avoid reopening state.json.
+func DecodeState(root string, data []byte) (*model.State, error) {
 	var s model.State
-	if err = json.Unmarshal(data, &s); err != nil {
+	if err := json.Unmarshal(data, &s); err != nil {
 		return nil, fmt.Errorf("invalid checkpoint: %w", err)
 	}
 	if s.SchemaVersion > model.CurrentSchemaVersion {

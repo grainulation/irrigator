@@ -30,6 +30,9 @@ Read-only (always registered):
 | `run_status` | One run: per-cell status, attempts and errors (truncated to 1 KB). |
 | `run_logs` | Sequenced events with `since` and `limit` (default 100, at most 500); same data as `irrigator logs --json`. Continue with the returned `next_since`. |
 | `inspect_cell` | One cell's spec, attempts and result fields, as `irrigator inspect`. |
+| `attempt_output` | Bounded pages of one exact attempt's captured stdout/stderr. A source-bound cursor distinguishes unread pages from capture loss; see [attempt output](attempt-output.md). |
+| `provider_limit` | Exact-attempt quota/reset advisory from captured output. Conflicting or missing reset evidence stays unknown; no automatic retry or fallback. |
+| `delivery_summary` | Recorded task selection, node/check outcomes, output conflicts and candidate identity; never assembles files or runs a checker. |
 | `review_list` | The review queue for a workspace and optional `base`, as `irrigator review list`. |
 | `validate_plan` | Validate a plan `path` or inline `json`; returns `valid` and the errors. An invalid plan is a normal result, not a tool error. |
 

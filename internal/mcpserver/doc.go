@@ -8,7 +8,8 @@
 // # Allowed dependencies
 //
 // Layer 31. May import only lower layers; today it imports approvals, branchreview, buildinfo,
-// checkpoint, commandflags, dashboard, executor, launch, model, provider, runops, session.
+// checkpoint, commandflags, dashboard, delivery, executor, jsonio, launch, localfs, model, provider,
+// runops, session, textsafe.
 // Third-party: github.com/modelcontextprotocol/go-sdk/mcp. The compiler rejects import cycles;
 // the layer order is recorded in docs/architecture.md.
 //
