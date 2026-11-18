@@ -2,13 +2,13 @@
 
 The plugin is a Markdown workflow layer over the real `irrigator` CLI. Its
 manifests describe loading and presentation; the executable and durable run files
-own execution. See [Claude Code](claude-plugin.md), [Codex](codex-plugin.md),
-[host integration](host-integration.md), and [packaging](local-release.md).
+own execution. See [agent setup](agent-setup.md), [Claude Code](claude-plugin.md),
+[Codex](codex-plugin.md), [host integration](host-integration.md), and [packaging](local-release.md).
 
 ## Principles
 
 1. **The CLI is the source of truth.** Skills only instruct an agent to run documented `irrigator` commands and read durable run files. Skill names and commands must match the executable's `--help` output. Notation: [runtime notation](runtime-notation.md).
-2. **Actual capabilities only.** No permissions broker, no pricing and no public release claim. The Claude plugin registers only the read-only `irrigator mcp` server ([MCP server](mcp.md)); Codex users add it by hand.
+2. **Actual capabilities only.** No permissions broker, no pricing and no public release claim. The plugin registers only the read-only `irrigator mcp` server ([MCP server](mcp.md))—via `.claude-plugin/plugin.json` for Claude Code, `mcp.json` for Codex, and `mcp_config.json` / `mcp.json` for Antigravity—and never enables `--allow-control`.
 3. **Local first.** Runs and plans are ordinary local files. The runtime (the `irrigator` CLI and its durable run files) is primary and authoritative; the observe skill and the read-only `irrigator mcp` server are secondary observers that never replace `status`, `inspect` or `logs`. Nothing sends remote messages, pushes, publishes or creates domains automatically.
 4. **Host permissions are respected.** A skill that needs a shell command asks the host to run it under the host's own approval rules. It never tries to bypass a denied command, and never edits `state.json` or other run files by hand.
 5. **Markdown workflow, no host-only tools.** Codex follows the Markdown workflow manually. Skills must not assume a Claude-only `Skill` tool; to chain skills, read the sibling `skills/<name>/SKILL.md` file directly.
@@ -18,6 +18,8 @@ own execution. See [Claude Code](claude-plugin.md), [Codex](codex-plugin.md),
 ```text
 irrigator/
   plugin.json                  portable root manifest (Agent Plugins schema)
+  mcp.json                     Agent Plugins MCP manifest (Codex and Antigravity)
+  mcp_config.json              Antigravity MCP manifest
   .claude-plugin/
     plugin.json                Claude Code manifest
     marketplace.json           local marketplace entry (not a published listing)
@@ -39,7 +41,7 @@ irrigator/
   verification/plugin-validator-regression.py
 ```
 
-Resources resolve from the plugin root, not from inside `.codex-plugin/`. The portable root `plugin.json` plus root `skills/` and the `.codex-plugin/plugin.json` compatibility layout can coexist. A manifest may declare only the read-only `irrigator mcp` server (no `--allow-control`); the contract test enforces this.
+Resources resolve from the plugin root, not from inside `.codex-plugin/`. The portable root `plugin.json` plus root `skills/` and the `.codex-plugin/plugin.json` compatibility layout can coexist. A manifest or MCP config file (`mcp.json`, `mcp_config.json`) may declare only the read-only `irrigator mcp` server (no `--allow-control`); the contract test enforces this.
 
 ## Skills and the CLI they wrap
 
@@ -87,14 +89,14 @@ The plugin contract tests check the following workflow requirements. Each maps t
 
 ## Host differences
 
-| Aspect | Claude Code | Codex |
-| --- | --- | --- |
-| Manifest | `.claude-plugin/plugin.json`, `marketplace.json` | root `plugin.json`, `.codex-plugin/plugin.json` |
-| Skill invocation | host skill mechanism may exist, but skills must not rely on it | follow `skills/*/SKILL.md` manually |
-| Shell | host asks the user for permission | host asks the user for permission |
-| MCP | read-only `irrigator mcp` in `mcpServers` ([MCP server](mcp.md)) | none declared; user adds a `config.toml` entry |
+| Aspect | Claude Code | Codex | Antigravity |
+| --- | --- | --- | --- |
+| Manifest | `.claude-plugin/plugin.json`, `marketplace.json` | root `plugin.json`, `.codex-plugin/plugin.json` | root `plugin.json` |
+| Skill invocation | host skill mechanism may exist, but skills must not rely on it | follow `skills/*/SKILL.md` manually | host loads `skills/*/SKILL.md`, or follow manually |
+| Shell | host asks the user for permission | host asks the user for permission | host asks the user for permission |
+| MCP | read-only `irrigator mcp` in `.claude-plugin/plugin.json` `mcpServers` ([MCP server](mcp.md)) | read-only `irrigator mcp` in `mcp.json` (or manual `config.toml` entry) | read-only `irrigator mcp` in `mcp_config.json` / `mcp.json` |
 
-On either host the agent must verify that the `irrigator` executable is on PATH (`irrigator version`) and fall back to building it from a checkout (`make build`, Go 1.26.7+ for the complete runtime) only when the user wants that. Installation of the binary or the plugin into a host is the user's action, not an automatic step.
+On any host the agent must verify that the `irrigator` executable is on PATH (`irrigator version`) and fall back to building it from a checkout (`make build`, Go 1.26.7+ for the complete runtime) only when the user wants that. Installation of the binary or the plugin into a host is the user's action, not an automatic step.
 
 ## Distribution boundary
 

@@ -10,9 +10,9 @@
 // # Allowed dependencies
 //
 // Layer 20. May import only lower layers; today it imports artifactstore, checkpoint, clock,
-// commandflags, cost, graph, jsonio, launch, managed, messaging, model, provider, providerenv,
-// terminalview. Third-party: none. The compiler rejects import cycles; the layer order is
-// recorded in docs/architecture.md.
+// coder, commandflags, cost, graph, jsonio, launch, managed, messaging, model, provider,
+// providerenv, terminalview. Third-party: none. The compiler rejects import cycles; the layer
+// order is recorded in docs/architecture.md.
 //
 // # Invariants
 //

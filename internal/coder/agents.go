@@ -5,12 +5,15 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"math"
 	"path/filepath"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/grainulation/irrigator/internal/jsonio"
+	"github.com/grainulation/irrigator/internal/model"
 )
 
 // agents lists the coding agents the built-in worker can run.
@@ -119,6 +122,10 @@ func agentArgs(l launch) (string, []string, error) {
 	return "", nil, fmt.Errorf("unknown agent %q (use %s)", l.agent, strings.Join(agents, ", "))
 }
 
+const maxUsageMessages = 1024
+
+var validMsgID = regexp.MustCompile(`^[A-Za-z0-9_.:-]{1,128}$`)
+
 // result is what the worker learned from the agent's output stream.
 type result struct {
 	lines      int    // non-empty stdout lines seen so far
@@ -129,6 +136,7 @@ type result struct {
 	text       string // final summary, or the error text
 	costUSD    *float64
 	usage      map[string]any
+	obs        *usageObservations
 	model      string
 }
 
@@ -155,8 +163,12 @@ func parseLine(agent string, line []byte, r *result, worktree string) string {
 			r.uncertain = true
 			return ""
 		}
-	} else if json.Unmarshal(line, &ev) != nil {
-		return ""
+	} else {
+		dec := json.NewDecoder(bytes.NewReader(line))
+		dec.UseNumber()
+		if err := dec.Decode(&ev); err != nil || ev == nil {
+			return ""
+		}
 	}
 	switch agent {
 	case "claude":
@@ -173,6 +185,18 @@ func parseClaude(ev map[string]any, r *result, worktree string) string {
 	switch str(ev["type"]) {
 	case "assistant":
 		msg, _ := ev["message"].(map[string]any)
+		if msg != nil {
+			if rawU, hasUsage := msg["usage"]; hasUsage {
+				if r.obs == nil {
+					r.obs = newUsageObservations()
+				}
+				id := str(msg["id"])
+				if id == "" {
+					id = str(ev["requestId"])
+				}
+				r.obs.observe(id, rawU, str(msg["model"]))
+			}
+		}
 		blocks, _ := msg["content"].([]any)
 		var out []string
 		for _, b := range blocks {
@@ -196,8 +220,8 @@ func parseClaude(ev map[string]any, r *result, worktree string) string {
 		if r.isError && strings.TrimSpace(r.text) == "" {
 			r.text = str(ev["subtype"])
 		}
-		if c, ok := ev["total_cost_usd"].(float64); ok && c >= 0 {
-			r.costUSD = &c
+		if c, ok := parseCost(ev["total_cost_usd"]); ok {
+			r.costUSD = c
 		}
 		r.usage, _ = ev["usage"].(map[string]any)
 		r.model = str(ev["model"])
@@ -209,6 +233,14 @@ func parseCodex(ev map[string]any, r *result, worktree string) string {
 	switch str(ev["type"]) {
 	case "item.completed":
 		item, _ := ev["item"].(map[string]any)
+		if item != nil {
+			if rawU, hasUsage := item["usage"]; hasUsage {
+				if r.obs == nil {
+					r.obs = newUsageObservations()
+				}
+				r.obs.observe(str(item["id"]), rawU, r.model)
+			}
+		}
 		switch str(item["type"]) {
 		case "agent_message":
 			r.text = str(item["text"])
@@ -231,8 +263,7 @@ func parseCodex(ev map[string]any, r *result, worktree string) string {
 	case "turn.completed":
 		r.done = true
 		if u, ok := ev["usage"].(map[string]any); ok {
-			r.usage = map[string]any{"input_tokens": u["input_tokens"], "output_tokens": u["output_tokens"],
-				"cache_read_tokens": u["cached_input_tokens"], "thinking_tokens": u["reasoning_output_tokens"]}
+			r.usage = u
 		}
 	case "turn.failed":
 		r.done, r.isError = true, true
@@ -249,6 +280,28 @@ func parseAgy(ev map[string]any, r *result, worktree string) string {
 	switch str(ev["event"]) {
 	case "step_update":
 		su, _ := ev["step_update"].(map[string]any)
+		if su != nil {
+			if rawU, hasUsage := su["usage"]; hasUsage {
+				if r.obs == nil {
+					r.obs = newUsageObservations()
+				}
+				id := firstString(su, "message_id", "id")
+				if id == "" {
+					conv := firstString(su, "conversation_id")
+					if conv == "" {
+						conv = str(ev["conversation_id"])
+					}
+					if conv != "" {
+						if idx, ok := parseNonNegInt64(su["step_index"]); ok {
+							id = fmt.Sprintf("%s:%d", conv, idx)
+						} else {
+							id = conv
+						}
+					}
+				}
+				r.obs.observe(id, rawU, firstString(su, "model"))
+			}
+		}
 		switch str(su["step_type"]) {
 		case "subagent": // its own steps run in a separate session; session deny rules still apply there
 			if str(su["state"]) != "DONE" {
@@ -277,7 +330,6 @@ func parseAgy(ev map[string]any, r *result, worktree string) string {
 		return line
 	case "result":
 		res, _ := ev["result"].(map[string]any)
-		r.usage, _ = res["usage"].(map[string]any)
 		turns, hasTurns := res["num_turns"].(float64)
 		id, hasID := res["conversation_id"].(string)
 		reason := str(res["finished_reason"])
@@ -287,6 +339,13 @@ func parseAgy(ev map[string]any, r *result, worktree string) string {
 			// The turn was cut off mid-work: partial effects are possible, so no clean result.
 			r.uncertain = true
 			r.text = str(res["error"])
+			if rawU, hasUsage := res["usage"]; hasUsage {
+				if r.obs == nil {
+					r.obs = newUsageObservations()
+				}
+				obsID := firstString(res, "request_id", "conversation_id")
+				r.obs.observe(obsID, rawU, firstString(res, "model"))
+			}
 			return ""
 		case r.lines == 1 && str(res["status"]) == "ERROR" && hasID && id == "" && hasTurns && turns == 0 && noTokens:
 			// Standalone rejection before a session existed (for example an unknown --model): nothing ran.
@@ -298,6 +357,7 @@ func parseAgy(ev map[string]any, r *result, worktree string) string {
 			r.text = str(res["error"])
 			return ""
 		}
+		r.usage, _ = res["usage"].(map[string]any)
 		r.done = true
 		r.isError = str(res["status"]) != "SUCCESS"
 		r.text = str(res["response"])
@@ -333,35 +393,252 @@ func agyRejectionHasZeroUsage(res map[string]any) bool {
 	return true
 }
 
-// usageFor maps an agent's token counts onto the swarm.worker/v1 usage fields.
-func usageFor(raw map[string]any, model string) map[string]any {
+type usageCounts struct {
+	InputTokens      int64  `json:"input_tokens"`
+	OutputTokens     int64  `json:"output_tokens"`
+	ThinkingTokens   int64  `json:"thinking_tokens"`
+	CacheReadTokens  int64  `json:"cache_read_tokens"`
+	CacheWriteTokens int64  `json:"cache_write_tokens"`
+	TotalTokens      int64  `json:"total_tokens"`
+	Model            string `json:"model,omitempty"`
+}
+
+func formatUsage(raw map[string]any, modelName string) (*usageCounts, bool) {
 	if raw == nil {
+		return nil, false
+	}
+	type fieldSpec struct {
+		aliases []string
+		dst     *int64
+	}
+	var out usageCounts
+	specs := []fieldSpec{
+		{[]string{"input_tokens"}, &out.InputTokens},
+		{[]string{"output_tokens"}, &out.OutputTokens},
+		{[]string{"thinking_tokens", "reasoning_output_tokens"}, &out.ThinkingTokens},
+		{[]string{"cache_read_input_tokens", "cache_read_tokens", "cached_input_tokens"}, &out.CacheReadTokens},
+		{[]string{"cache_creation_input_tokens", "cache_write_tokens"}, &out.CacheWriteTokens},
+		{[]string{"total_tokens"}, &out.TotalTokens},
+	}
+	supplied := false
+	for _, spec := range specs {
+		var seen []int64
+		for _, k := range spec.aliases {
+			v, exists := raw[k]
+			if !exists {
+				continue
+			}
+			n, ok := parseNonNegInt64(v)
+			if !ok {
+				return nil, false
+			}
+			seen = append(seen, n)
+		}
+		if len(seen) > 0 {
+			for _, v := range seen[1:] {
+				if v != seen[0] {
+					return nil, false
+				}
+			}
+			*spec.dst = seen[0]
+			supplied = true
+		}
+	}
+	if !supplied {
+		return nil, false
+	}
+	// Output tokens already include reasoning/thinking tokens; keep thinking_tokens
+	// as a separate observation rather than double-counting it in total_tokens,
+	// and never inflate input_tokens with cache_read_tokens.
+	if out.TotalTokens == 0 {
+		sum, ok := checkedAdd(out.InputTokens, out.OutputTokens, out.CacheReadTokens, out.CacheWriteTokens)
+		if !ok {
+			return nil, false
+		}
+		out.TotalTokens = sum
+	}
+	if out.TotalTokens == 0 && out.ThinkingTokens > 0 {
+		return nil, false
+	}
+	m := modelName
+	if m == "" {
+		if s, ok := raw["model"].(string); ok {
+			m = s
+		}
+	}
+	if m != "" && model.ValidUsageModel(m) {
+		out.Model = m
+	}
+	return &out, true
+}
+
+func parseNonNegInt64(v any) (int64, bool) {
+	switch x := v.(type) {
+	case int:
+		if x < 0 {
+			return 0, false
+		}
+		return int64(x), true
+	case int64:
+		if x < 0 {
+			return 0, false
+		}
+		return x, true
+	case float64:
+		// 2^63 (9223372036854775808.0) overflows int64 when cast; reject >= 0x1p63.
+		if math.IsNaN(x) || math.IsInf(x, 0) || x < 0 || x >= 0x1p63 || math.Trunc(x) != x {
+			return 0, false
+		}
+		return int64(x), true
+	case json.Number:
+		s := x.String()
+		if s == "" || strings.ContainsAny(s, ".eE+-") {
+			return 0, false
+		}
+		n, err := strconv.ParseInt(s, 10, 64)
+		if err != nil || n < 0 {
+			return 0, false
+		}
+		return n, true
+	default:
+		return 0, false
+	}
+}
+
+func checkedAdd(vals ...int64) (int64, bool) {
+	var total int64
+	for _, v := range vals {
+		if v < 0 || total > math.MaxInt64-v {
+			return 0, false
+		}
+		total += v
+	}
+	return total, true
+}
+
+func parseCost(v any) (*float64, bool) {
+	if v == nil {
+		return nil, false
+	}
+	var c float64
+	switch x := v.(type) {
+	case float64:
+		c = x
+	case json.Number:
+		var err error
+		c, err = x.Float64()
+		if err != nil {
+			return nil, false
+		}
+	default:
+		return nil, false
+	}
+	if math.IsNaN(c) || math.IsInf(c, 0) || c < 0 || c > float64(math.MaxInt64) {
+		return nil, false
+	}
+	return &c, true
+}
+
+type usageObservationReport struct {
+	Basis                string       `json:"basis"`
+	Complete             bool         `json:"complete"`
+	Aggregation          string       `json:"aggregation"`
+	CostBasis            string       `json:"cost_basis,omitempty"`
+	CountsUnavailable    string       `json:"counts_unavailable,omitempty"`
+	MessagesObserved     int          `json:"messages_observed"`
+	InvalidEventsIgnored int          `json:"invalid_events_ignored"`
+	Truncated            bool         `json:"truncated"`
+	ObservedTokens       *usageCounts `json:"observed_tokens,omitempty"`
+}
+
+type usageObservations struct {
+	order     []string
+	messages  map[string]usageCounts
+	invalid   int
+	truncated bool
+}
+
+func newUsageObservations() *usageObservations {
+	return &usageObservations{messages: make(map[string]usageCounts)}
+}
+
+func (u *usageObservations) observe(id string, rawUsage any, modelName string) {
+	rawMap, ok := rawUsage.(map[string]any)
+	if !ok || rawMap == nil || !validMsgID.MatchString(id) {
+		u.invalid++
+		return
+	}
+	parsed, ok := formatUsage(rawMap, modelName)
+	if !ok {
+		u.invalid++
+		return
+	}
+	parsed.Model = ""
+	if _, exists := u.messages[id]; !exists {
+		if len(u.messages) >= maxUsageMessages {
+			u.truncated = true
+			return
+		}
+		u.order = append(u.order, id)
+	}
+	u.messages[id] = *parsed
+}
+
+func (u *usageObservations) report() *usageObservationReport {
+	if u == nil || len(u.messages) == 0 {
 		return nil
 	}
-	n := func(keys ...string) int64 {
-		for _, k := range keys {
-			if v, ok := raw[k].(float64); ok && v >= 0 {
-				return int64(v)
+	var sum usageCounts
+	for _, id := range u.order {
+		m := u.messages[id]
+		var ok1, ok2, ok3, ok4, ok5, ok6 bool
+		sum.InputTokens, ok1 = checkedAdd(sum.InputTokens, m.InputTokens)
+		sum.OutputTokens, ok2 = checkedAdd(sum.OutputTokens, m.OutputTokens)
+		sum.ThinkingTokens, ok3 = checkedAdd(sum.ThinkingTokens, m.ThinkingTokens)
+		sum.CacheReadTokens, ok4 = checkedAdd(sum.CacheReadTokens, m.CacheReadTokens)
+		sum.CacheWriteTokens, ok5 = checkedAdd(sum.CacheWriteTokens, m.CacheWriteTokens)
+		sum.TotalTokens, ok6 = checkedAdd(sum.TotalTokens, m.TotalTokens)
+		if !ok1 || !ok2 || !ok3 || !ok4 || !ok5 || !ok6 {
+			return &usageObservationReport{
+				Basis:                "assistant_stream",
+				Complete:             false,
+				Aggregation:          "last_valid_snapshot_per_message_id",
+				CostBasis:            model.CostBasisUnknown,
+				CountsUnavailable:    "overflow",
+				MessagesObserved:     len(u.messages),
+				InvalidEventsIgnored: u.invalid,
+				Truncated:            u.truncated,
 			}
 		}
-		return 0
+	}
+	return &usageObservationReport{
+		Basis:                "assistant_stream",
+		Complete:             false,
+		Aggregation:          "last_valid_snapshot_per_message_id",
+		CostBasis:            model.CostBasisUnknown,
+		MessagesObserved:     len(u.messages),
+		InvalidEventsIgnored: u.invalid,
+		Truncated:            u.truncated,
+		ObservedTokens:       &sum,
+	}
+}
+
+// usageFor maps an agent's token counts onto the swarm.worker/v1 usage fields.
+func usageFor(raw map[string]any, modelName string) map[string]any {
+	c, ok := formatUsage(raw, modelName)
+	if !ok {
+		return nil
 	}
 	u := map[string]any{
-		"input_tokens":       n("input_tokens"),
-		"output_tokens":      n("output_tokens"),
-		"thinking_tokens":    n("thinking_tokens"),
-		"cache_read_tokens":  n("cache_read_input_tokens", "cache_read_tokens"),
-		"cache_write_tokens": n("cache_creation_input_tokens", "cache_write_tokens"),
+		"input_tokens":       c.InputTokens,
+		"output_tokens":      c.OutputTokens,
+		"thinking_tokens":    c.ThinkingTokens,
+		"cache_read_tokens":  c.CacheReadTokens,
+		"cache_write_tokens": c.CacheWriteTokens,
+		"total_tokens":       c.TotalTokens,
 	}
-	total := n("total_tokens")
-	if total == 0 {
-		for _, k := range []string{"input_tokens", "output_tokens", "thinking_tokens", "cache_read_tokens", "cache_write_tokens"} {
-			total += u[k].(int64)
-		}
-	}
-	u["total_tokens"] = total
-	if model != "" {
-		u["model"] = model
+	if c.Model != "" {
+		u["model"] = c.Model
 	}
 	return u
 }

@@ -1,10 +1,10 @@
 # Irrigator for Codex
 
-The plugin adds Markdown workflows around the local `irrigator` executable.
-It declares no MCP server and no additional permissions: the Codex manifests
-documented here have no place for one. Installing it does not install the
-runtime, authorize paid work, or execute a task graph. To use the read-only
-`irrigator mcp` server ([MCP server](mcp.md)), see [MCP](#mcp) below.
+The plugin adds Markdown workflows and the read-only `irrigator mcp` server
+([MCP server](mcp.md)) around the local `irrigator` executable. It declares no
+additional permissions. Installing it does not install the runtime, authorize
+paid work, or execute a task graph. See [MCP](#mcp) below for how `mcp.json` or
+manual `config.toml` registration works.
 
 ## Package layout
 
@@ -12,6 +12,7 @@ runtime, authorize paid work, or execute a task graph. To use the read-only
 | --- | --- |
 | `plugin.json` | Portable root manifest; OpenAI-specific presentation and `requires_local_executor` are under `extensions.com.openai` |
 | `.codex-plugin/plugin.json` | Compatibility manifest with a flat `interface`, `requires_local_executor`, and `skills: "./skills/"` |
+| `mcp.json` | Agent Plugins MCP manifest registering the read-only `irrigator mcp` server over stdio |
 | `skills/` | Nine Markdown workflows: `irrigator`, `router`, `swarm`, `plan`, `run`, `resume`, `observe`, `budget`, and `debug` |
 
 Paths resolve from the plugin root. The two manifests have different layouts;
@@ -68,7 +69,10 @@ Use supported revisions, and never automatically replay an uncertain call.
 
 ## MCP
 
-Register the server yourself in `~/.codex/config.toml` (one entry, read-only; the
+When loaded as a local plugin, Codex reads `mcp.json` from the plugin root, which
+registers the read-only `irrigator mcp` server ([MCP server](mcp.md)) over stdio.
+If you use the manual workflow without loading the plugin, or want custom flags,
+register the server yourself in `~/.codex/config.toml` (one entry, read-only; the
 `irrigator` executable must be on `PATH`, or use its absolute path):
 
 ```toml

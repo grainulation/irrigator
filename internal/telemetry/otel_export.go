@@ -415,6 +415,8 @@ type otelAttempt struct {
 	maxSeq   int
 	outcome  string
 	cost     *float64
+	usage    *model.TaskUsage
+	model    string
 	events   []otelEvent
 }
 
@@ -452,6 +454,99 @@ func otelInt(v any) (int, bool) {
 		return n, n >= 0
 	}
 	return 0, false
+}
+
+func otelInt64(v any) (int64, bool) {
+	switch n := v.(type) {
+	case float64:
+		if !math.IsNaN(n) && !math.IsInf(n, 0) && n == math.Trunc(n) && n >= 0 && n <= math.MaxInt64 {
+			return int64(n), true
+		}
+	case int:
+		return int64(n), n >= 0
+	case int64:
+		return n, n >= 0
+	}
+	return 0, false
+}
+
+func otelUsage(detail map[string]any) (*model.TaskUsage, string) {
+	if detail == nil {
+		return nil, ""
+	}
+	modelName, _ := detail["model"].(string)
+	raw, ok := detail["usage"]
+	if !ok || raw == nil {
+		return nil, modelName
+	}
+	switch u := raw.(type) {
+	case *model.TaskUsage:
+		if u == nil {
+			return nil, modelName
+		}
+		cp := *u
+		return &cp, modelName
+	case model.TaskUsage:
+		cp := u
+		return &cp, modelName
+	case map[string]any:
+		parsed := &model.TaskUsage{InputTokens: -1, OutputTokens: -1}
+		if rawIn, exists := u["input_tokens"]; !exists {
+			parsed.InputTokens = 0
+		} else if v, ok := otelInt64(rawIn); ok {
+			parsed.InputTokens = v
+		}
+		if rawOut, exists := u["output_tokens"]; !exists {
+			parsed.OutputTokens = 0
+		} else if v, ok := otelInt64(rawOut); ok {
+			parsed.OutputTokens = v
+		}
+		if v, ok := otelInt64(u["thinking_tokens"]); ok && v > 0 {
+			parsed.ThinkingTokens = v
+		}
+		if v, ok := otelInt64(u["cache_read_tokens"]); ok && v > 0 {
+			parsed.CacheReadTokens = v
+		}
+		if v, ok := otelInt64(u["cache_write_tokens"]); ok && v > 0 {
+			parsed.CacheWriteTokens = v
+		}
+		if s, ok := u["model"].(string); ok {
+			parsed.Model = s
+		}
+		return parsed, modelName
+	default:
+		return nil, modelName
+	}
+}
+
+func otelGenAIAttrs(u *model.TaskUsage, fallbackModel string) []attribute.KeyValue {
+	var attrs []attribute.KeyValue
+	modelName := fallbackModel
+	if u != nil && u.Model != "" {
+		modelName = u.Model
+	}
+	if safeModel := otelSafe(modelName, 128); safeModel != "" {
+		attrs = append(attrs, attribute.String("gen_ai.request.model", safeModel))
+	}
+	if u == nil {
+		return attrs
+	}
+	if u.InputTokens >= 0 {
+		attrs = append(attrs, attribute.Int64("gen_ai.usage.input_tokens", u.InputTokens))
+	}
+	if u.OutputTokens >= 0 {
+		attrs = append(attrs, attribute.Int64("gen_ai.usage.output_tokens", u.OutputTokens))
+	}
+	if u.CacheReadTokens > 0 {
+		attrs = append(attrs, attribute.Int64("gen_ai.usage.cache_read.input_tokens", u.CacheReadTokens))
+	}
+	if u.CacheWriteTokens > 0 {
+		attrs = append(attrs, attribute.Int64("gen_ai.usage.cache_creation.input_tokens", u.CacheWriteTokens))
+	}
+	if u.ThinkingTokens > 0 {
+		attrs = append(attrs, attribute.Int64("gen_ai.usage.reasoning.output_tokens", u.ThinkingTokens))
+	}
+	return attrs
 }
 
 // buildOtelModel groups events into cell attempts. Events after an attempt
@@ -517,8 +612,13 @@ func buildOtelModel(events []model.Event) *otelRunModel {
 			a.outcome = outcome
 		}
 		if e.Kind == "produced" {
-			if c, ok := otelEventDetail(e)["reported_cost_usd"].(float64); ok && c >= 0 && !math.IsNaN(c) && !math.IsInf(c, 0) {
+			detail := otelEventDetail(e)
+			if c, ok := detail["reported_cost_usd"].(float64); ok && c >= 0 && !math.IsNaN(c) && !math.IsInf(c, 0) {
 				a.cost = &c
+			}
+			if u, m := otelUsage(detail); u != nil || m != "" {
+				a.usage = u
+				a.model = m
 			}
 		}
 	}
@@ -663,10 +763,16 @@ func (x *otelExporter) Start(ctx context.Context, ids otelIDs, name string, at t
 // whose newest event is at or before since are skipped (resume); unfinished
 // attempts wait unless final is set. The run span is written only when final.
 func (x *otelExporter) Export(s *model.State, since int, final bool) int {
-	model := buildOtelModel(s.Events)
+	runModel := buildOtelModel(s.Events)
+	latestAttempt := map[string]int{}
+	for _, a := range runModel.attempts {
+		if a.attempt > latestAttempt[a.cell] {
+			latestAttempt[a.cell] = a.attempt
+		}
+	}
 	ctx := context.Background()
 	count := 0
-	for _, a := range model.attempts {
+	for _, a := range runModel.attempts {
 		key := fmt.Sprintf("%s\x00%d", a.cell, a.attempt)
 		if a.maxSeq <= since || a.maxSeq <= x.sent[key] || (a.open() && !final) {
 			continue
@@ -680,6 +786,16 @@ func (x *otelExporter) Export(s *model.State, since int, final bool) int {
 		if a.cost != nil {
 			attrs = append(attrs, attribute.Float64("irrigator.cost_usd", *a.cost))
 		}
+		usage, modelName := a.usage, a.model
+		if row := s.Tasks[a.cell]; row != nil && a.attempt == latestAttempt[a.cell] && (row.Attempt == 0 || row.Attempt == a.attempt) {
+			if usage == nil && row.Usage != nil {
+				usage = row.Usage
+			}
+			if modelName == "" && row.Model != "" {
+				modelName = row.Model
+			}
+		}
+		attrs = append(attrs, otelGenAIAttrs(usage, modelName)...)
 		ids := otelIDs{x.traceID, otelSpanID(x.runID, "cell", a.cell, fmt.Sprint(a.attempt))}
 		_, span := x.Start(ctx, ids, "cell "+otelSafe(a.cell, 128), a.start, attrs, true)
 		for _, ev := range a.events {
@@ -701,12 +817,12 @@ func (x *otelExporter) Export(s *model.State, since int, final bool) int {
 		attrs := []attribute.KeyValue{attribute.String("irrigator.run_id", otelSafe(x.runID, 128))}
 		first, last := s.Events[0].Time, s.Events[len(s.Events)-1].Time
 		_, span := x.Start(ctx, otelIDs{x.traceID, x.rootID}, "run", first, attrs, false)
-		for _, ev := range model.runEvents {
+		for _, ev := range runModel.runEvents {
 			if ev.seq <= since {
 				continue
 			}
 			evAttrs := []attribute.KeyValue{attribute.Int("irrigator.seq", ev.seq)}
-			if cell, ok := model.runCells[ev.seq]; ok {
+			if cell, ok := runModel.runCells[ev.seq]; ok {
 				evAttrs = append(evAttrs, attribute.String("irrigator.cell", otelSafe(cell, 128)))
 			}
 			span.AddEvent(ev.kind, trace.WithTimestamp(ev.time), trace.WithAttributes(evAttrs...))

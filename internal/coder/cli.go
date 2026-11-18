@@ -20,9 +20,10 @@ var cellID = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$`)
 
 // planOptions describes a plan of coding cells.
 type planOptions struct {
-	agent, repo, base, model, worktrees, name, continueFrom string
-	tasks, verify, depends, addDirs                         []string
-	executable                                              string // absolute path of the irrigator binary that runs the cells
+	agent, repo, base, model, worktrees, name, continueFrom, run string
+	tasks, verify, depends, addDirs, seedIgnored                 []string
+	executable                                                   string // absolute path of the irrigator binary that runs the cells
+	sandboxVerify                                                bool
 }
 
 // buildPlan returns a swarm/v1 plan whose cells each run Options.Agent in its
@@ -84,6 +85,21 @@ func buildPlan(o planOptions) (map[string]any, error) {
 	if err != nil {
 		return nil, err
 	}
+	effectiveWorktrees := o.worktrees
+	if effectiveWorktrees == "" {
+		effectiveWorktrees = filepath.Join(filepath.Dir(repo), "irrigator-worktrees")
+	}
+	if err := validateAddDirs(o.addDirs, o.run, effectiveWorktrees); err != nil {
+		return nil, err
+	}
+	if o.sandboxVerify {
+		context["sandbox_verify"] = "true"
+		for _, id := range order {
+			if ctxKeys, ok := tasks[id]["context"].([]string); ok && len(ctxKeys) > 0 {
+				tasks[id]["context"] = append(ctxKeys, "sandbox_verify")
+			}
+		}
+	}
 	command := []string{o.executable, "_code-worker", "--agent", o.agent, "--repo", repo, "--base", o.base}
 	if o.model != "" {
 		command = append(command, "--model", o.model)
@@ -101,6 +117,13 @@ func buildPlan(o planOptions) (map[string]any, error) {
 			return nil, err
 		}
 		command = append(command, "--add-dir", abs)
+	}
+	seedPaths, err := parseSeedList(o.seedIgnored)
+	if err != nil {
+		return nil, err
+	}
+	if len(seedPaths) > 0 {
+		command = append(command, "--seed-ignored", strings.Join(seedPaths, ","))
 	}
 	if o.continueFrom != "" {
 		command = append(command, "--continue-from", o.continueFrom)
@@ -133,7 +156,7 @@ func CodeCLI(args []string, apply applyFunc) (int, error) {
 		return cleanupCLI(args[1:], os.Stdout)
 	}
 	var o planOptions
-	var tasks, verify, depends, addDirs multi
+	var tasks, verify, depends, addDirs, seedIgnored multi
 	var run, timeout, out string
 	var workers int
 	var budget float64
@@ -147,6 +170,7 @@ func CodeCLI(args []string, apply applyFunc) (int, error) {
 	fs.Var(&verify, "verify", "ID=COMMAND run in ID's worktree after the agent finishes; non-zero fails the cell")
 	fs.Var(&depends, "depends", "ID=DEP[,DEP]: run ID after DEP and show it DEP's summary")
 	fs.Var(&addDirs, "add-dir", "extra directory agents may read, outside the worktree (repeatable)")
+	fs.Var(&seedIgnored, "seed-ignored", "gitignored relative paths to seed into each worktree (comma-separated or repeatable)")
 	fs.StringVar(&o.continueFrom, "continue-from", "", "start each cell from irrigator/<RUNID[:8]>/<cell> when that branch exists")
 	fs.StringVar(&o.worktrees, "worktrees", "", "worktree root (default: irrigator-worktrees beside the repo)")
 	fs.StringVar(&o.name, "name", "", "plan name")
@@ -156,13 +180,17 @@ func CodeCLI(args []string, apply applyFunc) (int, error) {
 	fs.Float64Var(&budget, "call-budget", 1, "USD cap per cell (enforced by claude; codex and agy report cost as unknown)")
 	fs.StringVar(&out, "out", "", "also write the plan to this file")
 	fs.BoolVar(&planOnly, "plan-only", false, "print the plan and do not run it")
+	fs.BoolVar(&o.sandboxVerify, "sandbox-verify", false, "run --verify commands inside an OS-native network-off worktree sandbox")
 	if err := commandflags.ParseCommandFlags(fs, args); err != nil {
 		return 2, err
 	}
 	if fs.NArg() > 0 {
 		return 2, fmt.Errorf("unexpected argument %q; give tasks with --task ID=PROMPT", fs.Arg(0))
 	}
-	o.tasks, o.verify, o.depends, o.addDirs = tasks, verify, depends, addDirs
+	if !planOnly && run == "" {
+		run = filepath.Join("runs", "code-"+time.Now().UTC().Format("20060102-150405"))
+	}
+	o.tasks, o.verify, o.depends, o.addDirs, o.seedIgnored, o.run = tasks, verify, depends, addDirs, seedIgnored, run
 	exe, err := os.Executable()
 	if err != nil {
 		return 1, err
@@ -185,9 +213,6 @@ func CodeCLI(args []string, apply applyFunc) (int, error) {
 	if planOnly {
 		_, err = os.Stdout.Write(raw)
 		return 0, err
-	}
-	if run == "" {
-		run = filepath.Join("runs", "code-"+time.Now().UTC().Format("20060102-150405"))
 	}
 	planPath := out
 	if planPath == "" {
@@ -288,4 +313,71 @@ func cleanupCLI(args []string, out io.Writer) (int, error) {
 		return 1, nil
 	}
 	return 0, nil
+}
+
+// validateAddDirs refuses --add-dir paths that point at or inside the run
+// directory or worktree root, preventing runtime evidence or sibling worktrees
+// from leaking into agent reference context.
+func validateAddDirs(addDirs []string, runDir, worktreesDir string) error {
+	if len(addDirs) == 0 {
+		return nil
+	}
+	var resolvedRun, resolvedWorktrees string
+	if runDir != "" {
+		r, err := resolveContainmentPath(runDir)
+		if err != nil {
+			return err
+		}
+		resolvedRun = r
+	}
+	if worktreesDir != "" {
+		w, err := resolveContainmentPath(worktreesDir)
+		if err != nil {
+			return err
+		}
+		resolvedWorktrees = w
+	}
+	for _, d := range addDirs {
+		resolvedDir, err := resolveContainmentPath(d)
+		if err != nil {
+			return err
+		}
+		if resolvedRun != "" && isSameOrWithin(resolvedDir, resolvedRun) {
+			return fmt.Errorf("--add-dir %q must not point at or inside --run %q", d, runDir)
+		}
+		if resolvedWorktrees != "" && isSameOrWithin(resolvedDir, resolvedWorktrees) {
+			return fmt.Errorf("--add-dir %q must not point at or inside --worktrees %q", d, worktreesDir)
+		}
+	}
+	return nil
+}
+
+func resolveContainmentPath(p string) (string, error) {
+	abs, err := filepath.Abs(p)
+	if err != nil {
+		return "", err
+	}
+	cur := abs
+	for {
+		if resolved, err := filepath.EvalSymlinks(cur); err == nil {
+			rel, relErr := filepath.Rel(cur, abs)
+			if relErr != nil || rel == "." {
+				return resolved, nil
+			}
+			return filepath.Join(resolved, rel), nil
+		}
+		parent := filepath.Dir(cur)
+		if parent == cur {
+			return abs, nil
+		}
+		cur = parent
+	}
+}
+
+func isSameOrWithin(candidate, container string) bool {
+	rel, err := filepath.Rel(container, candidate)
+	if err != nil {
+		return false
+	}
+	return rel == "." || (rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator)))
 }

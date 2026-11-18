@@ -1,9 +1,3 @@
-// Package triage explains why cells of a run are stuck and what to do next.
-// `irrigator triage RUN` is read-only: it gathers the evidence a person needs
-// before deciding (is the agent really stopped, what did it spend, what is in
-// its worktree) and recommends one existing command. `--fix` walks through
-// the cells interactively and runs the chosen resolve, retry or cancel only
-// after the person confirms; uncertain work is never replayed automatically.
 package triage
 
 import (

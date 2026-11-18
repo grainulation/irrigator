@@ -51,7 +51,7 @@ first, `cli` on top (it imports nearly every other package; nothing imports it e
 | 17 | [sizing](../internal/sizing/doc.go) | plan sizing and the admission gate | checkpoint, cost, jsonio, model |
 | 18 | [backup](../internal/backup/doc.go) | run backup and recovery transfer | checkpoint, commandflags, jsonio, launch, managed, model |
 | 19 | [provider](../internal/provider/doc.go) | provider pool, migration, billing and cost statements | artifactstore, checkpoint, commandflags, cost, graph, jsonio, launch, localfs, managed, model, observer, providerenv |
-| 20 | [executor](../internal/executor/doc.go) | running one task attempt: executors, cleanup, cell transitions | artifactstore, checkpoint, clock, commandflags, cost, graph, jsonio, launch, managed, messaging, model, provider, providerenv, terminalview |
+| 20 | [executor](../internal/executor/doc.go) | running one task attempt: executors, cleanup, cell transitions | artifactstore, checkpoint, clock, coder, commandflags, cost, graph, jsonio, launch, managed, messaging, model, provider, providerenv, terminalview |
 | 21 | [approvals](../internal/approvals/doc.go) | human approvals, exposure and notifiers | checkpoint, clock, commandflags, jsonio, messaging, model, provider, terminalview |
 | 22 | [session](../internal/session/doc.go) | session history, registry v2, live feed | backup, checkpoint, commandflags, graph, jsonio, localfs, model, observer, review, textsafe |
 | 23 | [telemetry](../internal/telemetry/doc.go) | OpenTelemetry trace export of run events | buildinfo, checkpoint, commandflags, model, textsafe |
@@ -63,16 +63,18 @@ first, `cli` on top (it imports nearly every other package; nothing imports it e
 | 29 | [runops](../internal/runops/doc.go) | controller loop, scheduling, cancel/retry/resolve, inspect | approvals, artifactstore, checkpoint, clock, commandflags, dashboard, executor, graph, jsonio, launch, localfs, managed, messaging, model, provider, session, sizing |
 | 30 | [delivery](../internal/delivery/doc.go) | journaled delivery assembly and acceptance | artifactstore, checkpoint, graph, jsonio, launch, localfs, model, runops |
 | 31 | [mcpserver](../internal/mcpserver/doc.go) | `irrigator mcp` over run state | approvals, branchreview, buildinfo, checkpoint, commandflags, dashboard, executor, launch, model, provider, runops, session |
-| 32 | [cli](../internal/cli/doc.go) | dispatch, help table, built-in commands, Main | approvals, backup, branchreview, buildinfo, campaign, checkpoint, commandflags, composition, dashboard, debug, delivery, executor, gitcontract, graph, jsonio, launch, localfs, managed, mcpserver, messaging, model, provider, runops, selfupdate, session, sizing, telemetry |
+| 32 | [cli](../internal/cli/doc.go) | dispatch, help table, built-in commands, Main | approvals, backup, branchreview, buildinfo, campaign, checkpoint, coder, commandflags, composition, dashboard, debug, delivery, executor, gitcontract, graph, jsonio, launch, localfs, managed, mcpserver, messaging, model, provider, runops, selfupdate, session, sizing, telemetry, triage |
+| n/a | [coder](../internal/coder/doc.go) | `irrigator code` worktree coding cells and `_code-worker` | commandflags, jsonio, model |
 | n/a | [providerenv](../internal/providerenv/doc.go) | provider process environment policy | none |
 | n/a | [review](../internal/review/doc.go) | review snapshot primitives | localfs, textsafe |
 | n/a | [reviewtui](../internal/reviewtui/doc.go) | interactive review terminal UI (owns the Charm imports) | textsafe |
 | n/a | [store](../internal/store/doc.go) | checkpoint backup creation and validation | none |
 | n/a | [textsafe](../internal/textsafe/doc.go) | terminal control sanitization | none |
+| n/a | [triage](../internal/triage/doc.go) | `irrigator triage` stuck-cell diagnosis and interactive fix | checkpoint, commandflags, graph, model, session |
 | test | [clitest](../internal/clitest/doc.go) | test-only: re-exec process harness | checkpoint, launch |
 | test | [runfixture](../internal/runfixture/doc.go) | test-only: shared test helpers (run directories, execution/managed/turn fixtures, fake clock and tools) | artifactstore, checkpoint, clock, cost, launch, model |
 
-Packages marked n/a predate the split and sit outside the numbered order; `clitest` and `runfixture`
+Packages marked n/a sit outside the numbered order; `clitest` and `runfixture`
 are test-only and are imported only from `_test.go` files. `clitest` must never import `cli`.
 
 ## Source map by area

@@ -9,8 +9,8 @@ release. Versioned plan and worker protocols are tracked separately from the CLI
 
 - A [Homebrew tap in this repository](docs/homebrew.md), with a development
   source formula, private-prefix recipe acceptance, and a stable formula pinned
-  to the four verified 1.0.0 release-candidate archives. A generator prepares
-  future formula updates from one frozen set of verified candidate archives.
+  to the four verified 1.0.0 release archives. A generator prepares future
+  formula updates from one frozen set of verified candidate archives.
 
 ## 1.0.0 — 2026-11-15
 

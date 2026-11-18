@@ -5,14 +5,14 @@ Installing skills does not start a run, authorize spending, or turn host-owned
 agents into Irrigator tasks. Build or supply the CLI first, then confirm that the
 host can execute `irrigator version` and `irrigator doctor`.
 
-Use the [Claude Code guide](claude-plugin.md) or [Codex guide](codex-plugin.md) for
-installation. A source checkout is available at
-[grainulation/irrigator](https://github.com/grainulation/irrigator); a repository
-URL does not establish a listing in a host's public plugin directory.
+Use [agent setup](agent-setup.md), the [Claude Code guide](claude-plugin.md), or
+the [Codex guide](codex-plugin.md) for installation. A source checkout is
+available at [grainulation/irrigator](https://github.com/grainulation/irrigator);
+a repository URL does not establish a listing in a host's public plugin directory.
 
 ## Terminal host sessions
 
-Launch the installed `claude`, `codex`, `gemini` or `agy` CLI directly from your
+Launch the installed `claude`, `codex`, or `agy` CLI directly from your
 terminal, and use its supported Irrigator plugin, skills or MCP integration.
 Global host configuration and credentials apply. Hosts decide when to invoke
 workflows; ordinary host Agent-tool children do not become Irrigator runtime nodes.
