@@ -74,16 +74,18 @@ To install from this checkout, run `make install PREFIX="$HOME/.local"` and add
 provider tools have their own setup. CLI archives and their installation checks
 are described in [runtime releases](docs/runtime-release.md).
 
-Homebrew users can install the stable CLI from this repository's [tap](docs/homebrew.md):
+Homebrew users can install the stable CLI from the shared [Grainulation tap](docs/homebrew.md):
 
 ```sh
-brew tap grainulation/irrigator https://github.com/grainulation/irrigator
-brew install grainulation/irrigator/irrigator
+brew tap grainulation/homebrew https://github.com/grainulation/homebrew
+brew install grainulation/homebrew/irrigator
 irrigator demo
 ```
 
 The stable formula installs a pinned release archive and does not need Go.
-For a development source build, use `brew install --HEAD grainulation/irrigator/irrigator`.
+The stable formula currently installs v1.0.0; the v1.1.0 GitHub release has no
+binary assets yet. For a development source build, use
+`brew install --HEAD grainulation/homebrew/irrigator`.
 See the [Homebrew guide](docs/homebrew.md) for supported platforms, upgrades and checks.
 
 ### Ask your agent to start

@@ -48,6 +48,24 @@ class HomebrewFormulaTest(unittest.TestCase):
             self.assertIn('depends_on "go" => :build', rendered)
             self.assertIn('  version "1.0.0"', rendered)
             self.assertEqual(rendered.count(formula.BEGIN), 1)
+            self.assertIn(f"# Frozen runtime commit: {COMMIT}", rendered)
+            self.assertIn(f"# Source SHA-256: {SOURCE}", rendered)
+
+    def test_published_promotion_requires_the_exact_complete_checksum_set(self):
+        with tempfile.TemporaryDirectory() as directory:
+            archives = self.archives(directory)
+            sums = Path(directory) / "SHA256SUMS"
+            lines = [f"{runtime.digest(archive.read_bytes())}  {archive.name}\n" for archive in archives]
+            sums.write_text("".join(reversed(lines)))
+            self.assertEqual(formula.render(archives, "1.0.0", COMMIT, sums),
+                             formula.render(archives, "1.0.0", COMMIT))
+            for invalid in (lines[:-1], lines + lines[:1],
+                            ["c" * 64 + lines[0][64:], *lines[1:]],
+                            [lines[0].replace("  irrigator", "  ../irrigator"), *lines[1:]],
+                            lines + ["c" * 64 + "  unexpected.tar.gz\n"]):
+                with self.subTest(invalid=invalid), self.assertRaises(ValueError):
+                    sums.write_text("".join(invalid))
+                    formula.render(archives, "1.0.0", COMMIT, sums)
 
     def test_rejects_missing_duplicate_and_mixed_archives(self):
         with tempfile.TemporaryDirectory() as directory:

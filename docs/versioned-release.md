@@ -77,9 +77,12 @@ monotonic sequence policy, then sign the exact tested assets using the
 [release pipeline](release-pipeline.md). This is separate from Apple signing
 and notarization.
 
-The [Homebrew tap](homebrew.md) lives in this repository. Prepare its pinned
-formula from the four frozen candidate archives, then promote the formula in a
-separate distribution-only commit after publishing those exact assets. Do not
-move the runtime release tag to that later formula commit. The HEAD recipe works
-from `main` independently of the stable release. Homebrew, an installer and
-automated publishing are not prerequisites for publishing CLI archives.
+The shared [Homebrew tap](homebrew.md) lives in `grainulation/homebrew`. Prepare
+its pinned formula from the four frozen candidate archives. After publishing,
+download all four release assets and `SHA256SUMS`, rerun the generator with
+`--published-checksums`, and verify the output against the host-native archive.
+Promote that formula in a separate distribution-only commit to the shared tap
+and mirror it at `Formula/irrigator.rb` here for existing tap users. Do not move
+the runtime release tag to that later formula commit. The HEAD recipe works from
+`main` independently of the stable release. Homebrew, an installer and automated
+publishing are not prerequisites for publishing CLI archives.

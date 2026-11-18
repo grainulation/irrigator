@@ -39,6 +39,7 @@ localhost listeners for those checks; a sandbox refusal is not a provider failur
 | `check-integration` | Go 1.27.2, `tmux` ≥3.2 | Full tree with `-tags integration -race -count=1` | Exit `0` | `make check-integration` |
 | `check-tools` | Python 3 | Packaging, archive verification, and repo consistency | Exit `0`; unittest reports `OK` | `make check-tools` |
 | `check-homebrew` | Homebrew, Go 1.26.7+ | Actual source formula recipe and mock demo/export in a private prefix; no installed keg | Exit `0`; `PASS: Homebrew head recipe` | `make check-homebrew` |
+| Stable Homebrew | Homebrew, host-native release archive | Actual generated formula checksum, binary installation and version/mock demo/export; private prefix, no installed keg | Exit `0`; `PASS: Homebrew stable recipe` | `python3 -I verification/check_homebrew.py --formula FORMULA --archive ARCHIVE` |
 | `check-exports` | Go 1.27.2 | Strict minimal exported surface check on `internal/` | Exit `0` | `make check-exports` |
 | `replay-gate` | POSIX shell, Go | Redacted failure fixtures replay to recorded states | Exit `0` (no network/spend) | `make replay-gate` |
 | `smoke` | `./irrigator` | Private `HOME` and registry; local mock `init` → `plan` → `prepare` → `resume` → `status` → `export` → `graph` → `doctor` | Exit `0`; `First-use smoke passed.` | `make smoke` |
@@ -60,6 +61,14 @@ localhost listeners for those checks; a sandbox refusal is not a provider failur
 - CLI goldens represent deliberate command contracts. Regenerate only after
   reviewing a real contract change; an unused snapshot does not establish
   compatibility.
+- Homebrew acceptance must resolve the owned temporary tap's trusted formula
+  name and confirm its loaded path. Direct Ruby path loading is unsupported by
+  current Homebrew. The private-prefix recipe check does not prove a fresh
+  network installation, dependency installation or migration of an existing keg.
+- A stable formula update requires all four downloaded release archives, their
+  complete matching published `SHA256SUMS`, and a common frozen source identity.
+  See the [promotion instructions](../docs/homebrew.md). A release page without
+  binary assets is insufficient; hashes alone do not authenticate a publisher.
 
 ## Reporting evidence
 

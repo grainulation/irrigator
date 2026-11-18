@@ -17,6 +17,18 @@ release. Versioned plan and worker protocols are tracked separately from the CLI
 - An offline mock benchmark with held-out correctness checks; it does not
   establish provider cost savings or model quality.
 
+### Changed
+
+- Homebrew installation now uses the shared `grainulation/homebrew` tap, with
+  explicit migration instructions for the former source-repository tap. Formula
+  promotion can check the complete published archive checksum set and records
+  its frozen source identity. Stable remains v1.0.0 pending v1.1.0 binary assets.
+
+### Fixed
+
+- Homebrew recipe verification resolves the registered, trusted formula by name
+  and checks its path, supporting Homebrew versions that reject path loading.
+
 ## 1.1.0 — 2026-11-17
 
 ### Added

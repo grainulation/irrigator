@@ -4,6 +4,8 @@ class Irrigator < Formula
   license "MIT"
 
   # BEGIN GENERATED STABLE RELEASE
+  # Frozen runtime commit: e8a3b57bf9a129aa221e439e9d1b716649ca94d7
+  # Source SHA-256: 189e8ec0c3f7e52e1b8eadc6cb28ea48dff4e848d2ff09394adda18f065aebf7
   version "1.0.0"
 
   on_macos do

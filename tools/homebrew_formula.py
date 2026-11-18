@@ -2,7 +2,8 @@
 """Render a stable Homebrew formula from four checked, frozen CLI archives.
 
 Does not publish, install, overwrite a formula, or claim native execution of
-cross-platform archives. Run the native candidate acceptance jobs first.
+cross-platform archives. Run the native candidate acceptance jobs first. Promote
+the reviewed output to grainulation/homebrew; retain the source copy as a mirror.
 """
 import argparse
 import hashlib
@@ -20,7 +21,7 @@ END = "  # END GENERATED STABLE RELEASE"
 TEMPLATE = Path(__file__).resolve().parents[1] / "Formula/irrigator.rb"
 
 
-def render(archives, version, commit):
+def render(archives, version, commit, published_checksums=None):
     if not re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+", version):
         raise ValueError("version must be a plain MAJOR.MINOR.PATCH release")
     if not re.fullmatch(r"[0-9a-f]{40}", commit):
@@ -51,7 +52,20 @@ def render(archives, version, commit):
     if set(hashes) != set(TARGETS):
         raise ValueError("all four native candidate archives are required")
 
-    lines = [f'  version "{version}"', ""]
+    if published_checksums is not None:
+        expected = {}
+        for line in Path(published_checksums).read_text(encoding="ascii").splitlines():
+            match = re.fullmatch(r"([0-9a-f]{64})  (irrigator-[^/\\\s]+\.tar\.gz)", line)
+            if match is None or match[2] in expected:
+                raise ValueError("invalid or duplicate published checksum")
+            expected[match[2]] = match[1]
+        actual = {f"irrigator-{version}-{target.replace('/', '-')}.tar.gz": digest
+                  for target, digest in hashes.items()}
+        if expected != actual:
+            raise ValueError("published checksums differ from the four release archives")
+
+    lines = [f"  # Frozen runtime commit: {commit}",
+             f"  # Source SHA-256: {source_hash}", f'  version "{version}"', ""]
     for goos, platform in (("darwin", "macos"), ("linux", "linux")):
         lines.append(f"  on_{platform} do")
         for goarch, arch in (("arm64", "arm"), ("amd64", "intel")):
@@ -78,10 +92,12 @@ def main():
     parser.add_argument("--archive", type=Path, action="append", required=True)
     parser.add_argument("--version", required=True)
     parser.add_argument("--commit", required=True)
+    parser.add_argument("--published-checksums", type=Path,
+                        help="downloaded release SHA256SUMS; require exact archive matches before promotion")
     parser.add_argument("--out", type=Path, required=True, help="new formula file; existing files are refused")
     args = parser.parse_args()
     try:
-        formula = render(args.archive, args.version, args.commit)
+        formula = render(args.archive, args.version, args.commit, args.published_checksums)
         with args.out.open("x", encoding="utf-8") as output:
             output.write(formula)
     except (ValueError, KeyError, OSError) as error:
