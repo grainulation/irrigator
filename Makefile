@@ -86,5 +86,5 @@ install: build
 	install -m 755 irrigator "$(DESTDIR)$(PREFIX)/bin/irrigator"
 
 clean:
-	rm -rf irrigator build/ dist/ coverage.out *.test .irrigator/ tools/__pycache__ verification/__pycache__
+	rm -rf irrigator build/ dist/ coverage.out *.test tools/__pycache__ verification/__pycache__
 

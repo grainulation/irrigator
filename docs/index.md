@@ -9,7 +9,7 @@ Start with [your first run](first-run.md): mock workers, your own plan, an optio
 - [Choosing a tool](alternatives.md): scope comparisons with scripts and workflow frameworks.
 - [Linux terminal dashboard](linux.md): build, run, and inspect a local workflow.
 - [Windows (WSL 2)](windows-wsl.md): run the Linux build on Windows.
-- [OS-level sandboxing](sandbox.md): isolated execution via Bubblewrap and macOS sandbox-exec.
+- [Container sandboxes](sandbox.md): containerized execution for command providers (Docker, Podman, Apple Containers).
 
 ## Agent Plugins & MCP
 
@@ -38,7 +38,7 @@ Start with [your first run](first-run.md): mock workers, your own plan, an optio
 
 ## Operate & Recover
 
-- [Coding cells](coding-cells.md): `irrigator code` runs Claude Code, Codex or Antigravity in git worktrees, landing as review branches.
+- [Coding cells](coding-cells.md): `irrigator code` runs Claude Code, Codex or Antigravity in git worktrees with optional OS sandboxing (`--sandbox-verify`), landing as review branches.
 - [Local review](local-review.md): the review queue, change review and cleanup.
 - [Recovery](recovery.md): triage stuck cells, explicit retry, exclusive transfer and checkpoint migration.
 - [Approvals](approvals.md): phone approve/deny through single-use links.
