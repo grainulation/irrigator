@@ -165,3 +165,8 @@ Validate and run the recipe locally without model spend using
 When combining multi-stage workflows with `irrigator code --add-dir`, keep generated `--run` directories and
 `--worktrees` separate from reference directories; `irrigator code` refuses
 `--add-dir` paths pointing at or inside `--run` or `--worktrees`.
+
+## Additional reference recipes
+
+- **Isolated coding cell recipe**: [examples/coding-cell-recipe.json](../examples/coding-cell-recipe.json) demonstrates an isolated coding cell workflow importing plan context flags (`sandbox_verify` and `seed_ignored`), with independent verification excluding producer self-assessment and a clean merge gate.
+- **Mixed-provider pipeline**: [examples/managed-mixed-providers.json](../examples/managed-mixed-providers.json) demonstrates a multi-stage pipeline coordinating planner, implementer, and advisory verification roles with token reporting and budget envelope checks. Validate with `irrigator plan examples/managed-mixed-providers.json` and run with `--backend mock`.

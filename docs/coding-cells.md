@@ -329,6 +329,8 @@ verification git-status sidecars, `--seed-ignored`, `--add-dir` runtime
 evidence placement hygiene, `--sandbox-verify` preflight and isolation,
 `--continue-from`, cleanup). It uses no network and no model.
 
+For an end-to-end recipe modeling isolated coding cells with `--sandbox-verify` and `--seed-ignored` alongside independent verification and merge gates, see [examples/coding-cell-recipe.json](../examples/coding-cell-recipe.json).
+
 For agents over ACP, with Irrigator's approval links gating each tool call, see
 the [ACP worker](acp-worker.md). To run a command provider inside a container,
 see [Container sandbox](sandbox.md).
