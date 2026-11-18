@@ -3,14 +3,19 @@
 Changes below describe source revisions. A source commit is not a signed binary
 release. Versioned plan and worker protocols are tracked separately from the CLI.
 
-## Unreleased
+## 1.1.0 — 2026-11-17
 
 ### Added
 
-- A [Homebrew tap in this repository](docs/homebrew.md), with a development
-  source formula, private-prefix recipe acceptance, and a stable formula pinned
-  to the four verified 1.0.0 release archives. A generator prepares future
-  formula updates from one frozen set of verified candidate archives.
+- Opt-in command sandboxing: `--sandbox-verify` isolates test/build execution via platform sandboxes (`bubblewrap` on Linux, `sandbox-exec` on macOS).
+- Seed ignored files with CoW / reflink (`--seed-ignored`): speeds up worktree provisioning while preserving task isolation.
+- Read-only run prefix auto-resolution: CLI subcommands and MCP server resolve short run prefixes without requiring full paths.
+- Live progress streaming (`last_activity`): heartbeats and elapsed duration reported during long-running tasks.
+- Coder diagnostics sidecars: captures failed command logs and error snippets in `.irrigator/diagnostics/` for post-run analysis.
+- OpenTelemetry GenAI semantic attributes: standard `gen_ai.*` semantics (`gen_ai.usage.input_tokens`, `gen_ai.usage.output_tokens`, `gen_ai.response.model`) across telemetry.
+- Model Context Protocol (MCP) `ToolAnnotations`: adds `readOnlyHint`, `destructiveHint`, and `idempotentHint` metadata across all tools.
+- Canonical recipes & documentation alignment: recipes for monorepos, CI pipelines, and multi-agent loops; full alignment with 1.x compatibility guidelines.
+- A [Homebrew tap in this repository](docs/homebrew.md), with a development source formula, private-prefix recipe acceptance, and a stable formula pinned to verified release archives.
 
 ## 1.0.0 — 2026-11-15
 
