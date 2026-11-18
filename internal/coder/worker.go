@@ -37,7 +37,7 @@ func (m *multi) Set(v string) error { *m = append(*m, v); return nil }
 
 type workerOptions struct {
 	agent, repo, base, model, worktrees, continueFrom string
-	addDirs                                           multi
+	addDirs, seedIgnored                              multi
 	noTTY                                             bool
 }
 
@@ -57,6 +57,7 @@ func runWorker(args []string, stdin io.Reader, stdout, stderr io.Writer) (int, e
 	fs.StringVar(&o.model, "model", "", "agent model (default: sonnet for claude, the agent's own default otherwise)")
 	fs.StringVar(&o.worktrees, "worktrees", "", "worktree root (default: irrigator-worktrees beside the repo)")
 	fs.Var(&o.addDirs, "add-dir", "extra directory the agent may read, outside the worktree (repeatable)")
+	fs.Var(&o.seedIgnored, "seed-ignored", "comma-separated gitignored relative paths to seed into the worktree")
 	fs.StringVar(&o.continueFrom, "continue-from", "", "earlier run id; a new cell branch starts from its irrigator/<RUNID[:8]>/<cell> branch")
 	fs.BoolVar(&o.noTTY, "no-tty", false, "do not write progress to /dev/tty")
 	if err := commandflags.ParseCommandFlags(fs, args); err != nil {
@@ -172,6 +173,19 @@ func work(o workerOptions, req model.WorkRequest, p *progress) map[string]any {
 	if err != nil {
 		return outcome("not_started", map[string]any{"error": "worktree setup failed: " + err.Error()})
 	}
+	rawSeeds := append([]string(nil), o.seedIgnored...)
+	if ctxSeeds := strings.TrimSpace(req.Context["seed_ignored"]); ctxSeeds != "" {
+		rawSeeds = append(rawSeeds, ctxSeeds)
+	}
+	seedPaths, err := parseSeedList(rawSeeds)
+	if err != nil {
+		return outcome("not_started", map[string]any{"error": "worktree seeding failed: " + err.Error()})
+	}
+	if seeded, err := seedIgnoredPaths(o.repo, worktree, seedPaths); err != nil {
+		return outcome("not_started", map[string]any{"error": "worktree seeding failed: " + err.Error()})
+	} else if len(seeded) > 0 {
+		p.say(cell, "seeded "+strings.Join(seeded, ", "))
+	}
 	commonDir, _ := git(worktree, "rev-parse", "--path-format=absolute", "--git-common-dir")
 
 	budget := math.Max(0.01, req.MaxCostUSD)
@@ -212,16 +226,55 @@ func work(o workerOptions, req model.WorkRequest, p *progress) map[string]any {
 	if res.costUSD != nil {
 		report["cost_usd"] = math.Round(*res.costUSD*1e6) / 1e6
 	}
-	if u := usageFor(res.usage, usedModel); u != nil {
-		report["usage"] = u
+	if !timedOut && !res.uncertain && res.done {
+		if u := usageFor(res.usage, usedModel); u != nil {
+			report["usage"] = u
+		}
 	}
-	if usedModel != "" {
+	if usedModel != "" && model.ValidUsageModel(usedModel) {
 		report["model"] = usedModel
+	}
+	var diag coderDiagnostics
+	if report["usage"] == nil {
+		if partial := res.obs.report(); partial != nil {
+			diag.UsageObservation = partial
+		}
 	}
 	settle := func(o string, kv ...any) map[string]any {
 		out := outcome(o, report)
 		for i := 0; i+1 < len(kv); i += 2 {
 			out[kv[i].(string)] = kv[i+1]
+		}
+		if diag.UsageObservation != nil || diag.Verification != nil {
+			sidecarPath := worktree + ".diagnostics.json"
+			var note string
+			if err := writeDiagnosticsExclusive(sidecarPath, diag, req); err != nil {
+				note = "coder diagnostics sidecar could not be created; existing evidence was not replaced"
+			} else {
+				note = "coder diagnostics: " + sidecarPath
+			}
+			if diag.UsageObservation != nil {
+				detail := "counts unavailable"
+				if diag.UsageObservation.ObservedTokens != nil {
+					detail = fmt.Sprintf("%d observed tokens", diag.UsageObservation.ObservedTokens.TotalTokens)
+				}
+				billing := "USD unknown"
+				if res.costUSD != nil {
+					billing = "USD reported separately"
+				}
+				note += fmt.Sprintf("; partial token observation (%s, incomplete; %s)", detail, billing)
+			}
+			if diag.Verification != nil && diag.Verification.After.Dirty != nil && *diag.Verification.After.Dirty {
+				note += "; verification finished with uncommitted work; inspect and explicitly commit or discard it before retry"
+			}
+			p.say(cell, note)
+			if errStr, ok := out["error"].(string); ok && errStr != "" {
+				out["error"] = errStr + "; " + note
+			} else if sel, ok := out["output"].(map[string]string); ok {
+				if s, hasSummary := sel["summary"]; hasSummary {
+					sel["summary"] = s + "\n\n" + note
+				}
+			}
 		}
 		return out
 	}
@@ -268,8 +321,28 @@ func work(o workerOptions, req model.WorkRequest, p *progress) map[string]any {
 			return settle("uncertain", "error", "verification input commit or branch identity changed")
 		}
 		p.say(cell, "verify: "+verify)
-		code, tail, timedOut := runVerify(verify, worktree, time.Duration(math.Max(60, seconds)*float64(time.Second)))
-		if timedOut {
+		before := captureWorktreeStatus(worktree, statusTimeout)
+		code, tail, vTimedOut := runVerify(verify, worktree, time.Duration(math.Max(60, seconds)*float64(time.Second)))
+		after := captureWorktreeStatus(worktree, statusTimeout)
+		dirtied := diffStatusEntries(before.Entries, after.Entries)
+		verDiag := &verificationDiagnostics{
+			Command:        verify,
+			Before:         before,
+			After:          after,
+			TimedOut:       vTimedOut,
+			DirtiedEntries: dirtied,
+		}
+		if !vTimedOut {
+			verDiag.ExitCode = &code
+		}
+		verDirty := !after.Complete || after.Dirty == nil || *after.Dirty
+		afterHead, headErr := git(worktree, "rev-parse", "--verify", "HEAD")
+		afterRef, refErr := git(worktree, "symbolic-ref", "-q", "HEAD")
+		verIDChanged := headErr != nil || refErr != nil || afterHead != verifyHead || afterRef != verifyRef
+		if vTimedOut || code != 0 || !before.Complete || (before.Dirty != nil && *before.Dirty) || verDirty || len(dirtied) > 0 || verIDChanged || diag.UsageObservation != nil {
+			diag.Verification = verDiag
+		}
+		if vTimedOut {
 			return settle("uncertain", "error", fmt.Sprintf("verification `%s` timed out", verify))
 		}
 		if code == 77 {
@@ -280,13 +353,11 @@ func work(o workerOptions, req model.WorkRequest, p *progress) map[string]any {
 			p.say(cell, fmt.Sprintf("verify FAILED (exit %d)", code))
 			return settle("settled", "error", fmt.Sprintf("verification failed (exit %d): %s", code, tail))
 		}
-		if dirty, err := git(worktree, "status", "--porcelain"); err != nil || dirty != "" {
+		if verDirty {
 			p.say(cell, "verify dirtied worktree")
 			return settle("uncertain", "error", fmt.Sprintf("verification `%s` left uncommitted or untracked changes in worktree", verify))
 		}
-		afterHead, headErr := git(worktree, "rev-parse", "--verify", "HEAD")
-		afterRef, refErr := git(worktree, "symbolic-ref", "-q", "HEAD")
-		if headErr != nil || refErr != nil || afterHead != verifyHead || afterRef != verifyRef {
+		if verIDChanged {
 			return settle("uncertain", "error", "verification changed commit or branch identity")
 		}
 		p.say(cell, "verify passed")
@@ -523,4 +594,90 @@ func firstLine(s string) string {
 		s = s[:300]
 	}
 	return s
+}
+
+const diagnosticsSchema = "irrigator.coder-diagnostics/v1"
+
+type diagnosticsIdentity struct {
+	RunID                string   `json:"run_id,omitempty"`
+	RequestID            string   `json:"request_id,omitempty"`
+	OperationID          string   `json:"operation_id,omitempty"`
+	TaskID               string   `json:"task_id,omitempty"`
+	Attempt              int      `json:"attempt,omitempty"`
+	OmittedInvalidFields []string `json:"omitted_invalid_fields,omitempty"`
+}
+
+type verificationDiagnostics struct {
+	Command        string         `json:"command"`
+	Before         worktreeStatus `json:"before"`
+	After          worktreeStatus `json:"after"`
+	ExitCode       *int           `json:"exit_code,omitempty"`
+	TimedOut       bool           `json:"timed_out,omitempty"`
+	DirtiedEntries []statusEntry  `json:"dirtied_entries,omitempty"`
+}
+
+type coderDiagnostics struct {
+	Schema           string                   `json:"schema"`
+	Identity         diagnosticsIdentity      `json:"identity"`
+	UsageObservation *usageObservationReport  `json:"usage_observation,omitempty"`
+	Verification     *verificationDiagnostics `json:"verification,omitempty"`
+}
+
+func isPrintableASCII(s string, maxLen int) bool {
+	if len(s) == 0 || len(s) > maxLen {
+		return false
+	}
+	for i := 0; i < len(s); i++ {
+		if s[i] < 0x20 || s[i] > 0x7e {
+			return false
+		}
+	}
+	return true
+}
+
+func buildDiagnosticsIdentity(req model.WorkRequest) diagnosticsIdentity {
+	var id diagnosticsIdentity
+	var omitted []string
+	check := func(name, val string, dst *string) {
+		if val == "" {
+			return
+		}
+		if isPrintableASCII(val, 256) {
+			*dst = val
+		} else {
+			omitted = append(omitted, name)
+		}
+	}
+	check("run_id", req.RunID, &id.RunID)
+	check("request_id", req.RequestID, &id.RequestID)
+	check("operation_id", req.OperationID, &id.OperationID)
+	check("task_id", req.Task.ID, &id.TaskID)
+	if req.Attempt > 0 {
+		id.Attempt = req.Attempt
+	} else if req.Attempt < 0 {
+		omitted = append(omitted, "attempt")
+	}
+	id.OmittedInvalidFields = omitted
+	return id
+}
+
+func writeDiagnosticsExclusive(path string, diag coderDiagnostics, req model.WorkRequest) error {
+	diag.Schema = diagnosticsSchema
+	diag.Identity = buildDiagnosticsIdentity(req)
+	raw, err := json.MarshalIndent(diag, "", "  ")
+	if err != nil {
+		return err
+	}
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return err
+	}
+	f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
+	if err != nil {
+		return fmt.Errorf("create diagnostics sidecar: %w", err)
+	}
+	defer f.Close()
+	if _, err := f.Write(append(raw, '\n')); err != nil {
+		return err
+	}
+	return f.Sync()
 }

@@ -77,3 +77,31 @@ func TestOSCFormat(t *testing.T) {
 		t.Error("progress is only sent while working")
 	}
 }
+
+func TestOSCBlockedKind(t *testing.T) {
+	for _, tc := range []struct {
+		state, kind, want string
+	}{
+		{"blocked", "permission", "kind=permission"},
+		{"blocked", "approval", "kind=permission"},
+		{"blocked", "question", "kind=question"},
+		{"blocked", "uncertain", "kind=question"},
+		{"blocked", "triage", "kind=question"},
+		{"blocked", "auth", "kind=auth"},
+		{"blocked", "", ""},
+		{"blocked", "invalid:evil=1", ""},
+		{"working", "permission", ""},
+		{"done", "question", ""},
+	} {
+		osc := (ProgramStatus{State: tc.state, Kind: tc.kind, ID: "cell:a=1", Title: "cell a", Message: "msg"}).OSC()
+		if tc.want == "" {
+			if strings.Contains(osc, "kind=") {
+				t.Errorf("state=%q kind=%q unexpectedly emitted kind in %q", tc.state, tc.kind, osc)
+			}
+			continue
+		}
+		if !strings.Contains(osc, ":"+tc.want+":") && !strings.HasSuffix(osc, ":"+tc.want+"\x1b\\") {
+			t.Errorf("state=%q kind=%q: got %q, want %q", tc.state, tc.kind, osc, tc.want)
+		}
+	}
+}

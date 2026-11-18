@@ -22,7 +22,7 @@ there.
 
 ## Tools
 
-Read-only (always registered):
+Read-only (always registered; annotated with `readOnlyHint: true`, `destructiveHint: false`, `idempotentHint: true`, `openWorldHint: false`):
 
 | Tool | Result |
 | --- | --- |
@@ -33,15 +33,15 @@ Read-only (always registered):
 | `review_list` | The review queue for a workspace and optional `base`, as `irrigator review list`. |
 | `validate_plan` | Validate a plan `path` or inline `json`; returns `valid` and the errors. An invalid plan is a normal result, not a tool error. |
 
-Control (registered only with `--allow-control`):
+Control (registered only with `--allow-control`; annotated with `readOnlyHint: false`, `openWorldHint: false`, and per-tool `destructiveHint`/`idempotentHint`):
 
 | Tool | Result |
 | --- | --- |
-| `apply` | Create a run from a plan into a new run directory and start its controller detached; returns the run path. Takes `backend`, `budget`, `workers`, `timeout_seconds`, `schedule`. |
-| `pause` | Ask the run to drain; durable state is retained. |
-| `resume` | Start a detached controller for a stopped run. `retry_failed` retries replay-safe failures only. |
-| `retry_cell` | Prepare an explicit retry. `allow_uncertain` and `confirm_stopped` are required arguments. |
-| `decide_approval` | Approve or deny a blocked request through the run's mailbox or approval ledger. |
+| `apply` | Create a run from a plan into a new run directory and start its controller detached; returns the run path. Takes `backend`, `budget`, `workers`, `timeout_seconds`, `schedule` (`destructiveHint: true`, `idempotentHint: false`). |
+| `pause` | Ask the run to drain; durable state is retained (`destructiveHint: false`, `idempotentHint: true`). |
+| `resume` | Start a detached controller for a stopped run. `retry_failed` retries replay-safe failures only (`destructiveHint: false`, `idempotentHint: false`). |
+| `retry_cell` | Prepare an explicit retry. `allow_uncertain` and `confirm_stopped` are required arguments (`destructiveHint: true`, `idempotentHint: false`). |
+| `decide_approval` | Approve or deny a blocked request through the run's mailbox or approval ledger (`destructiveHint: true`, `idempotentHint: false`). |
 
 `apply` follows the CLI rules: a per-call `budget` is required (managed plans
 use profile budgets and must omit it), a non-managed plan needs an explicit

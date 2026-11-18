@@ -402,6 +402,12 @@
           "boolean": false
         },
         {
+          "name": "seed-ignored",
+          "default": "",
+          "usage": "gitignored relative paths to seed into each worktree (comma-separated or repeatable)",
+          "boolean": false
+        },
+        {
           "name": "task",
           "default": "",
           "usage": "one coding cell as ID=PROMPT; repeat for more",

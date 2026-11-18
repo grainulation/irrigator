@@ -23,6 +23,8 @@ Usage of code:
     	git repository the agents change (default ".")
   -run string
     	new run directory (default: runs/code-<time>)
+  -seed-ignored value
+    	gitignored relative paths to seed into each worktree (comma-separated or repeatable)
   -task value
     	one coding cell as ID=PROMPT; repeat for more
   -timeout string

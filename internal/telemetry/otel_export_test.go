@@ -656,3 +656,98 @@ func TestInvalidOTLPTimeoutIsReportedWithoutItsValue(t *testing.T) {
 		t.Fatalf("warning = %q", out)
 	}
 }
+
+func TestOtelExportGenAISemanticConventionAttributes(t *testing.T) {
+	t0 := time.Date(2026, 5, 1, 12, 0, 0, 0, time.UTC)
+	at := func(s int) time.Time { return t0.Add(time.Duration(s) * time.Second) }
+	s := &model.State{
+		RunID: "run-genai",
+		Plan:  model.Plan{Name: "genai-plan", Tasks: []model.Task{{ID: "full"}, {ID: "minimal"}, {ID: "malformed"}}},
+		Tasks: map[string]*model.TaskState{
+			"full":      {Spec: model.Task{ID: "full"}},
+			"minimal":   {Spec: model.Task{ID: "minimal"}},
+			"malformed": {Spec: model.Task{ID: "malformed"}},
+		},
+		Events: []model.Event{
+			{Time: at(0), Kind: "started", Task: "full", Detail: map[string]any{"attempt": float64(1)}},
+			{Time: at(1), Kind: "produced", Task: "full", Detail: map[string]any{
+				"attempt":           float64(1),
+				"reported_cost_usd": 0.0185,
+				"cost_unknown":      false,
+				"usage": &model.TaskUsage{
+					InputTokens:      450,
+					OutputTokens:     180,
+					ThinkingTokens:   60,
+					CacheReadTokens:  3200,
+					CacheWriteTokens: 120,
+					Model:            "claude-sonnet-4-6\x1b[31m",
+				},
+			}},
+			{Time: at(2), Kind: "verified", Task: "full"},
+			{Time: at(3), Kind: "started", Task: "minimal", Detail: map[string]any{"attempt": float64(1)}},
+			{Time: at(4), Kind: "produced", Task: "minimal", Detail: map[string]any{
+				"attempt":      float64(1),
+				"cost_unknown": true,
+				"model":        "gemini-2.5-pro",
+				"usage": map[string]any{
+					"input_tokens":  float64(100),
+					"output_tokens": float64(25),
+				},
+			}},
+			{Time: at(5), Kind: "verified", Task: "minimal"},
+			{Time: at(6), Kind: "started", Task: "malformed", Detail: map[string]any{"attempt": float64(1)}},
+			{Time: at(7), Kind: "produced", Task: "malformed", Detail: map[string]any{
+				"attempt":      float64(1),
+				"cost_unknown": true,
+				"usage": map[string]any{
+					"input_tokens":      float64(-5),
+					"output_tokens":     float64(12.5),
+					"cache_read_tokens": float64(100),
+				},
+			}},
+			{Time: at(8), Kind: "outcome_uncertain", Task: "malformed"},
+		},
+	}
+
+	mem, _ := exportOtelTest(t, s, 0, true)
+	spans := mem.GetSpans()
+
+	full := otelAttrs(findSpan(t, spans, "full", 1).Attributes)
+	if full["irrigator.cost_usd"] != 0.0185 || full["irrigator.outcome"] != "verified" {
+		t.Fatalf("full irrigator attrs: %v", full)
+	}
+	if full["gen_ai.request.model"] != "claude-sonnet-4-6[31m" {
+		t.Fatalf("full gen_ai.request.model = %v", full["gen_ai.request.model"])
+	}
+	// Non-additive cache rules: input_tokens must NOT include cache_read_tokens or cache_write_tokens.
+	if full["gen_ai.usage.input_tokens"] != int64(450) || full["gen_ai.usage.output_tokens"] != int64(180) {
+		t.Fatalf("full input/output tokens: %v", full)
+	}
+	if full["gen_ai.usage.cache_read.input_tokens"] != int64(3200) ||
+		full["gen_ai.usage.cache_creation.input_tokens"] != int64(120) ||
+		full["gen_ai.usage.reasoning.output_tokens"] != int64(60) {
+		t.Fatalf("full breakdown tokens: %v", full)
+	}
+
+	minimal := otelAttrs(findSpan(t, spans, "minimal", 1).Attributes)
+	if minimal["gen_ai.request.model"] != "gemini-2.5-pro" ||
+		minimal["gen_ai.usage.input_tokens"] != int64(100) ||
+		minimal["gen_ai.usage.output_tokens"] != int64(25) {
+		t.Fatalf("minimal attrs: %v", minimal)
+	}
+	for _, absent := range []string{"gen_ai.usage.cache_read.input_tokens", "gen_ai.usage.cache_creation.input_tokens", "gen_ai.usage.reasoning.output_tokens"} {
+		if _, ok := minimal[absent]; ok {
+			t.Fatalf("expected %s to be omitted when zero: %v", absent, minimal)
+		}
+	}
+
+	malformed := otelAttrs(findSpan(t, spans, "malformed", 1).Attributes)
+	for _, bad := range []string{"gen_ai.usage.input_tokens", "gen_ai.usage.output_tokens", "gen_ai.request.model"} {
+		if _, ok := malformed[bad]; ok {
+			t.Fatalf("expected %s to be omitted on malformed value: %v", bad, malformed)
+		}
+	}
+	if malformed["gen_ai.usage.cache_read.input_tokens"] != int64(100) {
+		t.Fatalf("malformed valid cache_read_tokens lost: %v", malformed)
+	}
+}

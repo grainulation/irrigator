@@ -134,12 +134,13 @@ separated by `:`; `title` and `msg` are base64.
 
 | Record       | Fields                                                                                                          |
 | ------------ | --------------------------------------------------------------------------------------------------------------- |
-| Run (root)   | `state` (`working`, `done`, `blocked`, `idle`), `app=irrigator`, `progress` (0-100, only while working), `title`, `msg` |
+| Run (root)   | `state` (`working`, `done`, `blocked`, `idle`), `app=irrigator`, `progress` (0-100, only while working), `kind` (`permission`, `question` or `auth`, optional when `blocked`), `title`, `msg` |
 | Cell (child) | the same fields, plus `id=<cell>` (`:`, `=` and non-printable or non-ASCII characters in the id become `_`)      |
 
 Cell records map the cell status: `running` and `produced` are `working`,
-`verified` is `done`, `failed` is `error`, `uncertain` is `blocked` (a person
-must decide), and `cancelled` is `idle`. Pending and waiting cells send nothing.
+`verified` is `done`, `failed` is `error`, `uncertain` is `blocked` with
+`kind=question` (a person must decide), and `cancelled` is `idle`. Pending and
+waiting cells send nothing.
 A record is sent only when it changes. A cell that stops being reported (for
 example, on a retry) and any cell still `working` when the view closes receives
 `state=idle:app=irrigator:id=<cell>` to clear it. Messages carry only the
@@ -303,8 +304,15 @@ collector as traces. It uses the official OpenTelemetry Go SDK.
 - One trace per run; one span per cell attempt, with start and end taken from
   the events and status from the outcome.
 - Span attributes: `irrigator.run_id`, `irrigator.cell`, `irrigator.attempt`,
-  `irrigator.outcome`, and `irrigator.cost_usd` when known. Other events are
-  span events.
+  `irrigator.outcome`, and `irrigator.cost_usd` when known. When token usage or
+  model metadata is recorded on the attempt, standard OpenTelemetry GenAI
+  semantic convention attributes are also emitted: `gen_ai.request.model`,
+  `gen_ai.usage.input_tokens`, `gen_ai.usage.output_tokens`, and (when > 0)
+  `gen_ai.usage.cache_read.input_tokens`,
+  `gen_ai.usage.cache_creation.input_tokens`, and
+  `gen_ai.usage.reasoning.output_tokens` (following non-additive cache rules so
+  `gen_ai.usage.input_tokens` is never inflated by cache reads or writes). Other
+  events are span events.
 - Resource: `service.name=irrigator`, `service.version`, `irrigator.plan`.
 - Trace and span IDs are derived from the run id, cell and attempt, so
   re-exporting the same events does not create duplicates.

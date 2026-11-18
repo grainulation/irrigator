@@ -30,6 +30,10 @@ func TestCellOSCCarriesID(t *testing.T) {
 	if !strings.Contains(osc, ":id=build_1_x") || !strings.Contains(osc, "state=working") {
 		t.Errorf("child record = %q", osc)
 	}
+	unc, _ := CellStatus("c-unc", Row{Status: "uncertain"})
+	if unc.Kind != "question" || !strings.Contains(unc.OSC(), ":kind=question:") {
+		t.Errorf("uncertain child record = %+v (%q)", unc, unc.OSC())
+	}
 	if strings.Contains((ProgramStatus{State: "done", Title: "t"}).OSC(), "id=") {
 		t.Error("the root report has no id")
 	}

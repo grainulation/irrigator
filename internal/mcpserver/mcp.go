@@ -95,12 +95,21 @@ func newMCPConfig(roots []string, workspace string, allowControl bool) (McpConfi
 	return cfg, nil
 }
 
+func toolAnnotations(readOnly, destructive, idempotent, openWorld bool) *mcp.ToolAnnotations {
+	return &mcp.ToolAnnotations{
+		ReadOnlyHint:    readOnly,
+		DestructiveHint: &destructive,
+		IdempotentHint:  idempotent,
+		OpenWorldHint:   &openWorld,
+	}
+}
+
 func NewMCPServer(cfg McpConfig) *mcp.Server {
 	s := mcp.NewServer(&mcp.Implementation{Name: "irrigator", Version: buildinfo.Version}, &mcp.ServerOptions{
 		Instructions: "Inspect Irrigator runs. Run arguments are a run directory path or, with --runs, a run name. Interrupted work is never replayed automatically; retry_cell (when enabled) requires explicit allow_uncertain and confirm_stopped.",
 	})
 	t := &mcpTools{cfg: cfg}
-	readOnly := &mcp.ToolAnnotations{ReadOnlyHint: true}
+	readOnly := toolAnnotations(true, false, true, false)
 	mcp.AddTool(s, &mcp.Tool{Name: "list_runs", Description: "List runs under the configured --runs directories: name, path, control state, verified/total cells and reported cost.", Annotations: readOnly}, t.listRuns)
 	mcp.AddTool(s, &mcp.Tool{Name: "run_status", Description: "Status of one run: per-cell status, attempts and (truncated) errors.", Annotations: readOnly}, t.runStatus)
 	mcp.AddTool(s, &mcp.Tool{Name: "run_logs", Description: "Sequenced run events, as `irrigator logs --json`. Pass the returned next_since to continue.", Annotations: readOnly}, t.runLogs)
@@ -110,13 +119,11 @@ func NewMCPServer(cfg McpConfig) *mcp.Server {
 	if !cfg.AllowControl {
 		return s
 	}
-	f := false
-	write := &mcp.ToolAnnotations{DestructiveHint: &f}
-	mcp.AddTool(s, &mcp.Tool{Name: "apply", Description: "Create a run from a plan and start its controller detached, like `irrigator apply`. Returns the run path. A per-call budget is required (not for managed plans).", Annotations: write}, t.apply)
-	mcp.AddTool(s, &mcp.Tool{Name: "pause", Description: "Ask a run to drain; durable state is retained.", Annotations: write}, t.pause)
-	mcp.AddTool(s, &mcp.Tool{Name: "resume", Description: "Start a detached controller for a stopped run, like `irrigator resume`.", Annotations: write}, t.resume)
-	mcp.AddTool(s, &mcp.Tool{Name: "retry_cell", Description: "Prepare an explicit retry of failed or cancelled cells, like `irrigator retry`. allow_uncertain and confirm_stopped are required and keep their CLI meaning; uncertain outcomes are never retried unless both are attested.", Annotations: write}, t.retryCell)
-	mcp.AddTool(s, &mcp.Tool{Name: "decide_approval", Description: "Approve or deny a blocked request through the run's approval ledger/mailbox.", Annotations: write}, t.decideApproval)
+	mcp.AddTool(s, &mcp.Tool{Name: "apply", Description: "Create a run from a plan and start its controller detached, like `irrigator apply`. Returns the run path. A per-call budget is required (not for managed plans).", Annotations: toolAnnotations(false, true, false, false)}, t.apply)
+	mcp.AddTool(s, &mcp.Tool{Name: "pause", Description: "Ask a run to drain; durable state is retained.", Annotations: toolAnnotations(false, false, true, false)}, t.pause)
+	mcp.AddTool(s, &mcp.Tool{Name: "resume", Description: "Start a detached controller for a stopped run, like `irrigator resume`.", Annotations: toolAnnotations(false, false, false, false)}, t.resume)
+	mcp.AddTool(s, &mcp.Tool{Name: "retry_cell", Description: "Prepare an explicit retry of failed or cancelled cells, like `irrigator retry`. allow_uncertain and confirm_stopped are required and keep their CLI meaning; uncertain outcomes are never retried unless both are attested.", Annotations: toolAnnotations(false, true, false, false)}, t.retryCell)
+	mcp.AddTool(s, &mcp.Tool{Name: "decide_approval", Description: "Approve or deny a blocked request through the run's approval ledger/mailbox.", Annotations: toolAnnotations(false, true, false, false)}, t.decideApproval)
 	return s
 }
 

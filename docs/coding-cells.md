@@ -60,14 +60,14 @@ same machine. The repository must contain the base branch.
 irrigator code --repo DIR --task ID=PROMPT [--task ID=PROMPT ...]
   [--agent claude|codex|agy] [--model M] [--base main]
   [--verify ID=COMMAND] [--depends ID=DEP[,DEP]] [--add-dir DIR]
-  [--continue-from RUNID] [--worktrees DIR] [--name NAME]
-  [--run DIR] [--workers 2] [--timeout 30m] [--call-budget 1]
-  [--out FILE] [--plan-only]
+  [--seed-ignored RELPATH[,RELPATH]] [--continue-from RUNID]
+  [--worktrees DIR] [--name NAME] [--run DIR] [--workers 2]
+  [--timeout 30m] [--call-budget 1] [--out FILE] [--plan-only]
 ```
 
 - `--task ID=PROMPT`: one cell. IDs use letters, digits, `_` and `-`.
 - `--depends tests=docs`: run `tests` after `docs` and show it `docs`'s summary.
-- `--verify`, `--add-dir`, `--continue-from`: see the sections below.
+- `--verify`, `--add-dir`, `--seed-ignored`, `--continue-from`: see the sections below.
 - `--workers`, `--timeout` and `--call-budget` are passed to `apply`. The plan
   embeds the absolute path of the `irrigator` executable and the repository;
   regenerate it if they move, and never edit an admitted plan.
@@ -155,10 +155,40 @@ Inspect an uncertain cell's worktree, branch and verification output before an
 explicit recovery or retry decision. Verification commands should inspect the
 agent's committed result and leave it unchanged.
 
+When verification fails, times out, exits `77`, leaves uncommitted work, or
+changes `HEAD`/branch identity (or when partial stream usage is recorded), the
+worker records bounded before/after Git-status snapshots (`git status --porcelain=v1 -z --untracked-files=all`)
+and `dirtied_entries` in `<worktree>.diagnostics.json` (`schema: "irrigator.coder-diagnostics/v1"`),
+beside the attempt's worktree, and names the sidecar in stderr and the cell
+error or summary. Bounded `run_id`, `request_id`, `operation_id`, `task_id`, and
+`attempt` identity connects it to the worker request; invalid identity fields are
+explicitly omitted in `omitted_invalid_fields`. Snapshots retain at most 64
+entries, 512 bytes per path, and 64 KiB of status output with a 10-second scan
+timeout; truncation, timeout, or scan failure leaves `complete: false`.
+
+Sidecars are created exclusively (`O_WRONLY|O_CREATE|O_EXCL`, mode `0600`) so
+existing diagnostic sidecars and symlinks are never overwritten; a creation
+failure is reported without changing the execution outcome. Uncommitted changes
+left by verification remain inspectable and are never automatically deleted or
+committed; `irrigator code cleanup` preserves dirty worktrees unless `--force`
+is passed, and sidecars remain beside the worktree until removed after
+inspection.
+
 ## Reference directories
 
 `--add-dir DIR` (repeatable) lets agents read reference material outside the
 worktree. It is passed to each agent's own `--add-dir`.
+
+## Worktree seeding
+
+`--seed-ignored RELPATH[,RELPATH]` (repeatable, or context key `seed_ignored`)
+seeds repository-relative gitignored caches or build directories (such as
+`node_modules` or `.venv`) into each cell worktree right after checkout. On
+macOS APFS (`cp -c -R`) and Linux filesystems with reflink support
+(`cp --reflink=auto -a`), seeding uses copy-on-write clones and falls back to
+regular copies otherwise. Tracked files, unignored paths, `.git`, symlinks, and
+path traversal outside the repository are refused (`not_started`), while missing
+optional paths are skipped. Gitignored seeded files leave `git status` clean.
 
 ## Continuing an earlier run
 
@@ -217,10 +247,27 @@ so the cell will end `uncertain` (or `not_started` if it had not launched yet).
   cap: their cells record cost as unknown (never $0) with the token counts, and
   the cell timeout is the hard limit.
 
+Canonical `usage` and `cost_usd` come from the agent's valid terminal result.
+Token counts must be nonnegative `int64` integers; malformed counts, negative or
+fractional values, and conflicting field aliases are rejected. Output tokens
+include reasoning, so derived `total_tokens` sums `input_tokens`,
+`output_tokens`, `cache_read_tokens`, and `cache_write_tokens` without adding
+`thinking_tokens` a second time, and `input_tokens` is never inflated with
+`cache_read_tokens`.
+
+When an agent is interrupted, times out, or exits without valid terminal usage,
+the worker writes any valid stream-level token observations to
+`usage_observation` in `<worktree>.diagnostics.json` (`basis: "assistant_stream"`,
+`complete: false`, `aggregation: "last_valid_snapshot_per_message_id"`,
+`cost_basis: "unknown"`, bounded to 1024 distinct message IDs matching
+`^[A-Za-z0-9_.:-]{1,128}$`). It retains the last valid snapshot per message ID
+and sums distinct messages, reporting `truncated` or `counts_unavailable: "overflow"`
+when bounds are exceeded. Canonical `usage` in the worker response remains
+absent and `cost` remains unknown; `irrigator cost RUN [--json]` excludes
+incomplete sidecar observations from run totals.
+
 A cell that timed out or ended without a result may have spent money that is not
-reported. `irrigator cost RUN [--json]` shows the per-cell cost statement and
-run totals (reported spend, unknown-cost operations and token totals). Start with
-a small budget and few workers.
+reported, and remains `uncertain`. Start with a small budget and few workers.
 
 ## Cleanup
 
@@ -256,7 +303,9 @@ fake `claude`, `codex` and `agy` executables on `PATH` that emit each agent's
 stream format (success, leftovers, agent error, usage limit, timeout, missing
 result, no changes, setup failure, missing binary, retries, dirty-worktree
 refusal, previous-attempts context, passing and failing verification,
-`--add-dir`, `--continue-from`, cleanup). It uses no network and no model.
+non-additive token validation, partial usage observations, before/after
+verification git-status sidecars, `--seed-ignored`, `--add-dir`,
+`--continue-from`, cleanup). It uses no network and no model.
 
 For agents over ACP, with Irrigator's approval links gating each tool call, see
 the [ACP worker](acp-worker.md). To run a command provider inside a container,

@@ -21,7 +21,7 @@ var cellID = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$`)
 // planOptions describes a plan of coding cells.
 type planOptions struct {
 	agent, repo, base, model, worktrees, name, continueFrom string
-	tasks, verify, depends, addDirs                         []string
+	tasks, verify, depends, addDirs, seedIgnored            []string
 	executable                                              string // absolute path of the irrigator binary that runs the cells
 }
 
@@ -102,6 +102,13 @@ func buildPlan(o planOptions) (map[string]any, error) {
 		}
 		command = append(command, "--add-dir", abs)
 	}
+	seedPaths, err := parseSeedList(o.seedIgnored)
+	if err != nil {
+		return nil, err
+	}
+	if len(seedPaths) > 0 {
+		command = append(command, "--seed-ignored", strings.Join(seedPaths, ","))
+	}
 	if o.continueFrom != "" {
 		command = append(command, "--continue-from", o.continueFrom)
 	}
@@ -133,7 +140,7 @@ func CodeCLI(args []string, apply applyFunc) (int, error) {
 		return cleanupCLI(args[1:], os.Stdout)
 	}
 	var o planOptions
-	var tasks, verify, depends, addDirs multi
+	var tasks, verify, depends, addDirs, seedIgnored multi
 	var run, timeout, out string
 	var workers int
 	var budget float64
@@ -147,6 +154,7 @@ func CodeCLI(args []string, apply applyFunc) (int, error) {
 	fs.Var(&verify, "verify", "ID=COMMAND run in ID's worktree after the agent finishes; non-zero fails the cell")
 	fs.Var(&depends, "depends", "ID=DEP[,DEP]: run ID after DEP and show it DEP's summary")
 	fs.Var(&addDirs, "add-dir", "extra directory agents may read, outside the worktree (repeatable)")
+	fs.Var(&seedIgnored, "seed-ignored", "gitignored relative paths to seed into each worktree (comma-separated or repeatable)")
 	fs.StringVar(&o.continueFrom, "continue-from", "", "start each cell from irrigator/<RUNID[:8]>/<cell> when that branch exists")
 	fs.StringVar(&o.worktrees, "worktrees", "", "worktree root (default: irrigator-worktrees beside the repo)")
 	fs.StringVar(&o.name, "name", "", "plan name")
@@ -162,7 +170,7 @@ func CodeCLI(args []string, apply applyFunc) (int, error) {
 	if fs.NArg() > 0 {
 		return 2, fmt.Errorf("unexpected argument %q; give tasks with --task ID=PROMPT", fs.Arg(0))
 	}
-	o.tasks, o.verify, o.depends, o.addDirs = tasks, verify, depends, addDirs
+	o.tasks, o.verify, o.depends, o.addDirs, o.seedIgnored = tasks, verify, depends, addDirs, seedIgnored
 	exe, err := os.Executable()
 	if err != nil {
 		return 1, err

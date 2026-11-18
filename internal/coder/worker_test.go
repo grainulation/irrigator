@@ -5,6 +5,7 @@ package coder
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -41,11 +42,18 @@ esac
 `
 
 var fakeAgents = map[string]string{
-	"claude": fakeHead + `echo '{"type":"assistant","message":{"content":[{"type":"tool_use","name":"Write","input":{"file_path":"hello.txt"}}]}}'` + fakeWork +
-		`echo "{\"type\":\"result\",\"is_error\":$ERR,\"result\":\"$TEXT\",\"total_cost_usd\":0.0123,\"usage\":{\"input_tokens\":120,\"output_tokens\":40},\"model\":\"claude-fake\"}"` + "\n",
+	"claude": fakeHead + `echo '{"type":"assistant","message":{"content":[{"type":"tool_use","name":"Write","input":{"file_path":"hello.txt"}}]}}'
+if [ -n "$FAKE_CLAUDE_EVENTS" ]; then
+  printf '%s\n' "$FAKE_CLAUDE_EVENTS"
+fi` + fakeWork + `
+USAGE_JSON="${FAKE_CLAUDE_USAGE:-{\"input_tokens\":120,\"output_tokens\":40}}"
+echo "{\"type\":\"result\",\"is_error\":$ERR,\"result\":\"$TEXT\",\"total_cost_usd\":0.0123,\"usage\":$USAGE_JSON,\"model\":\"claude-fake\"}"` + "\n",
 	"codex": fakeHead + `echo '{"type":"thread.started","thread_id":"t1"}'
 echo '{"type":"turn.started"}'
-echo '{"type":"item.completed","item":{"id":"i1","type":"command_execution","command":"git status"}}'` + fakeWork + `
+echo '{"type":"item.completed","item":{"id":"i1","type":"command_execution","command":"git status"}}'
+if [ -n "$FAKE_CODEX_EVENTS" ]; then
+  printf '%s\n' "$FAKE_CODEX_EVENTS"
+fi` + fakeWork + `
 if [ "$ERR" = true ]; then
   echo "{\"type\":\"turn.failed\",\"error\":{\"message\":\"$TEXT\"}}"
 else
@@ -127,7 +135,7 @@ type call struct {
 	agent, mode, base, kind, runID, continueFrom string
 	attempt                                      int
 	timeoutMS                                    int64
-	requires, addDirs                            []string
+	requires, addDirs, seedIgnored               []string
 	context                                      map[string]string
 	cell                                         string
 }
@@ -161,6 +169,9 @@ func (f *fixture) run(c call) map[string]any {
 	args := []string{"--agent", c.agent, "--repo", f.repo, "--base", c.base, "--worktrees", filepath.Join(f.root, "wt"), "--no-tty"}
 	for _, d := range c.addDirs {
 		args = append(args, "--add-dir", d)
+	}
+	for _, s := range c.seedIgnored {
+		args = append(args, "--seed-ignored", s)
 	}
 	if c.continueFrom != "" {
 		args = append(args, "--continue-from", c.continueFrom)
@@ -400,7 +411,7 @@ func TestVerification(t *testing.T) {
 		t.Fatalf("pass: %v", r)
 	}
 	r = f.run(call{mode: "success", cell: "bad", context: map[string]string{"verify_bad": "echo nope; exit 3"}})
-	if r["outcome"] != "settled" || r["error"] != "verification failed (exit 3): nope" {
+	if errMsg, _ := r["error"].(string); r["outcome"] != "settled" || !strings.HasPrefix(errMsg, "verification failed (exit 3): nope") || !strings.Contains(errMsg, "bad-a1.diagnostics.json") {
 		t.Fatalf("fail: %v", r)
 	}
 	r = f.run(call{mode: "success", cell: "my-cell", context: map[string]string{"verify_my_cell": "exit 4"}})
@@ -412,11 +423,11 @@ func TestVerification(t *testing.T) {
 		t.Fatalf("verify ran after agent error: %v", r)
 	}
 	r = f.run(call{mode: "success", cell: "prereq", context: map[string]string{"verify_prereq": "echo missing gpu; exit 77"}})
-	if r["outcome"] != "uncertain" || r["error"] != "verification incomplete or missing host prerequisite (exit 77): missing gpu" {
+	if errMsg, _ := r["error"].(string); r["outcome"] != "uncertain" || !strings.HasPrefix(errMsg, "verification incomplete or missing host prerequisite (exit 77): missing gpu") || !strings.Contains(errMsg, "prereq-a1.diagnostics.json") {
 		t.Fatalf("exit 77 must be uncertain: %v", r)
 	}
 	r = f.run(call{mode: "success", cell: "dirtyv", context: map[string]string{"verify_dirtyv": "echo leak > leak.tmp"}})
-	if r["outcome"] != "uncertain" || !strings.Contains(r["error"].(string), "left uncommitted or untracked changes in worktree") {
+	if errMsg, _ := r["error"].(string); r["outcome"] != "uncertain" || !strings.Contains(errMsg, "left uncommitted or untracked changes in worktree") || !strings.Contains(errMsg, "dirtyv-a1.diagnostics.json") {
 		t.Fatalf("dirty verify worktree must be uncertain: %v", r)
 	}
 }
@@ -477,12 +488,12 @@ func TestCleanup(t *testing.T) {
 func TestBuildPlan(t *testing.T) {
 	plan, err := buildPlan(planOptions{agent: "codex", repo: "/repo", base: "dev", executable: "/bin/irrigator", model: "gpt-x",
 		tasks: []string{"docs=Fix typos", "tests=Add a test"}, depends: []string{"tests=docs"}, verify: []string{"tests=go test ./..."},
-		addDirs: []string{"/ref"}, continueFrom: "abc"})
+		addDirs: []string{"/ref"}, seedIgnored: []string{"node_modules,.venv"}, continueFrom: "abc"})
 	if err != nil {
 		t.Fatal(err)
 	}
 	raw, _ := json.Marshal(plan)
-	for _, want := range []string{`"api_version":"swarm/v1"`, `"max_tasks":2`, `"command":["/bin/irrigator","_code-worker","--agent","codex","--repo","/repo","--base","dev","--model","gpt-x","--add-dir","/ref","--continue-from","abc"]`,
+	for _, want := range []string{`"api_version":"swarm/v1"`, `"max_tasks":2`, `"command":["/bin/irrigator","_code-worker","--agent","codex","--repo","/repo","--base","dev","--model","gpt-x","--add-dir","/ref","--seed-ignored","node_modules,.venv","--continue-from","abc"]`,
 		`"env":["USER"]`, `"depends_on":["docs"]`, `"input_fields":{"docs":["summary"]}`, `"context":{"verify_tests":"go test ./..."}`, `"requires":["branch","commit","diffstat","summary"]`} {
 		if !strings.Contains(string(raw), want) {
 			t.Fatalf("plan lacks %s:\n%s", want, raw)
@@ -495,6 +506,8 @@ func TestBuildPlan(t *testing.T) {
 		{agent: "claude", tasks: []string{"a=x", "a=y"}},
 		{agent: "claude", tasks: []string{"a=x"}, depends: []string{"a=a"}},
 		{agent: "claude", tasks: []string{"a=x"}, verify: []string{"b=true"}},
+		{agent: "claude", tasks: []string{"a=x"}, seedIgnored: []string{"../outside"}},
+		{agent: "claude", tasks: []string{"a=x"}, seedIgnored: []string{".git/config"}},
 	} {
 		if _, err := buildPlan(bad); err == nil {
 			t.Fatalf("accepted %+v", bad)
@@ -568,12 +581,321 @@ func TestVerificationPreservesCommitAndBranchIdentity(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			f := newFixture(t)
 			r := f.run(call{mode: "success", context: map[string]string{"verify_cell1": command}})
-			if r["outcome"] != "uncertain" || r["error"] != "verification changed commit or branch identity" {
+			if errMsg, _ := r["error"].(string); r["outcome"] != "uncertain" || !strings.HasPrefix(errMsg, "verification changed commit or branch identity") || !strings.Contains(errMsg, "cell1-a1.diagnostics.json") {
 				t.Fatalf("verification identity change accepted: %v", r)
 			}
 			if _, ok := r["output"]; ok {
 				t.Fatalf("identity change produced accepted output: %v", r)
 			}
 		})
+	}
+}
+
+func TestFormatUsageNonAdditiveAndValidation(t *testing.T) {
+	u := usageFor(map[string]any{
+		"input_tokens":                120,
+		"output_tokens":               85,
+		"thinking_tokens":             40, // already included in output_tokens
+		"cache_read_input_tokens":     800,
+		"cache_creation_input_tokens": 50,
+	}, "claude-sonnet-4-6")
+	if u == nil {
+		t.Fatal("expected valid usage")
+	}
+	if u["input_tokens"] != int64(120) || u["cache_read_tokens"] != int64(800) || u["cache_write_tokens"] != int64(50) {
+		t.Fatalf("input_tokens must not be inflated with cache_read_tokens: %+v", u)
+	}
+	// total_tokens = 120 + 85 + 800 + 50 = 1055 (thinking_tokens not added twice)
+	if u["total_tokens"] != int64(1055) {
+		t.Fatalf("total_tokens = %v, want 1055", u["total_tokens"])
+	}
+
+	for name, bad := range map[string]map[string]any{
+		"negative":                 {"input_tokens": -1, "output_tokens": 5},
+		"float":                    {"input_tokens": 1.5, "output_tokens": 5},
+		"bool":                     {"input_tokens": true, "output_tokens": 5},
+		"overflow_float":           {"input_tokens": float64(1 << 63)},
+		"conflicting_cache_read":   {"cache_read_input_tokens": 100, "cache_read_tokens": 200},
+		"conflicting_cache_write":  {"cache_creation_input_tokens": 10, "cache_write_tokens": 20},
+		"zero_total_with_thinking": {"input_tokens": 0, "output_tokens": 0, "thinking_tokens": 10},
+		"empty":                    {},
+		"model_only":               {"model": "claude-sonnet-4-6"},
+		"sum_overflow":             {"input_tokens": int64(1<<63 - 1), "output_tokens": 1},
+	} {
+		if got := usageFor(bad, ""); got != nil {
+			t.Errorf("%s: expected nil usage, got %+v", name, got)
+		}
+	}
+}
+
+func TestPartialUsageObservationAndSidecarAcrossAgents(t *testing.T) {
+	t.Run("claude interrupted deduplicates message IDs and keeps canonical usage nil", func(t *testing.T) {
+		f := newFixture(t)
+		events := strings.Join([]string{
+			`{"type":"assistant","message":{"id":"msg_01","model":"claude-fake","usage":{"input_tokens":100,"output_tokens":5,"cache_read_input_tokens":500}}}`,
+			`{"type":"assistant","message":{"id":"msg_01","model":"claude-fake","usage":{"input_tokens":100,"output_tokens":32,"thinking_tokens":12,"cache_read_input_tokens":500}}}`,
+			`{"type":"assistant","message":{"id":"bad id with spaces","usage":{"input_tokens":999,"output_tokens":999}}}`,
+			`{"type":"assistant","message":{"id":"msg_01","usage":{"input_tokens":-1}}}`, // invalid update must not erase msg_01
+			`{"type":"assistant","message":{"id":"msg_02","model":"claude-fake","usage":{"input_tokens":20,"output_tokens":18,"cache_read_input_tokens":300,"cache_creation_input_tokens":10}}}`,
+		}, "\n")
+		t.Setenv("FAKE_CLAUDE_EVENTS", events)
+		r := f.run(call{agent: "claude", mode: "noresult"})
+		if r["outcome"] != "uncertain" {
+			t.Fatalf("expected uncertain, got %v", r)
+		}
+		if _, hasUsage := r["usage"]; hasUsage {
+			t.Fatalf("partial observation must not populate canonical usage: %v", r["usage"])
+		}
+		if _, hasCost := r["cost_usd"]; hasCost {
+			t.Fatalf("cost_usd must remain absent when interrupted: %v", r)
+		}
+		sidecarPath := filepath.Join(f.root, "wt", "01234567", "cell1-a1.diagnostics.json")
+		if errMsg, _ := r["error"].(string); !strings.Contains(errMsg, sidecarPath) || !strings.Contains(errMsg, "980 observed tokens") || !strings.Contains(errMsg, "USD unknown") {
+			t.Fatalf("unexpected error note: %q", errMsg)
+		}
+		info, err := os.Stat(sidecarPath)
+		if err != nil {
+			t.Fatalf("sidecar missing: %v", err)
+		}
+		if info.Mode().Perm() != 0o600 {
+			t.Fatalf("sidecar mode = %o, want 0600", info.Mode().Perm())
+		}
+		var diag map[string]any
+		raw, _ := os.ReadFile(sidecarPath)
+		if err := json.Unmarshal(raw, &diag); err != nil {
+			t.Fatal(err)
+		}
+		if diag["schema"] != diagnosticsSchema {
+			t.Fatalf("schema = %v", diag["schema"])
+		}
+		obs, _ := diag["usage_observation"].(map[string]any)
+		if obs["basis"] != "assistant_stream" || obs["complete"] != false || obs["aggregation"] != "last_valid_snapshot_per_message_id" ||
+			obs["messages_observed"] != float64(2) || obs["invalid_events_ignored"] != float64(2) {
+			t.Fatalf("unexpected observation metadata: %v", obs)
+		}
+		toks, _ := obs["observed_tokens"].(map[string]any)
+		if toks["input_tokens"] != float64(120) || toks["output_tokens"] != float64(50) || toks["thinking_tokens"] != float64(12) ||
+			toks["cache_read_tokens"] != float64(800) || toks["cache_write_tokens"] != float64(10) || toks["total_tokens"] != float64(980) {
+			t.Fatalf("unexpected observed_tokens: %v", toks)
+		}
+	})
+
+	t.Run("terminal usage supersedes stream observations without sidecar", func(t *testing.T) {
+		f := newFixture(t)
+		t.Setenv("FAKE_CLAUDE_EVENTS", `{"type":"assistant","message":{"id":"msg_99","usage":{"input_tokens":9999,"output_tokens":99}}}`)
+		t.Setenv("FAKE_CLAUDE_USAGE", `{"input_tokens":50,"output_tokens":20,"thinking_tokens":5,"cache_read_input_tokens":100}`)
+		r := f.run(call{agent: "claude", mode: "success"})
+		if r["outcome"] != "settled" {
+			t.Fatalf("expected settled: %v", r)
+		}
+		usage, _ := r["usage"].(map[string]any)
+		if usage["input_tokens"] != float64(50) || usage["total_tokens"] != float64(170) {
+			t.Fatalf("unexpected canonical usage: %v", usage)
+		}
+		sidecarPath := filepath.Join(f.root, "wt", "01234567", "cell1-a1.diagnostics.json")
+		if _, err := os.Stat(sidecarPath); !os.IsNotExist(err) {
+			t.Fatalf("sidecar should not exist on clean terminal completion: %v", err)
+		}
+	})
+
+	t.Run("invalid terminal usage falls back to partial observation", func(t *testing.T) {
+		f := newFixture(t)
+		t.Setenv("FAKE_CLAUDE_EVENTS", `{"type":"assistant","message":{"id":"msg_1","usage":{"input_tokens":15,"output_tokens":5}}}`)
+		t.Setenv("FAKE_CLAUDE_USAGE", `{"input_tokens":-5,"output_tokens":10}`)
+		r := f.run(call{agent: "claude", mode: "success"})
+		if _, hasUsage := r["usage"]; hasUsage {
+			t.Fatalf("invalid terminal usage must leave canonical usage nil: %v", r["usage"])
+		}
+		sidecarPath := filepath.Join(f.root, "wt", "01234567", "cell1-a1.diagnostics.json")
+		if _, err := os.Stat(sidecarPath); err != nil {
+			t.Fatalf("expected diagnostics sidecar when terminal usage is invalid: %v", err)
+		}
+	})
+
+	t.Run("codex interrupted item usage and agy print_timeout observation", func(t *testing.T) {
+		f := newFixture(t)
+		t.Setenv("FAKE_CODEX_EVENTS", `{"type":"item.completed","item":{"id":"step_1","type":"agent_message","text":"working","usage":{"input_tokens":40,"cached_input_tokens":10,"output_tokens":12,"reasoning_output_tokens":4}}}`)
+		rc := f.run(call{agent: "codex", mode: "noresult", cell: "cdx"})
+		if _, hasUsage := rc["usage"]; hasUsage {
+			t.Fatalf("codex noresult must not set usage: %v", rc)
+		}
+		if _, err := os.Stat(filepath.Join(f.root, "wt", "01234567", "cdx-a1.diagnostics.json")); err != nil {
+			t.Fatalf("codex sidecar missing: %v", err)
+		}
+
+		ra := f.run(call{agent: "agy", mode: "agytimeout", cell: "agyto"})
+		if ra["outcome"] != "uncertain" {
+			t.Fatalf("expected uncertain, got %v", ra)
+		}
+		if _, hasUsage := ra["usage"]; hasUsage {
+			t.Fatalf("agy timeout must not set canonical usage: %v", ra)
+		}
+		agySidecar := filepath.Join(f.root, "wt", "01234567", "agyto-a1.diagnostics.json")
+		raw, err := os.ReadFile(agySidecar)
+		if err != nil {
+			t.Fatalf("agy sidecar missing: %v", err)
+		}
+		if !strings.Contains(string(raw), `"total_tokens": 6`) {
+			t.Fatalf("expected agy partial observation in sidecar: %s", raw)
+		}
+	})
+}
+
+func TestUsageObservationsBoundsAndOverflow(t *testing.T) {
+	obs := newUsageObservations()
+	for i := 0; i < maxUsageMessages+5; i++ {
+		obs.observe(fmt.Sprintf("m%d", i), map[string]any{"input_tokens": 1, "output_tokens": 1}, "")
+	}
+	rep := obs.report()
+	if rep == nil || !rep.Truncated || rep.MessagesObserved != maxUsageMessages {
+		t.Fatalf("expected truncated at %d, got %+v", maxUsageMessages, rep)
+	}
+	overflow := newUsageObservations()
+	overflow.observe("m1", map[string]any{"input_tokens": int64(1 << 62), "output_tokens": 0}, "")
+	overflow.observe("m2", map[string]any{"input_tokens": int64(1 << 62), "output_tokens": 0}, "")
+	ovRep := overflow.report()
+	if ovRep == nil || ovRep.CountsUnavailable != "overflow" || ovRep.ObservedTokens != nil {
+		t.Fatalf("expected overflow report, got %+v", ovRep)
+	}
+}
+
+func TestVerificationGitStatusBoundsAndSidecarProtection(t *testing.T) {
+	t.Run("porcelain-z handles renames and bounds", func(t *testing.T) {
+		raw := []byte(" M tracked.go\x00R  new name.go\x00old name.go\x00?? extra.tmp\x00")
+		entries, clipped, more := parsePorcelainZ(raw, 2, 64)
+		if clipped || !more || len(entries) != 2 {
+			t.Fatalf("entries=%+v clipped=%v more=%v", entries, clipped, more)
+		}
+		if entries[1].Status != "R " || entries[1].Path != "new name.go" || entries[1].OriginalPath != "old name.go" {
+			t.Fatalf("rename mismatch: %+v", entries[1])
+		}
+	})
+
+	t.Run("dirty verify writes before/after diff and retry preserves evidence", func(t *testing.T) {
+		f := newFixture(t)
+		r := f.run(call{mode: "success", context: map[string]string{"verify_cell1": "echo cov > verifier.log; exit 3"}})
+		if r["outcome"] != "settled" {
+			t.Fatalf("expected settled, got %v", r)
+		}
+		errMsg, _ := r["error"].(string)
+		if !strings.Contains(errMsg, "verification finished with uncommitted work") {
+			t.Fatalf("expected dirty worktree recovery hint in error: %q", errMsg)
+		}
+		sidecarPath := filepath.Join(f.root, "wt", "01234567", "cell1-a1.diagnostics.json")
+		raw, err := os.ReadFile(sidecarPath)
+		if err != nil {
+			t.Fatalf("missing sidecar: %v", err)
+		}
+		var diag map[string]any
+		if err := json.Unmarshal(raw, &diag); err != nil {
+			t.Fatal(err)
+		}
+		ver, _ := diag["verification"].(map[string]any)
+		before, _ := ver["before"].(map[string]any)
+		after, _ := ver["after"].(map[string]any)
+		if before["dirty"] != false || after["dirty"] != true || after["complete"] != true {
+			t.Fatalf("unexpected verification snapshots: %v", ver)
+		}
+		dirtied, _ := ver["dirtied_entries"].([]any)
+		if len(dirtied) != 1 || dirtied[0].(map[string]any)["path"] != "verifier.log" {
+			t.Fatalf("unexpected dirtied_entries: %v", ver["dirtied_entries"])
+		}
+		// Retry must refuse because worktree is dirty, leaving sidecar intact.
+		retry := f.run(call{mode: "second", attempt: 2})
+		if retry["outcome"] != "not_started" {
+			t.Fatalf("expected retry refused: %v", retry)
+		}
+	})
+
+	t.Run("O_EXCL refuses symlink or existing sidecar overwrite and omits invalid identity", func(t *testing.T) {
+		f := newFixture(t)
+		wtParent := filepath.Join(f.root, "wt", "badrun01")
+		if err := os.MkdirAll(wtParent, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		sentinel := filepath.Join(f.root, "sentinel.txt")
+		if err := os.WriteFile(sentinel, []byte("keep me\n"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		sidecarPath := filepath.Join(wtParent, "cell1-a1.diagnostics.json")
+		if err := os.Symlink(sentinel, sidecarPath); err != nil {
+			t.Fatal(err)
+		}
+		t.Setenv("FAKE_CLAUDE_EVENTS", `{"type":"assistant","message":{"id":"m1","usage":{"input_tokens":5,"output_tokens":5}}}`)
+		r := f.run(call{runID: "badrun01", mode: "noresult"})
+		if errMsg, _ := r["error"].(string); !strings.Contains(errMsg, "existing evidence was not replaced") {
+			t.Fatalf("expected O_EXCL warning in error: %q", errMsg)
+		}
+		got, _ := os.ReadFile(sentinel)
+		if string(got) != "keep me\n" {
+			t.Fatalf("symlink target was overwritten: %q", got)
+		}
+		id := buildDiagnosticsIdentity(model.WorkRequest{
+			RunID:       "bad\nrun",
+			RequestID:   "req-ok",
+			OperationID: strings.Repeat("x", 300),
+			Attempt:     -2,
+			Task:        model.Task{ID: "cell1"},
+		})
+		if id.RunID != "" || id.OperationID != "" || id.Attempt != 0 || id.RequestID != "req-ok" || len(id.OmittedInvalidFields) != 3 {
+			t.Fatalf("unexpected identity sanitization: %+v", id)
+		}
+	})
+}
+
+func TestSeedIgnoredWorktreeSeeding(t *testing.T) {
+	f := newFixture(t)
+	if err := os.WriteFile(filepath.Join(f.repo, ".gitignore"), []byte("node_modules/\n.cache.bin\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	f.git(f.repo, "add", ".gitignore")
+	f.git(f.repo, "commit", "-q", "-m", "add gitignore")
+
+	// Create gitignored directory + relative symlink + ignored file + unignored file.
+	nm := filepath.Join(f.repo, "node_modules", "pkg")
+	if err := os.MkdirAll(nm, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(nm, "index.js"), []byte("module.exports = 1;\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(f.repo, ".cache.bin"), []byte("cached"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(f.repo, "unignored.txt"), []byte("nope"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Valid seeding via --seed-ignored + missing optional entry + context seed_ignored keeps git status clean.
+	r := f.run(call{
+		mode:        "success",
+		seedIgnored: []string{"node_modules,missing_optional"},
+		context:     map[string]string{"seed_ignored": ".cache.bin"},
+	})
+	if r["outcome"] != "settled" {
+		t.Fatalf("seeded run failed: %v", r)
+	}
+	wt := filepath.Join(f.root, "wt", "01234567", "cell1-a1")
+	if data, err := os.ReadFile(filepath.Join(wt, "node_modules", "pkg", "index.js")); err != nil || string(data) != "module.exports = 1;\n" {
+		t.Fatalf("seeded directory file missing: %q %v", data, err)
+	}
+	if data, err := os.ReadFile(filepath.Join(wt, ".cache.bin")); err != nil || string(data) != "cached" {
+		t.Fatalf("seeded file missing: %q %v", data, err)
+	}
+	if status := f.git(wt, "status", "--porcelain"); status != "" {
+		t.Fatalf("seeded worktree has dirty git status: %q", status)
+	}
+
+	// Refusal cases: tracked file, unignored file, traversal, .git.
+	for name, badSeed := range map[string]string{
+		"tracked":   "README.md",
+		"unignored": "unignored.txt",
+		"traversal": "../outside",
+		"dotgit":    ".git/config",
+	} {
+		badResp := f.run(call{mode: "success", cell: "bad-" + name, seedIgnored: []string{badSeed}})
+		if badResp["outcome"] != "not_started" || !strings.Contains(badResp["error"].(string), "worktree seeding failed") {
+			t.Fatalf("%s: expected not_started seeding failure, got %v", name, badResp)
+		}
 	}
 }
