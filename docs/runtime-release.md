@@ -105,7 +105,8 @@ per-target checksums when downloading multiple candidate artifacts; their
 The shared [Homebrew tap](homebrew.md) is `grainulation/homebrew`. Its stable
 formula is pinned to the four tested release archives and promoted in a separate
 distribution-only commit; the optional HEAD recipe builds development source.
-`Formula/irrigator.rb` here is the generator template and compatibility mirror
-for the former source-repository tap. Keep both formula copies identical when
-promoting a release. A tag or release page without all four published archives
+The source repository retains only a non-tappable generator template and
+explicit-formula QA tools; there is no compatibility formula mirror. Existing
+source-repository tap users should follow the [manual migration](homebrew.md#move-an-existing-source-repository-tap-installation).
+A tag or release page without all four published archives
 does not qualify for a stable formula update.

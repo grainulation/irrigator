@@ -3,7 +3,7 @@
 
 Does not publish, install, overwrite a formula, or claim native execution of
 cross-platform archives. Run the native candidate acceptance jobs first. Promote
-the reviewed output to grainulation/homebrew; retain the source copy as a mirror.
+the reviewed output to grainulation/homebrew, the sole maintained tap.
 """
 import argparse
 import hashlib
@@ -18,7 +18,7 @@ SPEC.loader.exec_module(checker)
 TARGETS = ("darwin/amd64", "darwin/arm64", "linux/amd64", "linux/arm64")
 BEGIN = "  # BEGIN GENERATED STABLE RELEASE"
 END = "  # END GENERATED STABLE RELEASE"
-TEMPLATE = Path(__file__).resolve().parents[1] / "Formula/irrigator.rb"
+TEMPLATE = Path(__file__).with_name("templates") / "irrigator.rb.in"
 
 
 def render(archives, version, commit, published_checksums=None):

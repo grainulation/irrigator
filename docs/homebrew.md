@@ -55,8 +55,10 @@ executable; it does not migrate, delete or rewrite Irrigator runs,
 plans, checkpoints or provider configuration. Check the installed formula's tap
 in the final `brew info` output before optionally running
 `brew untap grainulation/irrigator`. Keep the old tap if another installed
-formula still needs it. The source repository retains a compatibility formula
-mirror, so existing installations have time to move explicitly.
+formula still needs it. The old source-repository tap is no longer maintained;
+the shared tap is the sole maintained formula source. Removing the old tap does
+not remove an already installed CLI or alter its run data. Existing installations
+keep working, but need this explicit move to receive future formula updates.
 
 ## Development source installation
 
@@ -77,13 +79,13 @@ development pin. For an existing development installation, use
 
 ```sh
 make check-tools
-make check-homebrew
+make check-homebrew FORMULA=tools/templates/irrigator.rb.in
 ```
 
 `check-homebrew` requires Homebrew and a compatible Go compiler with the module
 dependencies available. It registers an owned temporary local tap, loads the
-actual formula through Homebrew, builds into a private prefix, and runs the
-formula's credential-free demo/export test. It cleans up the temporary tap and
+explicitly selected HEAD-only generator template through Homebrew, builds into a
+private prefix, and runs the formula's credential-free demo/export test. It cleans up the temporary tap and
 prefix. It does not install a keg, resolve/install formula dependencies, or
 establish a fresh public-network `brew install`. Like `brew test`, it may
 initialize Homebrew's own pinned formula-test gems on first use. CI runs it on
@@ -91,8 +93,10 @@ macOS; the Python candidate checks also run on Linux.
 
 ## Prepare a pinned release formula update
 
-The checked-in stable stanza is generated from verified release archives, with
-literal URLs and SHA-256 values. It has no placeholder checksums. For a release
+The shared tap's stable stanza is generated from verified release archives, with
+literal URLs and SHA-256 values. The source repository keeps only a non-tappable
+[generator template](../tools/templates/irrigator.rb.in), whose stable section
+is empty until generation; it is not an installable stable formula. For a release
 update, wait for all four native candidate jobs to pass for one frozen runtime
 commit. Download their archives into separate directories, verify their provided
 checksums, and generate the new stable stanza (substitute the intended version):
@@ -137,8 +141,8 @@ downloaded bytes verifies consistency, not publisher authentication.
 The generated comments record the frozen runtime commit and common source hash.
 Compare them with the intended release before promotion. Copy the reviewed,
 tested formula to `Formula/irrigator.rb` in `grainulation/homebrew` in a separate
-distribution-only commit, and keep `Formula/irrigator.rb` in this source
-repository identical as the generator template and compatibility mirror.
+distribution-only commit. The shared tap is the sole maintained formula; do not
+add a duplicate formula to this source repository.
 Retain the release tag at the frozen runtime commit.
 Committing formula hashes into that frozen commit would change archive
 provenance and therefore change the hashes again. Do not rebuild or retag the

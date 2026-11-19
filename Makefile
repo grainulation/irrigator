@@ -57,7 +57,8 @@ check-tools:
 
 # Actual Homebrew formula DSL, build recipe and mock test in a private prefix.
 check-homebrew:
-	python3 -I verification/check_homebrew.py
+	@test -n "$(FORMULA)" || { echo 'Set FORMULA to a reviewed generated formula or tools/templates/irrigator.rb.in for HEAD'; exit 1; }
+	python3 -I verification/check_homebrew.py --formula "$(FORMULA)"
 
 # ACP command worker test suite (examples/acp, Node.js 20+).
 check-acp:
