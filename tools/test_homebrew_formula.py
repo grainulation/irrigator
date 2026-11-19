@@ -3,6 +3,7 @@
 import json
 from pathlib import Path
 import sys
+import subprocess
 import tempfile
 import unittest
 from unittest import mock
@@ -50,6 +51,22 @@ class HomebrewFormulaTest(unittest.TestCase):
             self.assertEqual(rendered.count(formula.BEGIN), 1)
             self.assertIn(f"# Frozen runtime commit: {COMMIT}", rendered)
             self.assertIn(f"# Source SHA-256: {SOURCE}", rendered)
+
+    def test_template_has_no_published_release_pins(self):
+        template = formula.TEMPLATE.read_text()
+        stable = template.split(formula.BEGIN, 1)[1].split(formula.END, 1)[0]
+        self.assertNotIn("version ", stable)
+        self.assertNotIn("sha256 ", stable)
+        self.assertNotIn("url ", stable)
+        self.assertEqual(formula.TEMPLATE.suffix, ".in")
+
+    def test_recipe_checker_requires_explicit_formula_before_homebrew(self):
+        result = subprocess.run(
+            [sys.executable, "-I", str(ROOT / "verification/check_homebrew.py")],
+            env={"PATH": ""}, text=True, capture_output=True,
+        )
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("required: --formula", result.stderr)
 
     def test_published_promotion_requires_the_exact_complete_checksum_set(self):
         with tempfile.TemporaryDirectory() as directory:

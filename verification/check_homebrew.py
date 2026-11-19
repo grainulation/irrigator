@@ -64,7 +64,8 @@ def check(formula, archive=None):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--formula", type=Path, default=ROOT / "Formula/irrigator.rb")
+    parser.add_argument("--formula", type=Path, required=True,
+                        help="explicit generated formula or HEAD-only generator template")
     parser.add_argument("--archive", type=Path, help="checked native candidate for the generated stable recipe")
     args = parser.parse_args()
     try:

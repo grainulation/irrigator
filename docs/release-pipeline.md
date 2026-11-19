@@ -77,7 +77,7 @@ comment, like the other actions in the workflows.
 
 There is no Homebrew cask: casks are quarantined by macOS and would need
 notarization, which this pipeline does not provide. The distribution paths are
-a source build (`make build`), the repository's [Homebrew formula](homebrew.md),
+a source build (`make build`), the shared tap's [Homebrew formula](homebrew.md),
 or a curl installer that fetches an archive and runs
 `irrigator update-check` before installing. No curl installer ships in this
 repository yet; `make install` from a source checkout is the existing local path.
