@@ -27,7 +27,7 @@
 </p>
 
 <p align="center">
-  <a href="#try-it-without-credentials">Quick start</a> ·
+  <a href="#quick-start">Quick start</a> ·
   <a href="docs/first-run.md">First run</a> ·
   <a href="#plugins">Plugins</a> ·
   <a href="docs/agent-setup.md">Agent setup</a> ·
@@ -52,10 +52,30 @@ Codex and Antigravity plugins**. Inspect the work and resume from your terminal.
 | **Recovery decisions** | Uncertain external work stays visible and is never silently replayed. |
 | **Terminal review** | `status --watch`, `graph`, `review tui` and a read-only MCP view. |
 
-## Try it without credentials
+## Quick start
+
+Install the stable CLI from the shared [Grainulation tap](docs/homebrew.md):
+
+```sh
+brew tap grainulation/homebrew https://github.com/grainulation/homebrew
+brew install grainulation/homebrew/irrigator
+irrigator doctor
+irrigator demo
+```
+
+The demo uses mock workers, needs no credentials and makes no model calls.
+Each invocation creates a fresh run directory and prints inspection commands.
+For your own plan, follow the [first-run guide](docs/first-run.md).
+
+The stable formula installs a pinned release archive and does not need Go.
+See the tap's [available formulae](https://github.com/grainulation/homebrew#available-formulae)
+for the current stable version. For a development source build, use
+`brew install --HEAD grainulation/homebrew/irrigator`.
+See the [Homebrew guide](docs/homebrew.md) for supported platforms, upgrades and checks.
+
+### From source
 
 Requires **Go 1.26.7+**, `make` and a POSIX shell. Development and CI pin Go 1.27.2.
-From a source checkout:
 
 ```sh
 git clone https://github.com/grainulation/irrigator.git
@@ -65,28 +85,10 @@ make build
 ./irrigator demo
 ```
 
-The demo uses mock workers, needs no credentials and makes no model calls.
-Each invocation creates a fresh run directory and prints inspection commands.
-For your own plan, follow the [first-run guide](docs/first-run.md).
-
 To install from this checkout, run `make install PREFIX="$HOME/.local"` and add
 `$HOME/.local/bin` to `PATH`. Installation copies the CLI; agent plugins and
 provider tools have their own setup. CLI archives and their installation checks
 are described in [runtime releases](docs/runtime-release.md).
-
-Homebrew users can install the stable CLI from the shared [Grainulation tap](docs/homebrew.md):
-
-```sh
-brew tap grainulation/homebrew https://github.com/grainulation/homebrew
-brew install grainulation/homebrew/irrigator
-irrigator demo
-```
-
-The stable formula installs a pinned release archive and does not need Go.
-See the tap's [available formulae](https://github.com/grainulation/homebrew#available-formulae)
-for the current stable version. For a development source build, use
-`brew install --HEAD grainulation/homebrew/irrigator`.
-See the [Homebrew guide](docs/homebrew.md) for supported platforms, upgrades and checks.
 
 ### Ask your agent to start
 
