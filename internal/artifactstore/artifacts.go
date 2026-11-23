@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"maps"
 	"path"
 	"reflect"
 	"strings"
@@ -92,11 +93,15 @@ func ModelSchemaForRequest(req model.WorkRequest) map[string]any {
 		}
 		requestProps := map[string]any{"helpers": map[string]any{"type": "array", "maxItems": helpers, "items": child}, "wait_for_helpers": map[string]any{"type": "boolean", "enum": []bool{false}}}
 		if canContinue {
-			requestProps["continue"] = child
+			// The runtime assigns the continuation ID. Helpers supply their own local IDs.
+			continuation := maps.Clone(def)
+			continuation["required"] = []string{"prompt", "requires"}
+			b.Defs["Continuation"] = continuation
+			requestProps["continue"] = map[string]any{"$ref": "#/$defs/Continuation"}
 		}
 		variants := []any{map[string]any{"type": "object", "properties": requestProps, "additionalProperties": false}}
 		if canContinue {
-			waitProps := map[string]any{"continue": child, "helpers": map[string]any{"type": "array", "maxItems": helpers, "items": child}, "wait_for_helpers": map[string]any{"type": "boolean", "enum": []bool{true}}}
+			waitProps := map[string]any{"continue": requestProps["continue"], "helpers": map[string]any{"type": "array", "maxItems": helpers, "items": child}, "wait_for_helpers": map[string]any{"type": "boolean", "enum": []bool{true}}}
 			if bounds != nil {
 				waitProps["helpers"].(map[string]any)["maxItems"] = min(helpers, max(0, bounds.TaskSlotsRemaining-1))
 			}

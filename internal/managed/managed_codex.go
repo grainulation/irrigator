@@ -216,6 +216,46 @@ func codexUsage(value any) (*codexTokenUsage, error) {
 	return &usage, nil
 }
 
+// The provider constrains the outer string, not the JSON encoded inside it.
+// Reject explicit null controls before encoding/json can turn them into an
+// absent continuation or false wait flag. Graph admission still owns task and
+// authority validation, and historical worker/checkpoint decoding is unchanged.
+func validateCodexTurnRequestControls(task model.Task, output map[string]string) error {
+	if task.Turn == nil || !artifactstore.TurnContains(task.Requires, artifactstore.TurnRequestField) {
+		return nil
+	}
+	source := output[artifactstore.TurnRequestField]
+	if strings.TrimSpace(source) == "" {
+		return nil // Preserve explicit legacy stop strings.
+	}
+	proposal, err := codexObject([]byte(source))
+	if err != nil {
+		return fmt.Errorf("Codex turn_request: %w", err)
+	}
+	if value, present := proposal["continue"]; present {
+		if _, ok := value.(map[string]any); !ok {
+			return errors.New("Codex turn_request.continue must be an object")
+		}
+	}
+	if value, present := proposal["helpers"]; present {
+		helpers, ok := value.([]any)
+		if !ok {
+			return errors.New("Codex turn_request.helpers must be an array")
+		}
+		for i, helper := range helpers {
+			if _, ok := helper.(map[string]any); !ok {
+				return fmt.Errorf("Codex turn_request.helpers[%d] must be an object", i)
+			}
+		}
+	}
+	if value, present := proposal["wait_for_helpers"]; present {
+		if _, ok := value.(bool); !ok {
+			return errors.New("Codex turn_request.wait_for_helpers must be a boolean")
+		}
+	}
+	return nil
+}
+
 func ParseManagedCodexStream(raw []byte, task model.Task) (map[string]string, *codexTokenUsage, error) {
 	var output map[string]string
 	var usage *codexTokenUsage
@@ -303,6 +343,9 @@ func ParseManagedCodexStream(raw []byte, task model.Task) (map[string]string, *c
 	}
 	if !completed {
 		return nil, nil, errors.New("Codex stream ended without success")
+	}
+	if err := validateCodexTurnRequestControls(task, output); err != nil {
+		return nil, nil, err
 	}
 	return output, usage, nil
 }

@@ -11,6 +11,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/google/jsonschema-go/jsonschema"
+
 	"github.com/grainulation/irrigator/internal/artifactstore"
 	"github.com/grainulation/irrigator/internal/launch"
 	"github.com/grainulation/irrigator/internal/model"
@@ -253,6 +255,21 @@ func TestManagedCodexAdapterUsesTurnStringSchema(t *testing.T) {
 			}
 			if err := codexStrictObjects(codexSchemaJSON(t, got), "$"); err != nil {
 				t.Fatalf("adapter dispatched rejected object schema: %v", err)
+			}
+			guidance, err := json.Marshal(codexTurnAdvice(t, got))
+			if err != nil {
+				t.Fatal(err)
+			}
+			var schema jsonschema.Schema
+			if err := json.Unmarshal(guidance, &schema); err != nil {
+				t.Fatal(err)
+			}
+			resolved, err := schema.Resolve(nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := resolved.Validate(codexSchemaJSON(t, []byte(response.Output[artifactstore.TurnRequestField]))); err != nil {
+				t.Fatalf("decoded fixture violates the dispatched turn guidance: %v", err)
 			}
 			want, err := managedCodexSchema(req)
 			if err != nil || !reflect.DeepEqual(codexSchemaJSON(t, got), codexSchemaJSON(t, want)) {

@@ -200,8 +200,12 @@ For turn-aware tasks, Codex returns `turn_request` as a JSON-encoded string,
 for example `"turn_request": "{}"` to stop. The output schema describes the
 bounded proposal inside that string. This preserves optional continuation and
 helper fields without sending permissive task-object definitions to Codex's
-strict schema validator. Irrigator validates the decoded request against its
-runtime admission rules before creating any continuation or helper. Other
+strict schema validator. Before accepting the result, the Codex adapter checks
+decoded turn-control types, rejecting explicit nulls or incorrect types
+for `continue`, `helpers`, and `wait_for_helpers`, and non-object helper entries.
+Empty or whitespace-only strings remain valid legacy stops. Graph admission
+checks bounds and authority before creating a continuation or helper. The runtime
+assigns continuation IDs; each helper must provide a local ID. Other
 providers retain their typed object schema; saved plans and worker/checkpoint
 string fields are unchanged.
 
