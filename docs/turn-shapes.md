@@ -58,7 +58,8 @@ A main task may return a JSON object encoded in its `turn_request` result field:
 If `turn_request` is declared in `requires`, return `""` or `"{}"` to stop that
 lane early; the declared key must still be present. A task that does not declare
 the field can omit it. Other required outputs must remain nonempty. The
-runtime assigns continuation and helper IDs and metadata. Generated requests may
+runtime assigns the continuation ID and constructs helper IDs from the required
+local helper IDs; it also assigns turn metadata. Generated requests may
 not supply ownership, turn metadata, recursive child spawning, arbitrary dependencies,
 new executable validators, expanded context, or a different provider. Each turn
 admits its entire bounded request atomically with verification of that turn.
@@ -185,13 +186,18 @@ slots, remaining run task slots, and whether waiting for helpers is possible.
 The snapshot is guidance rather than a capacity reservation; admission rechecks
 all limits when the result returns.
 
-The model-facing `turn_request` schema requires a JSON object: use `{}` to stop,
-or an object with bounded helpers and an optional continuation. An empty
-string is also accepted as a stop value by the runtime and stored protocol. Helpers must include
-`id`, `prompt`, and nonempty `requires`. A final turn cannot request a continuation
-or `wait_for_helpers: true`; a helper cannot create work. An earlier main turn can
-wait only with a continuation. Object results normalize to the existing JSON
-string in checkpoints and worker results, preserving the stored protocol.
+For managed providers other than Codex, the model-facing `turn_request` schema
+requires a JSON object: use `{}` to stop, or an object with bounded helpers and
+an optional continuation. Codex instead requires a JSON-encoded string, such as
+`"turn_request": "{}"` to stop. The stored worker and checkpoint protocol uses
+a string for both forms; empty and whitespace-only strings also remain valid
+stop values. A continuation must include `prompt` and nonempty `requires`; its
+ID is assigned by the runtime. Helpers must also include a local `id`. A final
+turn cannot request a continuation or `wait_for_helpers: true`; a helper cannot
+create work. An earlier main turn can
+wait only with a continuation. Codex rejects explicitly null or incorrectly
+typed `continue`, `helpers`, and `wait_for_helpers` fields, including non-object
+helper entries. Graph admission checks bounds and authority before creating work.
 
 For new plans, statically known invalid helper waits in `mock_result` (including
 nested continuations) fail initial validation before creating a run. Old admitted

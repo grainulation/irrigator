@@ -3,6 +3,24 @@
 Changes below describe source revisions. A source commit is not a signed binary
 release. Versioned plan and worker protocols are tracked separately from the CLI.
 
+## 1.2.1 — 2026-11-23
+
+### Changed
+
+- The stable-install quick start consistently uses the shared
+  `grainulation/homebrew` tap.
+
+### Fixed
+
+- Managed Codex turn requests use a compatible JSON-string output schema,
+  preserving bounded continuation/helper guidance and runtime admission.
+- Explicit null or incorrectly typed Codex turn controls are rejected before
+  result settlement, preserving uncertain-cost receipts and raw provider output.
+- Continuation schemas allow runtime-assigned IDs while helpers retain required
+  local IDs. Successful mock responses validate against their dispatched guidance.
+- Turn and execution-profile documentation distinguishes provider wire formats
+  and the control-validation and graph-admission stages.
+
 ## 1.2.0 — 2026-11-18
 
 ### Added

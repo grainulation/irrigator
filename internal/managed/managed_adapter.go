@@ -111,6 +111,9 @@ func ManagedWorkWithHistory(ctx context.Context, cell, prefix string, req model.
 		receipt.InputSHA256 = ManagedBytesDigest(input)
 		if b.Adapter.Kind != "mock" {
 			schema, _ := json.Marshal(artifactstore.ModelSchemaForRequest(req))
+			if b.Adapter.Kind == "codex_cli" {
+				schema, _ = managedCodexSchema(req)
+			}
 			receipt.OutputSchemaSHA256 = ManagedBytesDigest(schema)
 		}
 		if b.Adapter.Kind == "claude_cli" {
