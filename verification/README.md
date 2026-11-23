@@ -49,6 +49,12 @@ localhost listeners for those checks; a sandbox refusal is not a provider failur
 
 ## Regression boundaries
 
+- Codex turn-schema regressions exercise stop, continuation, helper and waiting
+  requests through a fake executable that captures the actual `--output-schema`
+  file. They check strict object closure and required fields, preserve ordinary
+  output schemas and verify the bounded guidance retained inside the string
+  contract. Run `go test ./internal/managed -run '^TestManagedCodex' -count=1`.
+  These are offline protocol checks; they do not establish live model behavior.
 - GC only prunes obsolete attempt logs from a validated stopped run. It preserves
   worktrees, branches and unknown process/effect evidence for explicit recovery.
 - Supervisor and controller tests must use real child processes when asserting

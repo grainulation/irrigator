@@ -196,6 +196,15 @@ explicit WorkRequest and generated output schema carry task inputs. Profile
 byte limits bound those supplied inputs and returned CLI output; they do not
 measure Codex's own built-in system instructions or model token limits.
 
+For turn-aware tasks, Codex returns `turn_request` as a JSON-encoded string,
+for example `"turn_request": "{}"` to stop. The output schema describes the
+bounded proposal inside that string. This preserves optional continuation and
+helper fields without sending permissive task-object definitions to Codex's
+strict schema validator. Irrigator validates the decoded request against its
+runtime admission rules before creating any continuation or helper. Other
+providers retain their typed object schema; saved plans and worker/checkpoint
+string fields are unchanged.
+
 Acceptance requires one terminal success, one valid final structured message
 and nonnegative token usage. Tool invocations, malformed/duplicate events,
 missing usage, failed turns and ambiguous cancellation remain uncertain. Known

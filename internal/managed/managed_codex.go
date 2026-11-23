@@ -61,6 +61,40 @@ func managedCodexArgs(b model.ExecutionBinding, dir, schema string) []string {
 	return append(args, "-")
 }
 
+// Codex requires every object property to be required and every object to be
+// closed, including nested definitions. Turn requests deliberately have optional
+// fields and task maps. Carry that proposal as the worker protocol's JSON string
+// instead; the bounded object schema remains guidance and runtime admission
+// still validates the proposal before changing the graph.
+func managedCodexSchema(req model.WorkRequest) ([]byte, error) {
+	if req.Task.Turn != nil && req.Task.Spawn != nil {
+		return nil, errors.New("Codex turn tasks cannot use legacy spawning")
+	}
+	schema := artifactstore.ModelSchemaForRequest(req)
+	if req.Task.Turn != nil && artifactstore.TurnContains(req.Task.Requires, artifactstore.TurnRequestField) {
+		props := schema["properties"].(map[string]any)
+		proposal := props[artifactstore.TurnRequestField].(map[string]any)
+		// This description addresses providers emitting a typed object. Codex
+		// emits its JSON encoding, so do not pass contradictory instructions.
+		delete(proposal, "description")
+		proposal["$defs"] = schema["$defs"]
+		guidance, err := json.Marshal(proposal)
+		if err != nil {
+			return nil, err
+		}
+		props[artifactstore.TurnRequestField] = map[string]any{
+			"type": "string",
+			"description": "Return a JSON-encoded turn request object as a STRING, not a nested object. " +
+				"Use the string \"{}\" to stop. Continuations and one-shot helpers must obey the supplied execution boundaries. " +
+				"The decoded object must satisfy this schema; Irrigator validates it before admission: " + string(guidance),
+		}
+		// A valid turn task cannot also use legacy spawning; these definitions
+		// belonged only to the proposal now carried inside the string.
+		delete(schema, "$defs")
+	}
+	return json.Marshal(schema)
+}
+
 func managedCodexWork(ctx context.Context, cell, prefix string, req model.WorkRequest, b model.ExecutionBinding, input []byte) (model.WorkResponse, error) {
 	response := model.WorkResponse{Protocol: model.ProtocolVersion, RequestID: req.RequestID}
 	fail := func(certainty string, err error) (model.WorkResponse, error) {
@@ -68,8 +102,11 @@ func managedCodexWork(ctx context.Context, cell, prefix string, req model.WorkRe
 		response.Error = err.Error()
 		return response, model.WithOutcome(certainty, err)
 	}
-	schema, err := json.Marshal(artifactstore.ModelSchemaForRequest(req))
-	if err != nil || int64(len(input)+len(schema)) > b.Profile.Limits.InputBytes {
+	schema, err := managedCodexSchema(req)
+	if err != nil {
+		return fail(model.OutcomeNotStarted, fmt.Errorf("Codex output schema: %w", err))
+	}
+	if int64(len(input)+len(schema)) > b.Profile.Limits.InputBytes {
 		return fail(model.OutcomeNotStarted, errors.New("Codex request plus schema exceeds profile limit"))
 	}
 	tempRoot, err := filepath.EvalSymlinks("/tmp")
