@@ -40,7 +40,7 @@ func addMCPTool[In any](s *mcp.Server, cfg McpConfig, name string, handler mcp.T
 	mcp.AddTool(s, &mcp.Tool{
 		Name: mcpToolName(cfg, name), Description: description,
 		InputSchema: namedMCPInputSchema(cfg, name), OutputSchema: mcpOutputSchema(name),
-		Annotations: &mcp.ToolAnnotations{ReadOnlyHint: readOnly, DestructiveHint: &destructive, IdempotentHint: idempotent, OpenWorldHint: &openWorld},
+		Annotations: toolAnnotations(readOnly, destructive, idempotent, openWorld),
 	}, handler)
 }
 
@@ -184,13 +184,13 @@ func mcpOutputSchema(name string) map[string]any {
 		props["runs"] = array("Discovered run rows with name/path/control/executor/verified/total/cost_usd, or path/name/error for unreadable entries. cost_usd is only known reported USD.")
 		required = []string{"runs"}
 	case "run_status":
-		props = map[string]any{"path": text("Resolved run directory."), "backend": text("Saved provider backend."), "control": text("Current durable run control state."), "executor": text("Recorded local executor."), "graph_revision": number("Current admitted graph revision."), "verified": number("Count of accepted verified cells."), "total": number("Total cells."), "cost": object("Reported cost projection; unknown-cost operations remain explicitly unknown."), "cells": array("Per-cell id/status/attempts plus optional capped error, cost_unknown, cost_basis, usage and model.")}
+		props = map[string]any{"path": text("Resolved run directory."), "backend": text("Saved provider backend."), "control": text("Current durable run control state."), "executor": text("Recorded local executor."), "graph_revision": number("Current admitted graph revision."), "verified": number("Count of accepted verified cells."), "total": number("Total cells."), "cost": object("Reported cost projection; unknown-cost operations remain explicitly unknown."), "cells": array("Per-cell id/status/attempts plus optional capped error, cost_unknown, cost_basis, usage, model and last_activity.")}
 		required = []string{"path", "backend", "control", "executor", "graph_revision", "verified", "total", "cost", "cells"}
 	case "run_logs":
 		props = map[string]any{"events": array("Each row contains seq (one-based checkpoint event sequence) and event (recorded orchestration event)."), "next_since": number("Sequence consumed including skipped filter entries; pass as since."), "total": number("Total saved events before filtering."), "more": schemaField("boolean", "Unconsumed checkpoint events remain, possibly outside the cell filter.")}
 		required = []string{"events", "next_since", "total", "more"}
 	case "inspect_cell":
-		props = map[string]any{"node": object("Saved TaskState including spec, status, attempts and result; secret fields are redacted."), "provider": text("Resolved saved provider name."), "replay_safe": schemaField("boolean", "Declared replay policy; not proof an uncertain external call had no effects."), "cell": text("Local cell directory."), "descendants": stringArray("Descendant cell IDs, excluding the requested cell.")}
+		props = map[string]any{"node": object("Saved TaskState including spec, status, attempts and result; secret fields are redacted."), "provider": text("Resolved saved provider name."), "replay_safe": schemaField("boolean", "Declared replay policy; not proof an uncertain external call had no effects."), "cell": text("Local cell directory."), "descendants": stringArray("Descendant cell IDs, excluding the requested cell."), "last_activity": object("Latest saved attempt activity when a captured activity log is available.")}
 		required = []string{"node", "provider", "replay_safe", "cell", "descendants"}
 	case "attempt_output":
 		for _, key := range []string{"schema", "run_id", "task", "stream", "representation", "source_sha256", "capture_metadata", "output", "next_cursor"} {
