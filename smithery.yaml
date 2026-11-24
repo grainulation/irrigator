@@ -1,0 +1,14 @@
+# Smithery configuration file: https://smithery.ai/docs/config#smitheryyaml
+startCommand:
+  type: stdio
+  configSchema:
+    type: object
+    properties:
+      workspace:
+        type: string
+        description: "Git repository for review_list and base for relative plan paths (default: .)"
+  commandFunction: |-
+    (config) => ({
+      command: 'irrigator',
+      args: ['mcp', ...(config?.workspace ? ['-workspace', config.workspace] : [])]
+    })
