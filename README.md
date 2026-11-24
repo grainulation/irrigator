@@ -19,6 +19,7 @@
   <a href="docs/platform-support.md"><img src="https://img.shields.io/badge/go-%E2%89%A51.26.7-00ADD8?logo=go&logoColor=white" alt="Go 1.26.7 or later"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green" alt="MIT license"></a>
   <a href="https://deepwiki.com/grainulation/irrigator"><img src="https://img.shields.io/badge/docs-DeepWiki-1f6feb" alt="Docs on DeepWiki"></a>
+  <a href="https://glama.ai/mcp/servers/grainulation/irrigator"><img src="https://glama.ai/mcp/servers/grainulation/irrigator/badges/score.svg" alt="grainulation/irrigator MCP server"></a>
 </p>
 
 <p align="center">
