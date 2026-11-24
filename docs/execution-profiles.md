@@ -196,6 +196,19 @@ explicit WorkRequest and generated output schema carry task inputs. Profile
 byte limits bound those supplied inputs and returned CLI output; they do not
 measure Codex's own built-in system instructions or model token limits.
 
+For turn-aware tasks, Codex returns `turn_request` as a JSON-encoded string,
+for example `"turn_request": "{}"` to stop. The output schema describes the
+bounded proposal inside that string. This preserves optional continuation and
+helper fields without sending permissive task-object definitions to Codex's
+strict schema validator. Before accepting the result, the Codex adapter checks
+decoded turn-control types, rejecting explicit nulls or incorrect types
+for `continue`, `helpers`, and `wait_for_helpers`, and non-object helper entries.
+Empty or whitespace-only strings remain valid legacy stops. Graph admission
+checks bounds and authority before creating a continuation or helper. The runtime
+assigns continuation IDs; each helper must provide a local ID. Other
+providers retain their typed object schema; saved plans and worker/checkpoint
+string fields are unchanged.
+
 Acceptance requires one terminal success, one valid final structured message
 and nonnegative token usage. Tool invocations, malformed/duplicate events,
 missing usage, failed turns and ambiguous cancellation remain uncertain. Known
@@ -216,6 +229,48 @@ starts one CLI invocation; that is not a guarantee of exactly one provider
 request. Irrigator does not automatically replay ambiguous paid operations. This is a run-local ledger,
 not a project-wide or cross-application billing ledger.
 
+
+## Antigravity with an existing CLI login (`swarm/v4`)
+
+`agy_cli` uses the installed `agy` executable and its existing sign-in.
+`irrigator init --managed --profile agy:MODEL --out plan.json` pins the real
+executable and its SHA256 with the credential reference
+`{"kind":"host_session","name":"agy"}`; no key is copied. Models are agy model
+ids (`agy models`), which carry the effort, for example `gemini-3.8-flash-low`;
+the profile effort must be `low`. Like Codex, agy plans need `swarm/v4` or later
+with `cost_policy` `track` or `retain_unknown`, because agy reports token counts
+and never a USD cost or cap.
+
+Each operation runs one `agy -p` print turn in a fresh private temporary
+directory whose `AGENTS.md` holds the managed system prompt (agy has no
+system-prompt flag), with `--json-schema` for the output and session settings
+`{"toolPermission":"strict","allowNonWorkspaceAccess":false}`: in print mode a
+strict session auto-denies every tool call. The WorkRequest is the prompt
+argument, limited to 128 KiB.
+
+agy has no option to skip the user's own configuration for one run, so two
+things still apply to managed turns:
+
+- **User-level rules** in `~/.gemini/GEMINI.md`, `~/.gemini/AGENTS.md`,
+  `~/.gemini/config/GEMINI.md`, `~/.gemini/config/AGENTS.md` and
+  `~/.gemini/config/rules/*.md` are added to the model's instructions and can
+  change its answers. Keep rules there that should not affect Irrigator tasks
+  out of those files, or use a different profile.
+- **Plugins and MCP servers** stay loaded but cannot act: plugin skills are not
+  tools, MCP tools are reached only through agy's `call_mcp_tool`, and a strict
+  session denies every tool call.
+
+Isolating a run would mean pointing `HOME` at a copy of agy's sign-in files,
+which copies credentials and depends on agy internals, so the adapter does not
+do it.
+
+Acceptance requires exactly one result event with status `SUCCESS`, no
+`finished_reason`, no `denied_actions`, a `structured_output` that matches the
+task's outputs, and nonnegative token usage. Any tool or subagent step,
+malformed or duplicate events, a print timeout or interruption, and missing
+usage remain uncertain; a run agy rejected before starting a session (for
+example an unknown model) is not started. The time limit is the only spend
+bound: agy has no token or USD cap.
 
 ## Mixed Claude and Codex example
 

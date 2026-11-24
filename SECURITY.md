@@ -1,10 +1,10 @@
 # Security
 
-Irrigator is a pre-release local execution tool. This document states what the runtime does and does not protect against, and how to report a problem. It is not a certification and not a promise of support.
+Irrigator is a single-host local execution tool. This document states what the runtime does and does not protect against, and how to report a problem. It is not a certification and not a promise of support.
 
 ## Supported versions
 
-Security fixes target the current maintained branch and release candidate. There is no hosted service or guaranteed response-time commitment.
+Security fixes target the current maintained branch and latest 1.x release. There is no hosted service or guaranteed response-time commitment.
 
 ## Reporting a vulnerability
 
@@ -26,6 +26,9 @@ Irrigator is a local, single-host runtime for trusted plans and trusted provider
 
 - **Cells are not sandboxes.** A cell is a local directory. Providers and command validators are trusted local processes running with the invoking user's permissions. Do not run plans or providers you do not trust.
 - **Process boundary.** Providers use direct argument arrays, never a shell. Use absolute executable paths. Custom providers receive PATH, HOME, TMPDIR, TEMP, and SystemRoot plus explicitly named plan `env` variables. Built-in and managed Claude processes receive only PATH, HOME, USER, TMPDIR, TEMP, and SystemRoot, preserving their home/keychain login without inheriting shell API keys or runtime control tokens. Codex has its own adapter-specific allowlist. These are environment filters, not filesystem sandboxes.
+- **The two places a shell is used.** Both are deliberate, and neither interpolates untrusted text into a script.
+  - The coder worker's verify step (`internal/coder/worker.go`, `runVerify`) runs the plan author's verify command with `/bin/sh -c`. It is a trusted-plan feature: the command is whatever the plan says, run with the invoking user's permissions. `sandbox-verify` wraps it in `sandbox-exec` (macOS) or `bwrap` with no network and a read-only root (Linux), and the step has a timeout. Without that option it is not isolated.
+  - The tmux executor (`internal/executor/executor_tmux.go`) runs a fixed, constant wait script with `/bin/sh -c`. The exit-file path, tmux binary and target are passed as positional parameters, not spliced into the script, and the worker's own command line is built from individually quoted words.
 - **Limits.** Provider inputs are capped at 1 MiB, stdout at 4 MiB, and retained stderr at 1 MiB.
 - **Built-in Haiku backend.** It uses structured output, safe mode, no built-in tools, an empty MCP configuration, and no CLI conversation persistence. `doctor` distinguishes finding the Claude CLI from authentication; finding it does not verify login.
 - **Input selection is not isolation.** `input_fields` and `context` reduce what a task receives. They are not a capability restriction or sandbox.
@@ -36,7 +39,7 @@ Irrigator is a local, single-host runtime for trusted plans and trusted provider
 
 Irrigator makes outbound requests only to destinations the operator configures, and sends a credential only to the destination it was configured for.
 
-- **Destinations are operator-chosen.** The OTLP collector (`--endpoint`, `OTEL_EXPORTER_OTLP_ENDPOINT`, `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT`), the ntfy server (`IRRIGATOR_NTFY_SERVER`) and the notification webhook are set by whoever runs the tool. There is no built-in host allowlist: anyone who can set those variables in the invoking environment already runs code as that user, so a collector or server on your own infrastructure is a supported choice.
+- **Destinations are operator-chosen.** The OTLP collector (`--endpoint`, `OTEL_EXPORTER_OTLP_ENDPOINT`, `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT`), the ntfy server (`IRRIGATOR_NTFY_SERVER`) and the notification webhook are set by whoever runs the tool. There is no built-in host allowlist: anyone who can set those variables in the invoking environment already runs code as that user, so a collector or server on your own infrastructure is a supported choice. The one exception is the shared public `ntfy.sh`: approval notices carry live approve/deny links, so `notify` refuses it unless `IRRIGATOR_NTFY_TOKEN` is set (for a topic reserved on an ntfy.sh account) or `IRRIGATOR_NTFY_ALLOW_PUBLIC=1` accepts the risk.
 - **Rules applied to every credentialed destination.** `http` or `https` only, with plain `http` accepted for loopback only (`OTEL_EXPORTER_OTLP_INSECURE` is refused for any other collector). URLs may not carry credentials (userinfo), and an OTLP endpoint may not carry a query or fragment. Credentials come from the environment (`OTEL_EXPORTER_OTLP_HEADERS`, `IRRIGATOR_NTFY_TOKEN`), never from a URL, and are read only after the destination has passed these checks. (Credentials a provider needs, such as the `serve` connection file, are local and unrelated to outbound requests.)
 - **No redirects.** The OTLP exporter and the notifier return a redirect response as it is, and the ACP worker's fallback notifier treats a redirect as an error, so headers and approval links are never forwarded to another host.
 - **Error text.** Notification failures are reported as fixed text or a numeric status and do not echo server-supplied reason phrases or bodies, URLs or credential values. OTLP export errors, including those the SDK logs from its background batch processor, have header values and URL paths redacted and control characters made visible before they leave the exporter; collector-supplied text is otherwise kept so a failure stays diagnosable. Provider-reported error text has forwarded credential values (explicit plan `env` variables, 6 characters or longer, also when base64-, JSON- or percent-encoded in either hex case) replaced with `[redacted]`. Malformed `OTEL_EXPORTER_OTLP_*HEADERS` values are rejected without being echoed.
@@ -94,7 +97,7 @@ and [billing reconciliation](docs/billing-reconciliation.md).
 
 ## Plugins and skills
 
-The plugin and skill files are Markdown and JSON instructions for a host agent that drives the local `irrigator` CLI. They do not add an MCP server, grant host permissions, or send messages. Installing a plugin into a host is a local action the user takes under that host's own permission model; this repository does not install anything automatically. The packaging step is local only and does not publish. Review any skill before enabling it, because a skill steers an agent that can run commands.
+The plugin and skill files are Markdown and JSON instructions for a host agent that drives the local `irrigator` CLI. The plugins (via `.claude-plugin/plugin.json`, `mcp.json`, and `mcp_config.json`) also register the local [MCP server](docs/mcp.md) (`irrigator mcp` over stdio, without `--allow-control`, so it can inspect runs but not drive them). The plugins do not grant host permissions or send messages. Installing a plugin into a host is a local action the user takes under that host's own permission model; this repository does not install anything automatically. The packaging step is local only and does not publish. Review any skill before enabling it, because a skill steers an agent that can run commands.
 
 ## Out of scope
 

@@ -65,6 +65,41 @@ class ArchiveCheckTest(unittest.TestCase):
                 with self.assertRaises(ValueError):
                     self.check(buffer.getvalue())
 
+    def executable_archive(self, directory, version_output):
+        target = {"Darwin": "darwin", "Linux": "linux"}[checker.platform.system()] + "/" + {
+            "arm64": "arm64", "aarch64": "arm64", "x86_64": "amd64", "AMD64": "amd64",
+        }[checker.platform.machine()]
+        members = self.members()
+        # A real, free executable exercises accept() through extraction and
+        # subprocess execution. The other commands are not runtime validation.
+        members["irrigator"] = ("#!/bin/sh\ncase \"$1\" in\n"
+                                "version) printf '%s' '" + version_output + "';;\n"
+                                "export) printf '{}' > results.json;;\nesac\n").encode()
+        members["provenance.json"] = json.dumps({
+            "schema": "irrigator-runtime-release/v1", "version": "1.0.0",
+            "target": target, "commit": "synthetic-fixture",
+            "binary_sha256": packager.digest(members["irrigator"]),
+        }).encode()
+        members["SHA256SUMS"] = "".join(
+            f"{packager.digest(data)}  {name}\n"
+            for name, data in sorted(members.items()) if name != "SHA256SUMS"
+        ).encode()
+        path = Path(directory) / "archive.tar.gz"
+        path.write_bytes(packager.archive_bytes("irrigator-1.0.0-" + target.replace("/", "-"), members))
+        return path
+
+    def test_accept_matching_executable_version(self):
+        with tempfile.TemporaryDirectory() as directory:
+            archive = self.executable_archive(directory, "1.0.0\n")
+            self.assertEqual(checker.accept(archive)["result"], "PASS")
+
+    def test_accept_rejects_executable_version_drift(self):
+        for output in ("1.0.0-rc.4\n", "1.0.0\nextra output\n", ""):
+            with self.subTest(output=output), tempfile.TemporaryDirectory() as directory:
+                archive = self.executable_archive(directory, output)
+                with self.assertRaisesRegex(ValueError, "version does not match provenance"):
+                    checker.accept(archive)
+
 
 if __name__ == "__main__":
     unittest.main()

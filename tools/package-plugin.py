@@ -58,11 +58,15 @@ MAX_FILES = 500
 ZIP_MIN_EPOCH = 315532800   # 1980-01-01, the zip minimum
 ZIP_MAX_EPOCH = 4354819199  # 2107-12-31, the zip maximum
 TEXT_EXTENSIONS = {'.md', '.json', '.py', '.txt', '.sh', '.toml', '.yaml', '.yml'}
+IMAGE_EXTENSIONS = {'.png', '.svg', '.jpg', '.jpeg', '.webp'}
+ALLOWED_EXTENSIONS = TEXT_EXTENSIONS | IMAGE_EXTENSIONS
 
 # Allowlist: only these tree entries are packaged. Anything else is ignored.
 INCLUDE_DIRS = ('.claude-plugin', '.codex-plugin', 'skills', 'docs')
 INCLUDE_FILES = (
     'plugin.json',
+    'mcp.json',
+    'mcp_config.json',
     'README.md',
     'CONTRIBUTING.md',
     'CHANGELOG.md',
@@ -80,8 +84,8 @@ INCLUDE_FILES = (
 )
 INCLUDE_GLOBS = ('LICENSE*', 'NOTICE*')  # only if already present; never generated
 EXCLUDE_DIR_NAMES = {'.git', 'dist', '__pycache__', 'node_modules', 'reviews', '.venv'}
-# docs/mascot.png is only the README image; it is not part of the plugin.
-EXCLUDE_FILE_NAMES = {'.DS_Store', 'mascot.png'}
+# docs/mascot.png is the declared logo in plugin.json.
+EXCLUDE_FILE_NAMES = {'.DS_Store'}
 # Known secret-bearing filenames are refused outright, never silently skipped.
 SECRET_FILENAME = re.compile(r'[.]env.*|[.]?credentials?(?:[.].*)?|[.]?settings[.]local(?:[.].*)?', re.IGNORECASE)
 # Manifest keys whose last word names a file-system location. Only these string
@@ -90,10 +94,14 @@ SECRET_FILENAME = re.compile(r'[.]env.*|[.]?credentials?(?:[.].*)?|[.]?settings[
 PATH_FIELD_WORDS = {'path', 'file', 'dir', 'directory', 'folder', 'icon', 'logo', 'image',
                     'screenshot', 'skill', 'agent', 'hook', 'entry', 'source', 'binary', 'executable'}
 
-# Irrigator has no MCP server and the plugin makes no permission or pricing claims.
+# Only the read-only `irrigator mcp` registration is allowed; the plugin makes no permission or pricing claims.
 FORBIDDEN_MANIFEST_KEYS = {'mcpServers', 'mcp_servers', 'permissions', 'pricing', 'price', 'userConfig'}
 # Present only with owner authorization; warn so they are never added by accident.
 REMOTE_METADATA_KEYS = {'homepage', 'repository', 'websiteURL', 'privacyPolicyURL', 'termsOfServiceURL'}
+AUTHORIZED_REMOTE_METADATA = {
+    'homepage': {'https://irrigator.dev', 'https://irrigator.dev/'},
+    'repository': {'https://github.com/grainulation/irrigator', 'https://github.com/grainulation/irrigator.git'},
+}
 
 BINARY_MAGIC = tuple(bytes.fromhex(h) for h in ('7f454c46', 'cffaedfe', 'cefaedfe', 'cafebabe', 'feedfacf', 'feedface'))
 # Coarse heuristics only: a clean scan does not prove a package holds no secrets.
@@ -267,7 +275,7 @@ def allowed_rel(rel):
         return name.startswith(('LICENSE', 'NOTICE'))
     if parts[0] not in INCLUDE_DIRS:
         return False
-    return Path(name).suffix.lower() in TEXT_EXTENSIONS
+    return Path(name).suffix.lower() in ALLOWED_EXTENSIONS
 
 
 def load_json(root, rel, rep, required=True):
@@ -373,8 +381,8 @@ def check_manifest_claims(root, rel, data, rep, has_license):
         if here.startswith('/mcpServers/') and backed_mcp:
             continue
         if key in FORBIDDEN_MANIFEST_KEYS:
-            rep.error('%s: key %s is forbidden (no MCP server, permission or pricing claims)' % (rel, here))
-        if key in REMOTE_METADATA_KEYS:
+            rep.error('%s: key %s is forbidden (no arbitrary MCP server, permission or pricing claims)' % (rel, here))
+        if key in REMOTE_METADATA_KEYS and not (isinstance(val, str) and val in AUTHORIZED_REMOTE_METADATA.get(key, ())):
             rep.warn('%s: %s is set; add homepage/repository style fields only with owner authorization' % (rel, here))
         if isinstance(val, str) and (val.startswith('./') or val.startswith('../')):
             target = '/'.join(b for b in val.split('/') if b not in ('', '.'))
@@ -391,6 +399,10 @@ def check_manifest_claims(root, rel, data, rep, has_license):
             why = unsafe_manifest_path(val)
             if why:
                 rep.error('%s: %s is an unsafe path field (%s): %s' % (rel, here, why, shown(val, 60)))
+            elif not re.match(r'^[a-z][a-z0-9+.-]*://', val):
+                target = '/'.join(b for b in val.split('/') if b not in ('', '.'))
+                if target and not (root / target).exists():
+                    rep.error('%s: %s references missing path %s (resolved from plugin root)' % (rel, here, val))
     for lic in ('license', 'licence'):
         if lic in data and not has_license:
             rep.error('%s: declares a license but no LICENSE file exists; no license is chosen without authorization' % rel)
@@ -521,7 +533,7 @@ def iter_candidates(root, rep):
             return None
         if path.name in EXCLUDE_FILE_NAMES or path.suffix == '.pyc':
             return None
-        if path.suffix.lower() not in TEXT_EXTENSIONS and not path.name.startswith(('LICENSE', 'NOTICE')):
+        if path.suffix.lower() not in ALLOWED_EXTENSIONS and not path.name.startswith(('LICENSE', 'NOTICE')):
             rep.warn('skipped non-text/unknown file type: %s' % rel)
             return None
         if not path.is_file():
@@ -605,6 +617,8 @@ def scan_content(contents, rep):
         data = contents[rel]
         if data[:4] in BINARY_MAGIC:
             rep.error('native executable content: %s' % rel)
+            continue
+        if Path(rel).suffix.lower() in IMAGE_EXTENSIONS:
             continue
         if bytes(1) in data:
             rep.error('binary content in text file: %s' % rel)

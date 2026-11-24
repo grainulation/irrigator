@@ -1,0 +1,19 @@
+# Only production build inputs enter the Docker context.
+**
+!Dockerfile
+!.dockerignore
+!go.mod
+!go.sum
+!main.go
+!internal/**/*.go
+!examples/embed.go
+!examples/terminal-swarm.json
+# Test fixtures and local state are not production build inputs.
+**/*_test.go
+**/testdata
+internal/clitest
+internal/runfixture
+**/.env
+**/.env.*
+**/*.log
+**/.DS_Store

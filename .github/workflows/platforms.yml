@@ -85,6 +85,11 @@ jobs:
           python3 -m unittest discover -s tools -p 'test_*.py'
           python3 verification/package-safety-test.py
           python3 -I verification/monitoring-sensor-test.py
+      - name: ACP worker acceptance
+        run: |
+          cd examples/acp
+          npm ci --ignore-scripts
+          npm test
       - name: Standalone plugin consumer contract
         run: |
           python3 -I verification/plugin-validator-regression.py
@@ -102,6 +107,9 @@ jobs:
           set -- "$runtime_temp"/package/irrigator-*.tar.gz
           test "$#" -eq 1
           python3 -I tools/check_runtime_archive.py "$1"
+      - name: Homebrew source recipe and mock test
+        if: runner.os == 'macOS'
+        run: make check-homebrew FORMULA=tools/templates/irrigator.rb.in
       - name: Cross-build supported runtime targets
         env:
           CGO_ENABLED: '0'
@@ -172,3 +180,16 @@ jobs:
           go version
           go build ./...
           go test -tags integration ./... -run 'TestPlanSchema|TestBackup|TestRecover|TestCampaign|TestComposition|TestBilling|TestTerminal' -count=1
+
+  zizmor:
+    name: Security (zizmor)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          enable-cache: false
+      - run: uvx --from zizmor==1.32.0 zizmor --min-severity medium --offline --strict-collection --format=github .

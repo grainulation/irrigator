@@ -1,9 +1,21 @@
 # Coding cells
 
-[`examples/coder`](../examples/coder) is a supported example of a command worker
-that runs a coding agent (Claude Code) in its own git worktree. Each cell lands
-as a branch you review with [`irrigator review`](local-review.md). It follows the
-[worker protocol](provider-protocol.md) and uses only the Python standard library.
+`irrigator code` runs coding agents on your repository, one task per cell, each
+in its own git worktree. Each cell lands as a branch you review with
+[`irrigator review`](local-review.md). The agent can be Claude Code (`claude`,
+the default), Codex (`codex`) or Antigravity (`agy`).
+
+```sh
+irrigator code --repo /path/to/repo --task 'docs=Fix the typos in README.md' \
+  --task 'tests=Add a unit test for parse()' --verify 'tests=go test ./...'
+irrigator review list --workspace /path/to/repo --base main
+```
+
+`irrigator code` builds a plan of cells, writes it next to the run
+(`runs/code-<time>.plan.json`, or `--out FILE`) and applies it like
+`irrigator apply`. `--plan-only` prints the plan instead of running it. The cells
+run through a worker built into the `irrigator` executable, which follows the
+[worker protocol](provider-protocol.md).
 
 ## What a cell does
 
@@ -13,22 +25,19 @@ as a branch you review with [`irrigator review`](local-review.md). It follows th
   default root is `irrigator-worktrees` beside the repository; override it with
   `--worktrees`. A worktree keeps concurrent checkouts apart; it is not a host
   security sandbox, and the agent runs with your permissions.
-- The request's `max_cost_usd` is passed to `claude --max-budget-usd`, so the
-  agent checks the cap as it spends. It is an admission-time limit, not a
-  guarantee about the final invoice: a provider can overrun it.
-- The agent may edit files and run the tool allowlist below. `git push`,
-  `reset`, `checkout`, `switch`, `rm`, `WebFetch` and `WebSearch` are denied.
+- The agent may edit files and run commands, except the denied ones (see
+  [Commands](#commands)).
 - Changes the agent left uncommitted are committed so the branch holds the work.
 - Progress lines go to stderr and, when a controlling terminal exists, to
   `/dev/tty`. Under `IRRIGATOR_EXECUTOR=herdr` that makes each cell's pane show
-  what the agent is doing. Pass `--no-tty` to turn the terminal output off.
+  what the agent is doing.
 
-Outcomes are reported honestly:
+Outcomes are reported honestly, for every agent:
 
 | Situation | Outcome |
 | --- | --- |
-| Validator request, git/worktree setup failed, or `claude` could not be launched | `not_started` |
-| Agent timed out, ended without a result, or git failed after it ran | `uncertain` |
+| Validator request, git/worktree setup failed, the agent could not be launched, or it rejected the run before starting (for example an unknown model) | `not_started` |
+| Agent timed out (including agy's own time limit or an interruption), ended without a result, git failed after it ran, or verification was incomplete or exited successfully after changing the checked Git state | `uncertain` |
 | Agent finished (including an agent-reported error, a usage limit, no changes, or failed verification) | `settled`, with `error` set for all but a clean finish |
 
 `uncertain` is never replayed automatically. Inspect the worktree and branch
@@ -36,42 +45,42 @@ before deciding to retry.
 
 ## Setup
 
-You need `git`, Python 3, and the `claude` CLI logged in on the same machine.
-The repository must contain the base branch. From the Irrigator checkout:
+You need `git`, the `irrigator` executable and the agent's CLI, signed in on the
+same machine. The repository must contain the base branch.
+
+| Agent | `--agent` | Needs | Default model |
+| --- | --- | --- | --- |
+| Claude Code | `claude` | `claude` CLI | `sonnet` |
+| Codex | `codex` | `codex` CLI | Codex's configured default |
+| Antigravity | `agy` | `agy` CLI | agy's configured default |
+
+## Options
 
 ```sh
-python3 examples/coder/plan.py --repo /path/to/repo --base main --model sonnet \
-  --task 'docs=Fix the typos in README.md' \
-  --task 'tests=Add a unit test for parse()' > coding.json
+irrigator code --repo DIR --task ID=PROMPT [--task ID=PROMPT ...]
+  [--agent claude|codex|agy] [--model M] [--base main]
+  [--verify ID=COMMAND] [--sandbox-verify] [--depends ID=DEP[,DEP]]
+  [--add-dir DIR] [--seed-ignored RELPATH[,RELPATH]] [--continue-from RUNID]
+  [--worktrees DIR] [--name NAME] [--run DIR] [--workers 2]
+  [--timeout 30m] [--call-budget 1] [--out FILE] [--plan-only]
 ```
 
-`--depends tests=docs` runs a cell after another and shows it that cell's
-summary. The plan embeds absolute Python and worker paths; regenerate it if they
-move, and never edit an admitted plan.
+- `--task ID=PROMPT`: one cell. IDs use letters, digits, `_` and `-`.
+- `--depends tests=docs`: run `tests` after `docs` and show it `docs`'s summary.
+- `--verify`, `--sandbox-verify`, `--add-dir`, `--seed-ignored`, `--continue-from`: see the sections below.
+- `--workers`, `--timeout` and `--call-budget` are passed to `apply`. The plan
+  embeds the absolute path of the `irrigator` executable and the repository;
+  regenerate it if they move, and never edit an admitted plan.
 
-Options for `plan.py` (each is passed through to the worker or the request):
-
-- `--verify ID=COMMAND`: see [Verification](#verification-commands).
-- `--add-dir DIR` (repeatable): see [Reference directories](#reference-directories).
-- `--continue-from RUNID`: see [Continuing an earlier run](#continuing-an-earlier-run).
-
-## Run it
-
-```sh
-./irrigator plan coding.json
-./irrigator apply coding.json --run runs/coding-1 --backend coder \
-  --workers 2 --timeout 30m --call-budget 2
-```
-
-The call budget becomes each cell's `max_cost_usd`. Real model calls spend real
-money: choose a budget deliberately.
+Real model calls spend real money or account quota: choose the budget, timeout and
+number of workers deliberately.
 
 ## Review results
 
 ```sh
-./irrigator review list --workspace /path/to/repo --base main
-./irrigator review change irrigator/<run8>/docs --workspace /path/to/repo --base main
-./irrigator review approve irrigator/<run8>/docs --workspace /path/to/repo --base main
+irrigator review list --workspace /path/to/repo --base main
+irrigator review change irrigator/<run8>/docs --workspace /path/to/repo --base main
+irrigator review approve irrigator/<run8>/docs --workspace /path/to/repo --base main
 ```
 
 Each settled cell returns `branch`, `commit`, `diffstat` and `summary`. Merging
@@ -83,51 +92,124 @@ Claude Code on macOS finds its login in the Keychain using the `USER`
 environment variable. Irrigator passes only `PATH`, `HOME` and the variables a
 provider lists in `env`, so the generated plan sets `"env": ["USER"]`. Do not
 also pass `LOGNAME`: with both set, Claude Code fails to find the login. If a
-cell reports a not-logged-in agent error, check this first.
+cell reports a not-logged-in agent error, check this first. Codex and agy read
+their sign-in from `HOME`.
 
-## Tool allowlist
+## Commands
 
-Besides `Read`, `Edit`, `Write`, `Glob`, `Grep` and `TodoWrite`, the agent may run
-these `Bash` commands, so it can build and run tests:
+Every agent is told which commands are denied: `git push`, `git reset`,
+`git checkout`, `git switch` and `rm` (delete files with `git rm`). How each
+agent enforces that differs:
 
-- Build and test: `go`, `gofmt`, `make`, `python3`, `node`, `npm`, `npx`.
-- Git: `status`, `diff`, `show`, `log`, `add`, `commit`, `mv`.
-- Read-only shell: `cat`, `head`, `tail`, `wc`, `grep`, `find`, `diff`, `ls`.
-- File changes: `mkdir`, `cp`, `mv`, `chmod`.
+- **Claude** runs with `--permission-mode acceptEdits`, no settings files
+  (`--setting-sources ""`, so your own allow rules cannot approve anything for a
+  cell) and an allowlist: file tools plus these commands so it can build and
+  test: `go`, `gofmt`, `make`, `python3`, `pytest`, `node`, `npm`, `npx`, `cargo`;
+  git `status`, `diff`, `show`, `log`, `add`, `commit`, `mv`, `ls-files`, `grep`,
+  `rev-parse`; read-only shell (`ls`, `cat`, `head`, `tail`, `wc`, `grep`, `find`,
+  `diff`, `sed`, `sort`, `uniq`, `cut`, `tr`, `pwd`, `echo`, `which`, `test`); and
+  `mkdir`, `cp`, `mv`, `chmod`. The denied commands, `WebFetch` and `WebSearch`
+  are refused.
+- **Codex** runs `codex exec` in its own `workspace-write` sandbox with approvals
+  off. The sandbox lets it write the worktree and the repository's git directory
+  (so it can commit), and blocks network access from commands, so tasks that need
+  to download dependencies fail.
+- **agy** runs in print mode with session-only settings that deny the commands
+  above and keep its file tools inside the worktree; they replace your own agy
+  allow and deny rules for the cell, and they also apply inside any subagents agy
+  starts (tested). Other commands run without asking: a refused command does not
+  end agy's turn by itself, but the refusal tells the model not to work around it
+  and it often stops there, so an allowlist would stop cells on harmless commands.
+  Subagents' own steps do not appear in the cell's progress; their start does.
 
-Denied: `git push`, `git reset`, `git checkout`, `git switch`, `rm`, `WebFetch`,
-`WebSearch`. The allowlist is a convenience boundary, not a sandbox: `python3`,
-`node` and `npm` can run arbitrary code inside the worktree's permissions.
+These are convenience guardrails, not a sandbox (Codex's sandbox aside):
+`python3`, `node` and similar commands can do anything your user can, including
+what the deny list names. In testing, agy deleted a cache directory through
+`python3` after being told not to use `rm`.
 
 ## Verification commands
 
 A cell whose only check is the agent's own summary can be marked verified when
-the agent says it could not finish. In swarm runs the agent reported it was
-unable to complete its work, yet the cell settled with a branch and no error.
-Give every cell that can have one an objective check.
+the agent says it could not finish. Give every cell that can have one an
+objective check.
 
-If the request context has `verify_<cell id>` (with `-` in the id replaced by
-`_`), the worker runs that shell command in the cell's worktree once the agent
-has finished, but only when the branch has commits and the agent did not error:
+`--verify ID=COMMAND` puts the command in the plan's `context` as
+`verify_<cell id>` (with `-` replaced by `_`); only that cell receives it. Once
+the agent has finished, and only when the branch has commits and the agent did
+not error, the worker runs it with `/bin/sh -c` in the cell's worktree:
 
-- Non-zero exit: the cell settles with `error` set to
+- Exit 77 means verification is incomplete or a required host prerequisite is
+  missing. The outcome is `uncertain`, with an error describing the incomplete
+  check. Use another nonzero exit for a completed check that failed.
+- Other nonzero exits settle the cell with `error` set to
   `verification failed (exit N): <last 1500 characters of output>` and no output.
-- Exit 0: the summary gains `Verification `<command>` passed.`
+- Exit 0 is accepted only if the worktree remains clean, `HEAD` still names the
+  commit being checked, and the checked-out branch still matches the cell branch.
+  Then the summary gains ``Verification `<command>` passed.`` A dirty worktree,
+  changed commit or branch, or failure to inspect that state makes the outcome
+  `uncertain`; the worker does not certify a different artifact or commit changes
+  made by verification.
 - A command that outlives the cell's timeout makes the outcome `uncertain`.
 
-`plan.py` attaches the command for you; the value goes in the plan's `context`
-and only the named cell receives it:
+Inspect an uncertain cell's worktree, branch and verification output before an
+explicit recovery or retry decision. Verification commands should inspect the
+agent's committed result and leave it unchanged.
 
-```sh
-python3 examples/coder/plan.py --repo /path/to/repo \
-  --task 'tests=Add a unit test for parse()' \
-  --verify 'tests=python3 -m unittest discover'
-```
+Pass `--sandbox-verify` (which sets `context.sandbox_verify: "true"` on verified
+tasks) to run `/bin/sh -c <command>` inside an opt-in OS-native network-off
+worktree sandbox instead of directly on the host:
+
+- **Preflight**: before executing, the worker checks for `sandbox-exec` on macOS
+  (`darwin`) or `bwrap` on Linux (`linux`). If the sandbox tool is missing or the
+  host OS is unsupported, verification fails closed with exit `77`
+  (`uncertain`), never silently running unsandboxed.
+- **macOS (`darwin`)**: wraps `/bin/sh -c` in `sandbox-exec -p <profile>` that
+  denies network access (`(deny network*)`) and restricts file writes to `/dev/null`,
+  an attempt-scoped temporary directory (`TMPDIR`), and the resolved cell worktree
+  path—blocking writes to the main repository checkout and parent directories.
+- **Linux (`linux`)**: wraps `/bin/sh -c` in `bwrap --unshare-net --ro-bind / / --tmpfs /tmp --dev /dev --proc /proc --bind <worktree> <worktree> --chdir <worktree>`.
+- Omitting `--sandbox-verify` preserves the default unsandboxed behavior.
+
+When verification fails, times out, exits `77`, leaves uncommitted work, or
+changes `HEAD`/branch identity (or when partial stream usage is recorded), the
+worker records bounded before/after Git-status snapshots (`git status --porcelain=v1 -z --untracked-files=all`)
+and `dirtied_entries` in `<worktree>.diagnostics.json` (`schema: "irrigator.coder-diagnostics/v1"`),
+beside the attempt's worktree, and names the sidecar in stderr and the cell
+error or summary. Bounded `run_id`, `request_id`, `operation_id`, `task_id`, and
+`attempt` identity connects it to the worker request; invalid identity fields are
+explicitly omitted in `omitted_invalid_fields`. Snapshots retain at most 64
+entries, 512 bytes per path, and 64 KiB of status output with a 10-second scan
+timeout; truncation, timeout, or scan failure leaves `complete: false`.
+
+Sidecars are created exclusively (`O_WRONLY|O_CREATE|O_EXCL`, mode `0600`) so
+existing diagnostic sidecars and symlinks are never overwritten; a creation
+failure is reported without changing the execution outcome. Uncommitted changes
+left by verification remain inspectable and are never automatically deleted or
+committed; `irrigator code cleanup` preserves dirty worktrees unless `--force`
+is passed, and sidecars remain beside the worktree until removed after
+inspection.
 
 ## Reference directories
 
-`--add-dir DIR` (repeatable, on `worker.py` or `plan.py`) is passed to `claude`
-as `--add-dir`, so agents can read reference material outside the worktree.
+`--add-dir DIR` (repeatable) lets agents read reference material outside the
+worktree. It is passed to each agent's own `--add-dir`.
+
+To prevent generated runtime evidence or sibling cell worktrees from leaking into
+an agent's reference context, `irrigator code` validates every `--add-dir` path
+and refuses any directory pointing at or inside `--run` or `--worktrees`
+(including the default `irrigator-worktrees` sibling directory). Keep runtime
+logs, checkpoints, and worktrees separate from read-only reference directories.
+
+## Worktree seeding
+
+`--seed-ignored RELPATH[,RELPATH]` (repeatable, or context key `seed_ignored`)
+seeds repository-relative gitignored caches or build directories (such as
+`node_modules` or `.venv`) into each cell worktree right after checkout. On
+macOS APFS (`cp -c -R`) and Linux filesystems with reflink support
+(`cp --reflink=auto -a`), seeding uses copy-on-write clones and falls back to
+regular copies otherwise. Tracked files, unignored paths, `.git`, symlinks, and
+path traversal outside the repository are refused (`not_started`), while missing
+optional paths are skipped. Gitignored seeded files leave `git status` clean.
 
 ## Continuing an earlier run
 
@@ -177,24 +259,46 @@ so the cell will end `uncertain` (or `not_started` if it had not launched yet).
 
 ## Costs
 
-Every cell is a real `claude -p` run. The call budget you pass to `apply`
-becomes each cell's `max_cost_usd` and `--max-budget-usd`, so the worst case for
-a run is roughly cells × budget, and each retry is a new run with its own cap.
-The reported `cost_usd`, `usage` tokens, and `model` come from the agent's final
-stream-json result; a cell that timed out or ended without a result may have spent
-money that is not reported. Use `irrigator cost RUN [--json]` to inspect the
-per-cell cost statement and run totals (reported spend, unknown-cost operations,
-and token totals). Start with a small budget and few workers.
+- **Claude** reports each cell's USD cost. The call budget becomes the cell's
+  `max_cost_usd` and `claude --max-budget-usd`, so the agent checks the cap as it
+  spends; the worst case for a run is roughly cells × budget, and each retry is a
+  new run with its own cap. It is an admission-time limit, not a guarantee about
+  the final invoice.
+- **Codex** and **agy** report token counts but no USD cost, and accept no USD
+  cap: their cells record cost as unknown (never $0) with the token counts, and
+  the cell timeout is the hard limit.
+
+Canonical `usage` and `cost_usd` come from the agent's valid terminal result.
+Token counts must be nonnegative `int64` integers; malformed counts, negative or
+fractional values, and conflicting field aliases are rejected. Output tokens
+include reasoning, so derived `total_tokens` sums `input_tokens`,
+`output_tokens`, `cache_read_tokens`, and `cache_write_tokens` without adding
+`thinking_tokens` a second time, and `input_tokens` is never inflated with
+`cache_read_tokens`.
+
+When an agent is interrupted, times out, or exits without valid terminal usage,
+the worker writes any valid stream-level token observations to
+`usage_observation` in `<worktree>.diagnostics.json` (`basis: "assistant_stream"`,
+`complete: false`, `aggregation: "last_valid_snapshot_per_message_id"`,
+`cost_basis: "unknown"`, bounded to 1024 distinct message IDs matching
+`^[A-Za-z0-9_.:-]{1,128}$`). It retains the last valid snapshot per message ID
+and sums distinct messages, reporting `truncated` or `counts_unavailable: "overflow"`
+when bounds are exceeded. Canonical `usage` in the worker response remains
+absent and `cost` remains unknown; `irrigator cost RUN [--json]` excludes
+incomplete sidecar observations from run totals.
+
+A cell that timed out or ended without a result may have spent money that is not
+reported, and remains `uncertain`. Start with a small budget and few workers.
 
 ## Cleanup
 
-Worktrees and branches persist after a run. `cleanup.py` lists and removes a
-run's worktrees (it matches branches `irrigator/<run8>/*`):
+Worktrees and branches persist after a run. `irrigator code cleanup` lists and
+removes one run's worktrees (it matches branches `irrigator/<run8>/*`):
 
 ```sh
-python3 examples/coder/cleanup.py --repo /path/to/repo --run <run id> --dry-run
-python3 examples/coder/cleanup.py --repo /path/to/repo --run <run id>
-python3 examples/coder/cleanup.py --repo /path/to/repo --run <run id> --delete-branches
+irrigator code cleanup --repo /path/to/repo --run <run id> --dry-run
+irrigator code cleanup --repo /path/to/repo --run <run id>
+irrigator code cleanup --repo /path/to/repo --run <run id> --delete-branches
 ```
 
 - It keeps branches unless you pass `--delete-branches` (`git branch -D`, so
@@ -207,18 +311,26 @@ python3 examples/coder/cleanup.py --repo /path/to/repo --run <run id> --delete-b
 By hand: `git worktree remove <path>`, `git branch -D <branch>`,
 `git worktree prune`.
 
-`irrigator gc` never touches these. It only removes obsolete attempt logs inside a
-valid, quiescent run; it does not reclaim worktrees, delete branches, or infer
-worker liveness from a stored controller PID. Worktrees, branches and any dirty
-content stay in place for the explicit recovery steps above.
+`irrigator gc` and `irrigator cleanup` never touch these. `gc` only removes
+obsolete attempt logs inside a valid, quiescent run; it does not reclaim
+worktrees, delete branches, or infer worker liveness from a stored controller
+PID. Worktrees, branches and any dirty content stay in place for the explicit
+recovery steps above.
 
 ## Verification
 
-`python3 -I tools/test_coder_worker.py` runs the worker, `plan.py` and `cleanup.py`
-against a fake `claude` on `PATH` (success, leftovers, agent error, timeout,
-missing result, setup failure, missing binary, retries, dirty-worktree refusal,
-previous-attempts context, passing and failing verification, the allowlist,
-`--add-dir`, `--continue-from`, the usage-limit message, cleanup). It uses no network and no model. This page
-records how to run it, not that it passed.
+`go test ./internal/coder` runs the worker, the plan builder and cleanup against
+fake `claude`, `codex` and `agy` executables on `PATH` that emit each agent's
+stream format (success, leftovers, agent error, usage limit, timeout, missing
+result, no changes, setup failure, missing binary, retries, dirty-worktree
+refusal, previous-attempts context, passing and failing verification,
+non-additive token validation, partial usage observations, before/after
+verification git-status sidecars, `--seed-ignored`, `--add-dir` runtime
+evidence placement hygiene, `--sandbox-verify` preflight and isolation,
+`--continue-from`, cleanup). It uses no network and no model.
 
-To run a command provider inside a container, see [Container sandbox](sandbox.md).
+For an end-to-end recipe modeling isolated coding cells with `--sandbox-verify` and `--seed-ignored` alongside independent verification and merge gates, see [examples/coding-cell-recipe.json](../examples/coding-cell-recipe.json).
+
+For agents over ACP, with Irrigator's approval links gating each tool call, see
+the [ACP worker](acp-worker.md). To run a command provider inside a container,
+see [Container sandbox](sandbox.md).

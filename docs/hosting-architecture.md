@@ -99,11 +99,11 @@ throughout extraction.
 
 ## Reusable core
 
-The current domain types still live in the CLI package. The next extraction is a
-small importable core containing domain types and pure transition/acceptance
-logic; the CLI and a future service should call that same core. Keep process,
-storage, credential and terminal concerns in adapters. Go interfaces alone do
-not establish portability across programming languages.
+Domain types live in `internal/model`, with runtime behavior split across the
+internal packages described in [architecture](architecture.md). A future service
+should reuse those transition and acceptance boundaries. Keep process, storage,
+credential and terminal concerns in adapters. Go interfaces alone do not
+establish portability across programming languages.
 
 A public library API should follow a second real backend and the shared
 conformance suite, so supported APIs reflect tested needs. Other languages use a

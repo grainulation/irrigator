@@ -77,8 +77,11 @@ comment, like the other actions in the workflows.
 
 There is no Homebrew cask: casks are quarantined by macOS and would need
 notarization, which this pipeline does not provide. The distribution paths are
-a source build (`make build`), a source-built Homebrew formula that runs
-`go build .`, or a curl installer that fetches an archive and runs
+a source build (`make build`), the shared tap's [Homebrew formula](homebrew.md),
+or a curl installer that fetches an archive and runs
 `irrigator update-check` before installing. No curl installer ships in this
-repository yet; `make install` from a source checkout is the existing local path. A valid signature shows control of the
+repository yet; `make install` from a source checkout is the existing local path.
+The Homebrew HEAD recipe builds `main` with Go; a stable binary recipe is
+generated from all four tested release archives and promoted separately.
+A valid signature shows control of the
 pinned key only; it is not Apple signing, notarization or an install step.

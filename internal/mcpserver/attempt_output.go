@@ -265,6 +265,20 @@ var attemptAssignments = regexp.MustCompile(`(?i)\b([A-Za-z_]*(?:token|secret|pa
 // Redact the complete bounded snapshot before slicing it, so secrets and JSON
 // credential fields cannot escape redaction by straddling page boundaries.
 func redactAttemptText(raw []byte) string {
+	var secrets []string
+	for _, entry := range os.Environ() {
+		key, val, _ := strings.Cut(entry, "=")
+		if mcpSecretKey.MatchString(key) && len(val) >= 4 {
+			secrets = append(secrets, val)
+		}
+	}
+	sort.Slice(secrets, func(i, j int) bool { return len(secrets[i]) > len(secrets[j]) })
+	redactKnown := func(text string) string {
+		for _, secret := range secrets {
+			text = strings.ReplaceAll(text, secret, "[redacted]")
+		}
+		return text
+	}
 	text := string(raw)
 	var value any
 	decoder := json.NewDecoder(bytes.NewReader(raw))
@@ -273,6 +287,10 @@ func redactAttemptText(raw []byte) string {
 		var walk func(any) any
 		walk = func(v any) any {
 			switch item := v.(type) {
+			case string:
+				// Redact decoded values before JSON escaping can hide known
+				// secrets containing quotes, backslashes or HTML characters.
+				return redactKnown(item)
 			case map[string]any:
 				for key, val := range item {
 					switch {
@@ -304,17 +322,13 @@ func redactAttemptText(raw []byte) string {
 			text = string(encoded)
 		}
 	}
-	var secrets []string
-	for _, entry := range os.Environ() {
-		key, val, _ := strings.Cut(entry, "=")
-		if mcpSecretKey.MatchString(key) && len(val) >= 4 {
-			secrets = append(secrets, val)
-		}
-	}
-	sort.Slice(secrets, func(i, j int) bool { return len(secrets[i]) > len(secrets[j]) })
+	// Object keys and JSON-lines fallback output can still contain encoded
+	// secrets. Cover the canonical JSON spelling as well as decoded text.
 	for _, secret := range secrets {
-		text = strings.ReplaceAll(text, secret, "[redacted]")
+		encoded, _ := json.Marshal(secret)
+		text = strings.ReplaceAll(text, string(encoded[1:len(encoded)-1]), "[redacted]")
 	}
+	text = redactKnown(text)
 	text = attemptBearer.ReplaceAllString(text, "Bearer [redacted]")
 	return attemptAssignments.ReplaceAllString(text, "$1=[redacted]")
 }

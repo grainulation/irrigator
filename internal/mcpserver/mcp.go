@@ -98,6 +98,15 @@ func newMCPConfig(roots []string, workspace string, allowControl bool) (McpConfi
 	return cfg, nil
 }
 
+func toolAnnotations(readOnly, destructive, idempotent, openWorld bool) *mcp.ToolAnnotations {
+	return &mcp.ToolAnnotations{
+		ReadOnlyHint:    readOnly,
+		DestructiveHint: &destructive,
+		IdempotentHint:  idempotent,
+		OpenWorldHint:   &openWorld,
+	}
+}
+
 func NewMCPServer(cfg McpConfig) *mcp.Server {
 	instructions := "Inspect local saved Irrigator runs, cells and attempts. Run arguments are paths or names under --runs; --runs is discovery, not filesystem confinement. This inspection profile cannot start, pause or retry work."
 	if cfg.AllowControl {
@@ -339,6 +348,9 @@ func (t *mcpTools) runStatus(_ context.Context, _ *mcp.CallToolRequest, in mcpRu
 		}
 		if row.Model != "" {
 			cell["model"] = row.Model
+		}
+		if act := runops.ReadCellLastActivity(root, spec.ID, row.Attempt); act != nil {
+			cell["last_activity"] = act
 		}
 		cells = append(cells, cell)
 	}

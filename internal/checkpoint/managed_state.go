@@ -53,7 +53,7 @@ func ManagedExpectedBinding(c model.ExecutionCatalog, name string) model.Executi
 	i := c.Instances[p.Instance]
 	a := c.Adapters[i.Adapter]
 	amount, _ := launch.ExecutionBudgetMicros(p.OperationBudgetUSD)
-	b := model.ExecutionBinding{Schema: launch.ExecutionBindingSchema, CatalogPath: "inline", CatalogSHA256: launch.ExecutionDigest(c), ProfileName: name, Profile: p, InstanceName: p.Instance, Instance: i, AdapterName: i.Adapter, Adapter: a, SupportedCapabilities: launch.ExecutionProfileCapabilities(a.Kind, p), CapabilityEvidence: "declared_contract_not_live_probe", ExecutableVerified: a.Kind == "claude_cli" || a.Kind == "codex_cli", ModelResolution: "requested_only", OperationBudgetMicros: amount}
+	b := model.ExecutionBinding{Schema: launch.ExecutionBindingSchema, CatalogPath: "inline", CatalogSHA256: launch.ExecutionDigest(c), ProfileName: name, Profile: p, InstanceName: p.Instance, Instance: i, AdapterName: i.Adapter, Adapter: a, SupportedCapabilities: launch.ExecutionProfileCapabilities(a.Kind, p), CapabilityEvidence: "declared_contract_not_live_probe", ExecutableVerified: a.Kind == "claude_cli" || a.Kind == "codex_cli" || a.Kind == "agy_cli", ModelResolution: "requested_only", OperationBudgetMicros: amount}
 	b.Digest = launch.ExecutionDigest(b)
 	return b
 }
@@ -86,8 +86,8 @@ func ValidateManagedPlan(p model.Plan) error {
 			return errors.New("cost_policy requires swarm/v4")
 		}
 		for _, a := range e.Catalog.Adapters {
-			if a.Kind == "codex_cli" {
-				return errors.New("codex_cli requires swarm/v4")
+			if a.Kind == "codex_cli" || a.Kind == "agy_cli" {
+				return errors.New(a.Kind + " requires swarm/v4") // reports tokens only: needs unknown-cost support
 			}
 		}
 	}

@@ -10,7 +10,7 @@ Usage (run from anywhere; -I keeps the interpreter from importing planted module
 What it checks
   static (default): manifests, skill frontmatter + required workflow concepts,
   every documented `irrigator ...` command/flag against the real CLI surface
-  (derived from main.go of 1.0.0-rc.4), shape arithmetic, display-metadata
+  (derived from main.go of 1.0.0), shape arithmetic, display-metadata
   limits in JSON examples, unsupported claims (MCP, license, pricing, remote
   publication, Grainulator vocabulary), tree hygiene, packaging-tool hygiene.
   --archive RELEASE: scans the actual members of a .zip/.tar/.tar.gz release
@@ -558,6 +558,9 @@ def t_manifests(c):
                     r.check("claims.manifest-mcp", False, "%s: %s references an MCP tool" % (label, p))
                 if v.startswith("./") and ".." not in v and not (c.root / v).exists():
                     r.check("manifest.paths", False, "%s: %s -> %s does not exist (resolved from plugin root)" % (label, p, v))
+                if k in ("logo", "icon") and not re.match(r"^[a-z][a-z0-9+.-]*://", v):
+                    target = "/".join(b for b in v.split("/") if b not in ("", "."))
+                    r.check("manifest.paths", (c.root / target).exists(), "%s: declared %s %s must exist in package" % (label, k, v))
                 if ".." in v.split("/") and v.startswith("."):
                     r.check("manifest.paths", False, "%s: %s escapes plugin root" % (label, p))
     r.check("claims.no-mcp-file", not c.exists(".mcp.json"), "no .mcp.json (the MCP server is registered inline in the Claude manifest)")

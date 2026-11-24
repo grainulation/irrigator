@@ -38,7 +38,7 @@ func Finished(t *testing.T, done <-chan error, wantSuccess bool) {
 		if (err == nil) != wantSuccess {
 			t.Fatalf("exit %v, expected success %v", err, wantSuccess)
 		}
-	case <-time.After(10 * time.Second):
+	case <-time.After(60 * time.Second): // a hang guard, not a timing assumption: slow hosts under -race need room
 		t.Fatal("controller did not exit")
 	}
 }

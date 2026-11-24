@@ -1,0 +1,94 @@
+{
+  "api_version": "swarm/v1",
+  "name": "Isolated coding cell workflow with sandbox verify and seed ignored",
+  "max_tasks": 4,
+  "context": {
+    "sandbox_verify": "true",
+    "seed_ignored": "true"
+  },
+  "tasks": [
+    {
+      "id": "spec_and_interface",
+      "prompt": "Extract interface boundaries, target files, and define acceptance test assertions for the isolated coding cell.",
+      "requires": [
+        "spec_doc",
+        "acceptance_tests"
+      ],
+      "mock_result": {
+        "spec_doc": "Target package internal/coder: add diagnostics sidecar capturing token telemetry.",
+        "acceptance_tests": "TestDiagnosticsSidecar verifies <worktree>.diagnostics.json is written with valid JSON schema."
+      }
+    },
+    {
+      "id": "coding_cell",
+      "depends_on": [
+        "spec_and_interface"
+      ],
+      "input_fields": {
+        "spec_and_interface": [
+          "spec_doc",
+          "acceptance_tests"
+        ]
+      },
+      "context": [
+        "sandbox_verify",
+        "seed_ignored"
+      ],
+      "prompt": "Implement changes in an isolated worktree with --seed-ignored and --sandbox-verify enabled. Return patch and verification log.",
+      "requires": [
+        "patch",
+        "verification_log"
+      ],
+      "mock_result": {
+        "patch": "diff --git a/internal/coder/worker.go b/internal/coder/worker.go\n+func writeDiagnostics() error { ... }",
+        "verification_log": "PASS: TestDiagnosticsSidecar (0.04s)\nok  \tgithub.com/dpopsuev/irrigator/internal/coder\t0.042s"
+      }
+    },
+    {
+      "id": "independent_verifier",
+      "depends_on": [
+        "spec_and_interface",
+        "coding_cell"
+      ],
+      "input_fields": {
+        "spec_and_interface": [
+          "acceptance_tests"
+        ],
+        "coding_cell": [
+          "patch"
+        ]
+      },
+      "prompt": "Verify patch independently against acceptance tests in a clean worktree. Exclude implementer self-assessment.",
+      "requires": [
+        "verdict",
+        "diagnostics"
+      ],
+      "mock_result": {
+        "verdict": "pass",
+        "diagnostics": "Worktree sandboxed cleanly; all acceptance assertions passed."
+      }
+    },
+    {
+      "id": "merge_gate",
+      "depends_on": [
+        "coding_cell",
+        "independent_verifier"
+      ],
+      "input_fields": {
+        "coding_cell": [
+          "patch"
+        ],
+        "independent_verifier": [
+          "verdict"
+        ]
+      },
+      "prompt": "Apply verified patch to mainline worktree when independent verifier returns pass.",
+      "requires": [
+        "commit_sha"
+      ],
+      "mock_result": {
+        "commit_sha": "a1b2c3d4e5f678901234567890abcdef12345678"
+      }
+    }
+  ]
+}

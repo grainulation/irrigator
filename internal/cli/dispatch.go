@@ -53,6 +53,8 @@ Commands:
   context create --workspace DIR --out FILE [--registry FILE]  Create validated launch context
   turn-shape XxYxZ [--json]              Preview turn/helper capacity; does not launch
   demo [--run DIR]                        Watch a credential-free animated swarm
+  code --task ID=PROMPT [--agent claude|codex|agy]  Run coding agents in git worktrees; results land as review branches
+  code cleanup --repo DIR --run RUNID     Remove a code run's worktrees (and, with --delete-branches, branches)
   schema                                Print the editor JSON Schema for plans
   plan PLAN [--json]                      Validate and preview dependencies
   prepare PLAN --run DIR                  Save a run without starting workers
@@ -73,6 +75,7 @@ Commands:
   logs DIR [--follow] [--since N]          Read sequenced events
   otel export RUN [--follow] [--since N] [--endpoint URL]  Send run events to an OpenTelemetry collector
   debug DIR [--json] [--node ID]          Read-only run diagnosis; no model call
+  triage DIR [--json] [--fix]             Why cells are stuck, the evidence, and the next step; --fix walks through them
   debug fixture export DIR --out FILE     (experimental) Write a redacted replay fixture of a run
   review [list|change|diff|approve|...]    Review local changes, plans and decisions before pushing
   session [list|show|enable]              Big-picture feed of agent sessions (prompts, tool activity, replies)
@@ -133,7 +136,7 @@ func builtinCLI(args []string) (int, error) {
 	switch command {
 	case "init":
 		fs.BoolVar(&managedInit, "managed", false, "create a managed plan with an explicit local CLI profile")
-		fs.StringVar(&initProfile, "profile", "", "managed profile selector: claude:MODEL or codex:MODEL")
+		fs.StringVar(&initProfile, "profile", "", "managed profile selector: claude:MODEL, codex:MODEL or agy:MODEL")
 		fs.StringVar(&out, "out", "irrigator.json", "new plan file")
 		expected = 0
 	case "deliver":
@@ -367,7 +370,11 @@ func builtinCLI(args []string) (int, error) {
 	case "resolve":
 		return cmdResolve(target, positional[1], resultPath, confirmStopped)
 	case "inspect":
-		v, err := runops.InspectNode(target, positional[1])
+		resolved, err := checkpoint.ResolveReadOnlyRunDir(target)
+		if err != nil {
+			return 1, err
+		}
+		v, err := runops.InspectNode(resolved, positional[1])
 		if err != nil {
 			return 1, err
 		}
@@ -379,7 +386,11 @@ func builtinCLI(args []string) (int, error) {
 	case "decisions":
 		return cmdDecisions(target)
 	case "graph":
-		s, err := checkpoint.ReadState(target)
+		resolved, err := checkpoint.ResolveReadOnlyRunDir(target)
+		if err != nil {
+			return 1, err
+		}
+		s, err := checkpoint.ReadState(resolved)
 		if err != nil {
 			return 1, err
 		}
@@ -390,11 +401,23 @@ func builtinCLI(args []string) (int, error) {
 	case "gc":
 		return cmdGC(target, keep, apply, dryRun)
 	case "logs":
-		return cmdLogs(target, since, taskFilter, follow, asJSON)
+		resolved, err := checkpoint.ResolveReadOnlyRunDir(target)
+		if err != nil {
+			return 1, err
+		}
+		return cmdLogs(resolved, since, taskFilter, follow, asJSON)
 	case "cost":
-		return provider.CostStatement(target, asJSON)
+		resolved, err := checkpoint.ResolveReadOnlyRunDir(target)
+		if err != nil {
+			return 1, err
+		}
+		return provider.CostStatement(resolved, asJSON)
 	case "status", "events", "artifacts":
-		return cmdStatus(command, target, watch, asJSON, interval)
+		resolved, err := checkpoint.ResolveReadOnlyRunDir(target)
+		if err != nil {
+			return 1, err
+		}
+		return cmdStatus(command, resolved, watch, asJSON, interval)
 	}
 	return 0, nil
 }

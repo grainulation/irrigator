@@ -28,6 +28,8 @@ Commands:
   context create --workspace DIR --out FILE [--registry FILE]  Create validated launch context
   turn-shape XxYxZ [--json]              Preview turn/helper capacity; does not launch
   demo [--run DIR]                        Watch a credential-free animated swarm
+  code --task ID=PROMPT [--agent claude|codex|agy]  Run coding agents in git worktrees; results land as review branches
+  code cleanup --repo DIR --run RUNID     Remove a code run's worktrees (and, with --delete-branches, branches)
   schema                                Print the editor JSON Schema for plans
   plan PLAN [--json]                      Validate and preview dependencies
   prepare PLAN --run DIR                  Save a run without starting workers
@@ -48,6 +50,7 @@ Commands:
   logs DIR [--follow] [--since N]          Read sequenced events
   otel export RUN [--follow] [--since N] [--endpoint URL]  Send run events to an OpenTelemetry collector
   debug DIR [--json] [--node ID]          Read-only run diagnosis; no model call
+  triage DIR [--json] [--fix]             Why cells are stuck, the evidence, and the next step; --fix walks through them
   debug fixture export DIR --out FILE     (experimental) Write a redacted replay fixture of a run
   review [list|change|diff|approve|...]    Review local changes, plans and decisions before pushing
   session [list|show|enable]              Big-picture feed of agent sessions (prompts, tool activity, replies)

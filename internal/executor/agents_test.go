@@ -34,12 +34,12 @@ func TestAgentsRolesAndBuiltInMock(t *testing.T) {
 	for _, a := range detectAgents() {
 		byID[a.ID] = a
 	}
-	for _, id := range []string{"claude", "codex"} {
-		if a := byID[id]; !a.MainAgent || !a.SwarmWorker || a.Available {
+	for _, id := range []string{"claude", "codex", "agy"} {
+		if a := byID[id]; !a.MainAgent || !a.SwarmWorker || a.Profile != id+":MODEL" || a.Available {
 			t.Fatalf("%s: want main agent and swarm worker, unavailable without the CLI: %+v", id, a)
 		}
 	}
-	for _, id := range []string{"gemini", "agy"} {
+	for _, id := range []string{"gemini"} {
 		if a := byID[id]; !a.MainAgent || a.SwarmWorker || a.Profile != "" || a.Available {
 			t.Fatalf("%s: want main agent only (not built-in swarm worker), unavailable without the CLI: %+v", id, a)
 		}

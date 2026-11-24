@@ -89,6 +89,44 @@ func TestAttemptOutputPagesExactSnapshotAndRedactsBeforeSlicing(t *testing.T) {
 	}
 }
 
+func TestAttemptOutputRedactsKnownSecretsBeforeJSONEscaping(t *testing.T) {
+	// A known secret in an ordinary result string must stay redacted even when
+	// JSON serialization would escape quotes, backslashes or HTML characters.
+	for _, secret := range []string{`private<key>&value`, `private"key\value`, "private\nkey"} {
+		t.Run(secret, func(t *testing.T) {
+			t.Setenv("IRRIGATOR_TEST_API_KEY", secret)
+			raw, err := json.Marshal(map[string]any{"answer": "before " + secret + " after"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			in, _ := outputFixture(t, string(raw))
+			in.MaxBytes = 8192
+			page, err := readAttemptOutput(in)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var got map[string]string
+			if err := json.Unmarshal([]byte(page.Output), &got); err != nil {
+				t.Fatalf("invalid redacted JSON: %s: %v", page.Output, err)
+			}
+			if got["answer"] != "before [redacted] after" {
+				t.Fatalf("known secret escaped redaction: %q", got["answer"])
+			}
+			keyRaw, err := json.Marshal(map[string]string{secret: "safe"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if redacted := redactAttemptText(keyRaw); redacted != `{"[redacted]":"safe"}` {
+				t.Fatalf("known secret in object key escaped redaction: %s", redacted)
+			}
+			jsonl := string(raw) + "\n" + string(raw) + "\n"
+			if redacted := redactAttemptText([]byte(jsonl)); strings.Contains(redacted, "private") {
+				t.Fatalf("known secret in JSON-lines escaped redaction: %s", redacted)
+			}
+		})
+	}
+}
+
 func TestAttemptOutputCursorRejectsChangedSourceAndDifferentAttempt(t *testing.T) {
 	in, prefix := outputFixture(t, "abcdefghijk")
 	first, err := readAttemptOutput(in)

@@ -119,6 +119,7 @@ func TestAdaptiveCLIQueuesWithoutExecuting(t *testing.T) {
 func TestControllerRevisesPendingWorkWhileUnrelatedWorkerRuns(t *testing.T) {
 	a, b := runfixture.Task("a", .5), runfixture.Task("b", .01, "a")
 	root := runfixture.New(t, a, b)
+	release := runfixture.HoldMock(t, "a") // a stays running until the revision has landed
 	_, done := clitest.Start(t, root, "--workers", "1")
 	waitFor(t, root, func(s *model.State) bool { return s.Tasks["a"].Status == "running" })
 	original := runfixture.Read(t, root).Tasks["a"].OperationID
@@ -132,6 +133,7 @@ func TestControllerRevisesPendingWorkWhileUnrelatedWorkerRuns(t *testing.T) {
 	if during.Tasks["a"].Status != "running" || during.Tasks["a"].OperationID != original {
 		t.Fatal("revision waited for or disrupted unrelated worker")
 	}
+	release("a")
 	clitest.Finished(t, done, true)
 	s := runfixture.Read(t, root)
 	if s.Tasks["a"].Attempt != 1 || s.Tasks["b"].Attempt != 1 || s.Tasks["b"].Generation != 2 {

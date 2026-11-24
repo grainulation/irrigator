@@ -11,6 +11,8 @@ updates:
         patterns: ["*"]
     commit-message:
       prefix: "ci"
+    cooldown:
+      default-days: 7
   - package-ecosystem: gomod
     directory: /
     schedule:
@@ -20,12 +22,16 @@ updates:
         update-types: [minor, patch]
     commit-message:
       prefix: "deps"
+    cooldown:
+      default-days: 7
   - package-ecosystem: gomod
     directory: /tools/exportcheck
     schedule:
       interval: monthly
     commit-message:
       prefix: "deps"
+    cooldown:
+      default-days: 7
   - package-ecosystem: npm
     directory: /examples/acp
     schedule:
@@ -35,3 +41,5 @@ updates:
         update-types: [minor, patch]
     commit-message:
       prefix: "deps"
+    cooldown:
+      default-days: 7
