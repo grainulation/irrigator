@@ -7,7 +7,7 @@ same internal functions as the CLI; it does not shell out to `irrigator` for
 status, logs, review, validation, retry or approvals.
 
 ```
-irrigator mcp [--runs DIR]... [--workspace DIR] [--allow-control]
+irrigator mcp [--runs DIR]... [--workspace DIR] [--allow-control] [--canonical-names]
 ```
 
 | Flag | Meaning |
@@ -15,6 +15,7 @@ irrigator mcp [--runs DIR]... [--workspace DIR] [--allow-control]
 | `--runs DIR` | A directory whose subdirectories are runs. Repeatable. Tools accept a run name found under these directories. |
 | `--workspace DIR` | Git repository used by `review_list`, and the base for relative plan paths. Default: the current directory. |
 | `--allow-control` | Also register the tools that change a run. Off by default. |
+| `--canonical-names` | Select the verb/object naming preview. Legacy names remain the default; this flag changes names, not permissions. |
 
 Every tool that takes a `run` also accepts an explicit run directory path, so
 `--runs` is optional. stdout carries the protocol; the server writes nothing else
@@ -34,6 +35,7 @@ Read-only (always registered; annotated with `readOnlyHint: true`, `destructiveH
 | `provider_limit` | Exact-attempt quota/reset advisory from captured output. Conflicting or missing reset evidence stays unknown; no automatic retry or fallback. |
 | `delivery_summary` | Recorded task selection, node/check outcomes, output conflicts and candidate identity; never assembles files or runs a checker. |
 | `review_list` | The review queue for a workspace and optional `base`, as `irrigator review list`. |
+| `inspect_review` | One queued branch's pinned-head diff and metadata, or a queued document's body and comments. Supply exactly one `branch` or `snapshot` ID from the queue; `file` narrows branch diffs. No viewed marks or decisions are recorded. |
 | `validate_plan` | Validate a plan `path` or inline `json`; returns `valid` and the errors. An invalid plan is a normal result, not a tool error. |
 
 Control (registered only with `--allow-control`; annotated with `readOnlyHint: false`, `openWorldHint: false`, and per-tool `destructiveHint`/`idempotentHint`):
@@ -56,7 +58,81 @@ created and recorded for the run); it does not yet take `--sizing` or
 `--session-registry`. `list_runs`, `run_status` and `apply` report the run's
 `executor`.
 
+## Naming preview and exact profiles
+
+The default naming contract retains existing tool names. `--canonical-names`
+selects one alternate inventory; it does not add aliases. Update host allowlists
+and prompts when selecting it. Start a fresh connection after changing startup
+arguments. Both naming contracts contain **10 inspection tools**, or **15 tools**
+with `--allow-control`. The new `inspect_review` closes the read-only queue-to-content
+inspection path. This addition does not expose review decisions or execution controls.
+
+| Default name | Canonical preview |
+| --- | --- |
+| `list_runs` | `list_runs` |
+| `run_status` | `get_run_status` |
+| `run_logs` | `list_run_events` |
+| `attempt_output` | `get_attempt_output` |
+| `provider_limit` | `get_attempt_limit_advisory` |
+| `delivery_summary` | `get_delivery_summary` |
+| `inspect_cell` | `inspect_cell` |
+| `review_list` | `list_reviews` |
+| `inspect_review` | `inspect_review` |
+| `validate_plan` | `validate_plan` |
+| `apply` | `start_run` |
+| `pause` | `pause_run` |
+| `resume` | `resume_run` |
+| `retry_cell` | `retry_cell` |
+| `decide_approval` | `decide_approval` |
+
+The inspection profile covers saved-run and review inspection. The control
+profile adds run supervision, not Git merging, delivery application or general
+host administration. A score for one startup configuration does not establish
+quality or completeness of the other. Shipped plugins keep their read-only setup.
+
+All hints are explicit, including closed-world local inspection. Mutating tools
+are conservatively destructive: starting a provider can modify its environment,
+pause changes dispatch state, retry resets current cell fields, and approval/denial
+is a single-use decision. No control is declared idempotent: even repeated pause
+requests append events. Hints describe behavior; they grant no authorization.
+
+| Tool | readOnlyHint | destructiveHint | idempotentHint | openWorldHint |
+| --- | --- | --- | --- | --- |
+| `list_runs` | true | false | true | false |
+| `run_status` | true | false | true | false |
+| `run_logs` | true | false | true | false |
+| `attempt_output` | true | false | true | false |
+| `provider_limit` | true | false | true | false |
+| `delivery_summary` | true | false | true | false |
+| `inspect_cell` | true | false | true | false |
+| `review_list` | true | false | true | false |
+| `inspect_review` | true | false | true | false |
+| `validate_plan` | true | false | true | false |
+| `apply` | false | true | false | true |
+| `pause` | false | true | false | false |
+| `resume` | false | true | false | true |
+| `retry_cell` | false | true | false | false |
+| `decide_approval` | false | true | false | false |
+
+`validate_plan` may use and remove a private temporary file for inline JSON; it
+has no retained effect on the inspected workspace or run. Read-only hints do not
+promise identical results while another process changes the files.
+
+Capture a built server's real discovery surface without invoking a tool:
+
+```sh
+python3 tools/mcp-schema.py --binary ./irrigator > inspection-tools.json
+python3 tools/mcp-schema.py --binary ./irrigator --allow-control --canonical-names > control-tools.json
+```
+
+The capture includes the initialized build identity and startup arguments. It is
+not an execution test, native host acceptance, or a numeric tool-quality score.
+
 ## Results
+
+Each tool advertises its input and output contracts. The SDK validates successful
+structured results against the declared output schema. Tool errors use
+`isError:true` with error text rather than the success-result schema.
 
 Each tool returns structured JSON and a short text summary. Any single string
 is capped at 8 KB; when a value is cut it ends with a `[truncated: …]` note, the
@@ -135,3 +211,5 @@ OpenCode (`opencode.json`):
 
 Use absolute paths in files that do not expand `~`. Add `--allow-control` to
 the arguments only when you want the host to change runs.
+
+Remote comparison bases may be returned as full `refs/remotes/...` selectors so a local branch or tag cannot change their meaning when passed to `inspect_review`. Full commit IDs and explicit `refs/...` bases retain their object/reference meaning.

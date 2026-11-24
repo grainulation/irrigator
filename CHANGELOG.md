@@ -3,6 +3,28 @@
 Changes below describe source revisions. A source commit is not a signed binary
 release. Versioned plan and worker protocols are tracked separately from the CLI.
 
+## 1.3.0 — 2026-11-24
+
+### Added
+
+- Read-only `inspect_review` retrieves a queued branch's pinned comparison or a
+  queued document's body and comments. Branch file selection preserves exact
+  renamed and type-changed paths; queue selectors round-trip without ambiguous
+  branch/tag or commit interpretation.
+- Opt-in `mcp --canonical-names` selects a consistent naming preview without
+  advertising duplicate aliases. Inspection has 10 tools; explicitly enabling
+  controls with `--allow-control` has 15. Legacy names and read-only plugin
+  defaults remain unchanged.
+
+### Changed
+
+- MCP definitions describe operation boundaries, parameter constraints and
+  structured results, with explicit behavior hints for every tool. Starting or
+  resuming work remains explicitly capable of contacting paid providers.
+- Bounded schema-discovery tooling captures the actual MCP wire inventory with
+  deadlines and pagination checks. These contracts do not establish a new
+  external tool-definition score or native-host acceptance.
+
 ## 1.2.1 — 2026-11-23
 
 ### Changed

@@ -1,6 +1,6 @@
 {
   "schema": "irrigator.cli/v1",
-  "version": "1.2.1",
+  "version": "1.3.0",
   "commands": [
     {
       "name": "agents",
@@ -887,6 +887,12 @@
           "name": "allow-control",
           "default": "false",
           "usage": "also register tools that change runs: apply, pause, resume, retry_cell, decide_approval",
+          "boolean": true
+        },
+        {
+          "name": "canonical-names",
+          "default": "false",
+          "usage": "advertise the versioned verb_object naming preview instead of legacy names",
           "boolean": true
         },
         {

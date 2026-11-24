@@ -1,6 +1,8 @@
 Usage of mcp:
   -allow-control
     	also register tools that change runs: apply, pause, resume, retry_cell, decide_approval
+  -canonical-names
+    	advertise the versioned verb_object naming preview instead of legacy names
   -runs value
     	directory whose subdirectories are runs (repeatable)
   -workspace string

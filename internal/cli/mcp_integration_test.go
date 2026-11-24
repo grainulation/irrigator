@@ -87,7 +87,7 @@ func mcpToolNames(t *testing.T, cs *mcp.ClientSession) []string {
 func TestMCPControlToolsAbsentWithoutAllowControl(t *testing.T) {
 	cs := mcpConnect(t, mcpserver.McpConfig{Workspace: t.TempDir()})
 	got := strings.Join(mcpToolNames(t, cs), ",")
-	if got != "attempt_output,delivery_summary,inspect_cell,list_runs,provider_limit,review_list,run_logs,run_status,validate_plan" {
+	if got != "attempt_output,delivery_summary,inspect_cell,inspect_review,list_runs,provider_limit,review_list,run_logs,run_status,validate_plan" {
 		t.Fatalf("read-only tool set: %s", got)
 	}
 	for _, name := range []string{"apply", "pause", "resume", "retry_cell", "decide_approval"} {
@@ -96,7 +96,7 @@ func TestMCPControlToolsAbsentWithoutAllowControl(t *testing.T) {
 		}
 	}
 	cs = mcpConnect(t, mcpserver.McpConfig{Workspace: t.TempDir(), AllowControl: true})
-	if got := strings.Join(mcpToolNames(t, cs), ","); got != "apply,attempt_output,decide_approval,delivery_summary,inspect_cell,list_runs,pause,provider_limit,resume,retry_cell,review_list,run_logs,run_status,validate_plan" {
+	if got := strings.Join(mcpToolNames(t, cs), ","); got != "apply,attempt_output,decide_approval,delivery_summary,inspect_cell,inspect_review,list_runs,pause,provider_limit,resume,retry_cell,review_list,run_logs,run_status,validate_plan" {
 		t.Fatalf("control tool set: %s", got)
 	}
 }
@@ -229,6 +229,16 @@ func TestMCPReviewList(t *testing.T) {
 	queue := out["queue"].(map[string]any)
 	if queue["base"] != "main" || len(queue["changes"].([]any)) != 2 || !strings.Contains(text, "2 change(s)") {
 		t.Fatalf("queue: %v / %s", queue, text)
+	}
+	out, _ = mcpMustCall(t, cs, "inspect_review", map[string]any{"branch": "agent-1", "base": "main", "file": "app.go"})
+	if out["kind"] != "branch" || !strings.Contains(out["diff"].(string), "+B") || out["review"].(map[string]any)["head"] == "" {
+		t.Fatalf("review content: %v", out)
+	}
+	if _, err := os.Stat(filepath.Join(ws, ".irrigator")); !os.IsNotExist(err) {
+		t.Fatal("review inspection created local review state")
+	}
+	if _, _, errText := mcpCall(t, cs, "inspect_review", map[string]any{"branch": "agent-1", "snapshot": strings.Repeat("0", 64)}); errText == "" {
+		t.Fatal("ambiguous branch/document selection accepted")
 	}
 	if _, _, errText := mcpCall(t, cs, "review_list", map[string]any{"workspace": t.TempDir()}); errText == "" {
 		t.Fatal("non-repository workspace did not fail")

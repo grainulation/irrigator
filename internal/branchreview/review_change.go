@@ -104,7 +104,14 @@ type changeView struct {
 }
 
 func changeRev(ws, rev string) (string, error) {
-	if rev == "" || strings.HasPrefix(rev, "-") || !launch.ContextText(rev, 256) {
+	limit := 256
+	for _, prefix := range []string{"refs/heads/", "refs/remotes/", "refs/tags/"} {
+		if strings.HasPrefix(rev, prefix) {
+			limit = 4096 + len(prefix)
+			break
+		}
+	}
+	if rev == "" || strings.HasPrefix(rev, "-") || !launch.ContextText(rev, limit) {
 		return "", errors.New("invalid revision name")
 	}
 	out, err := session.ReviewGit(ws, "rev-parse", "--verify", "--quiet", "--end-of-options", rev+"^{commit}")
@@ -118,33 +125,64 @@ func changeRev(ws, rev string) (string, error) {
 // default branch, or a local main/master.
 func changeBase(ws, override string) (string, error) {
 	if override != "" {
+		// A local branch label is unambiguous even when a tag shares it.
+		// Callers selecting a tag explicitly can use refs/tags/<name>.
+		if !strings.HasPrefix(override, "refs/") && !fullReviewObjectID(override) {
+			if _, err := changeRev(ws, "refs/heads/"+override); err == nil {
+				return "refs/heads/" + override, nil
+			}
+		}
 		if _, err := changeRev(ws, override); err != nil {
 			return "", err
 		}
 		return override, nil
 	}
-	if out, err := session.ReviewGit(ws, "symbolic-ref", "--quiet", "--short", "refs/remotes/origin/HEAD"); err == nil {
+	if out, err := session.ReviewGit(ws, "symbolic-ref", "--quiet", "refs/remotes/origin/HEAD"); err == nil {
 		if name := strings.TrimSpace(string(out)); name != "" {
 			return name, nil
 		}
 	}
 	for _, name := range []string{"main", "master"} {
-		if _, err := changeRev(ws, name); err == nil {
-			return name, nil
+		ref := "refs/heads/" + name
+		if _, err := changeRev(ws, ref); err == nil {
+			return ref, nil
 		}
 	}
 	return "", errors.New("no base branch found; pass --base")
 }
 
+func fullReviewObjectID(ref string) bool {
+	if len(ref) != 40 && len(ref) != 64 {
+		return false
+	}
+	for _, ch := range ref {
+		if !strings.ContainsRune("0123456789abcdefABCDEF", ch) {
+			return false
+		}
+	}
+	return true
+}
+
+func changeBaseLabel(ref string) string {
+	if strings.HasPrefix(ref, "refs/heads/") {
+		short := strings.TrimPrefix(ref, "refs/heads/")
+		if strings.HasPrefix(short, "refs/") || fullReviewObjectID(short) {
+			return ref
+		}
+		return short
+	}
+	return ref
+}
+
 func changeBranch(ws, name string) (string, error) {
 	if name == "" {
-		out, err := session.ReviewGit(ws, "symbolic-ref", "--quiet", "--short", "HEAD")
+		out, err := session.ReviewGit(ws, "symbolic-ref", "--quiet", "HEAD")
 		if err != nil {
 			return "", errors.New("HEAD is detached; name a branch")
 		}
-		name = strings.TrimSpace(string(out))
+		name = strings.TrimPrefix(strings.TrimSpace(string(out)), "refs/heads/")
 	}
-	if strings.HasPrefix(name, "-") || !launch.ContextText(name, 256) {
+	if strings.HasPrefix(name, "-") || !launch.ContextText(name, 4096) {
 		return "", errors.New("invalid branch name")
 	}
 	if _, err := session.ReviewGit(ws, "show-ref", "--verify", "--quiet", "refs/heads/"+name); err != nil {
@@ -418,7 +456,7 @@ func loadChange(ws, branch, baseName string) (*changeView, *changeState, error) 
 	if err != nil {
 		return nil, nil, err
 	}
-	v := &changeView{Workspace: ws, Branch: branch, Base: base, MergeBase: mergeBase, Head: head, Tree: strings.TrimSpace(string(tree))}
+	v := &changeView{Workspace: ws, Branch: branch, Base: changeBaseLabel(base), MergeBase: mergeBase, Head: head, Tree: strings.TrimSpace(string(tree))}
 	if v.Commits, err = changeCommits(ws, mergeBase, head); err != nil {
 		return nil, nil, err
 	}
@@ -546,9 +584,9 @@ func ListReviews(ws, baseName string) (*reviewQueue, error) {
 	if err != nil {
 		return nil, err
 	}
-	q := &reviewQueue{Workspace: ws, Base: base, Changes: []changeSummary{}, Documents: []documentSummary{}, Overlaps: [][]string{}, Messages: pendingMessages(ws)}
-	if cur, err := session.ReviewGit(ws, "symbolic-ref", "--quiet", "--short", "HEAD"); err == nil {
-		q.Current = strings.TrimSpace(string(cur))
+	q := &reviewQueue{Workspace: ws, Base: changeBaseLabel(base), Changes: []changeSummary{}, Documents: []documentSummary{}, Overlaps: [][]string{}, Messages: pendingMessages(ws)}
+	if cur, err := session.ReviewGit(ws, "symbolic-ref", "--quiet", "HEAD"); err == nil {
+		q.Current = strings.TrimPrefix(strings.TrimSpace(string(cur)), "refs/heads/")
 	}
 	if status, err := session.ReviewGit(ws, "status", "--porcelain=v1", "-z", "--untracked-files=all"); err == nil {
 		for _, e := range strings.Split(string(status), "\x00") {
@@ -557,8 +595,11 @@ func ListReviews(ws, baseName string) (*reviewQueue, error) {
 			}
 		}
 	}
-	baseHead, _ := changeRev(ws, base)
-	refs, err := session.ReviewGit(ws, "for-each-ref", "--format=%(refname:short)%00%(objectname)%00%(committerdate:iso-strict)%00%(subject)", "refs/heads")
+	baseHead, err := changeRev(ws, base)
+	if err != nil {
+		return nil, err
+	}
+	refs, err := session.ReviewGit(ws, "for-each-ref", "--format=%(refname)%00%(objectname)%00%(committerdate:iso-strict)%00%(subject)", "refs/heads")
 	if err != nil {
 		return nil, err
 	}
@@ -568,7 +609,8 @@ func ListReviews(ws, baseName string) (*reviewQueue, error) {
 		if len(f) != 4 || f[1] == baseHead {
 			continue
 		}
-		count, err := session.ReviewGit(ws, "rev-list", "--count", base+".."+f[1])
+		f[0] = strings.TrimPrefix(f[0], "refs/heads/")
+		count, err := session.ReviewGit(ws, "rev-list", "--count", baseHead+".."+f[1])
 		if err != nil {
 			continue
 		}
@@ -576,7 +618,7 @@ func ListReviews(ws, baseName string) (*reviewQueue, error) {
 		if ahead == 0 {
 			continue
 		}
-		mb, err := session.ReviewGit(ws, "merge-base", base, f[1])
+		mb, err := session.ReviewGit(ws, "merge-base", baseHead, f[1])
 		if err != nil {
 			continue
 		}
@@ -606,19 +648,9 @@ func ListReviews(ws, baseName string) (*reviewQueue, error) {
 		}
 	}
 	sort.Slice(q.Overlaps, func(i, j int) bool { return q.Overlaps[i][0] < q.Overlaps[j][0] })
-	entries, _ := os.ReadDir(filepath.Join(ws, ".irrigator", "reviews"))
-	for _, e := range entries {
-		dir := filepath.Join(ws, ".irrigator", "reviews", e.Name())
-		snap, err := readReview(dir)
-		if err != nil || reviewKind(snap) == "code" {
-			continue
-		}
-		comments, _ := reviewComments(dir)
-		s, err := readChangeState(ws, "snapshot:"+snap.ID)
-		if err != nil {
-			return nil, err
-		}
-		q.Documents = append(q.Documents, documentSummary{Kind: snap.Kind, Title: snap.Title, Snapshot: snap.ID, Path: dir, Comments: len(comments), Verdict: latestVerdict(s, snap.ID)})
+	q.Documents, err = listReviewDocuments(ws)
+	if err != nil {
+		return nil, err
 	}
 	return q, nil
 }
@@ -975,4 +1007,25 @@ func addSymbols(ws string, files []changeFile, from, to string) {
 			}
 		}
 	}
+}
+
+// listReviewDocuments does not resolve a branch base: document snapshots can
+// be inspected in repositories whose default branch needs an explicit name.
+func listReviewDocuments(ws string) ([]documentSummary, error) {
+	documents := []documentSummary{}
+	entries, _ := os.ReadDir(filepath.Join(ws, ".irrigator", "reviews"))
+	for _, e := range entries {
+		dir := filepath.Join(ws, ".irrigator", "reviews", e.Name())
+		snap, err := readReview(dir)
+		if err != nil || reviewKind(snap) == "code" {
+			continue
+		}
+		comments, _ := reviewComments(dir)
+		s, err := readChangeState(ws, "snapshot:"+snap.ID)
+		if err != nil {
+			return nil, err
+		}
+		documents = append(documents, documentSummary{Kind: snap.Kind, Title: snap.Title, Snapshot: snap.ID, Path: dir, Comments: len(comments), Verdict: latestVerdict(s, snap.ID)})
+	}
+	return documents, nil
 }
