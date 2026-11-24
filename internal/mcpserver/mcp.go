@@ -43,9 +43,10 @@ const (
 )
 
 type McpConfig struct {
-	RunRoots     []string
-	Workspace    string
-	AllowControl bool
+	RunRoots       []string
+	Workspace      string
+	AllowControl   bool
+	canonicalNames bool
 }
 
 type mcpPathList []string
@@ -59,16 +60,18 @@ func McpCLI(args []string) (int, error) {
 	fs.Var(&roots, "runs", "directory whose subdirectories are runs (repeatable)")
 	workspace := fs.String("workspace", ".", "Git repository for review_list and base for relative plan paths")
 	allowControl := fs.Bool("allow-control", false, "also register tools that change runs: apply, pause, resume, retry_cell, decide_approval")
+	canonicalNames := fs.Bool("canonical-names", false, "advertise the versioned verb_object naming preview instead of legacy names")
 	if err := commandflags.ParseCommandArguments(fs, args); err != nil {
 		return 2, err
 	}
 	if fs.NArg() != 0 {
-		return 2, errors.New("usage: irrigator mcp [--runs DIR]... [--workspace DIR] [--allow-control]")
+		return 2, errors.New("usage: irrigator mcp [--runs DIR]... [--workspace DIR] [--allow-control] [--canonical-names]")
 	}
 	cfg, err := newMCPConfig(roots, *workspace, *allowControl)
 	if err != nil {
 		return 1, err
 	}
+	cfg.canonicalNames = *canonicalNames
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	// stdout carries the protocol; diagnostics go to stderr only.
@@ -96,30 +99,29 @@ func newMCPConfig(roots []string, workspace string, allowControl bool) (McpConfi
 }
 
 func NewMCPServer(cfg McpConfig) *mcp.Server {
-	s := mcp.NewServer(&mcp.Implementation{Name: "irrigator", Version: buildinfo.Version}, &mcp.ServerOptions{
-		Instructions: "Inspect Irrigator runs. Run arguments are a run directory path or, with --runs, a run name. Interrupted work is never replayed automatically; retry_cell (when enabled) requires explicit allow_uncertain and confirm_stopped.",
-	})
-	t := &mcpTools{cfg: cfg}
-	readOnly := &mcp.ToolAnnotations{ReadOnlyHint: true}
-	mcp.AddTool(s, &mcp.Tool{Name: "list_runs", Description: "List runs under the configured --runs directories: name, path, control state, verified/total cells and reported cost.", Annotations: readOnly}, t.listRuns)
-	mcp.AddTool(s, &mcp.Tool{Name: "run_status", Description: "Status of one run: per-cell status, attempts and (truncated) errors.", Annotations: readOnly}, t.runStatus)
-	mcp.AddTool(s, &mcp.Tool{Name: "run_logs", Description: "Sequenced run events, as `irrigator logs --json`. Pass the returned next_since to continue.", Annotations: readOnly}, t.runLogs)
-	mcp.AddTool(s, &mcp.Tool{Name: "attempt_output", Description: "Read bounded, redacted stdout or stderr for an explicit task attempt. Pass next_cursor to continue the same source snapshot. has_more marks unread pages; source_truncated is null when capture loss was not recorded. Read-only; never use to retry work or read arbitrary files.", Annotations: readOnly}, t.attemptOutput)
-	mcp.AddTool(s, &mcp.Tool{Name: "provider_limit", Description: "Inspect captured provider limit/reset evidence for one explicit node attempt. Read-only advisory; unknown reset times remain unknown. Does not authenticate an account, retry work, change profiles or authorize dispatch.", Annotations: readOnly}, t.providerLimit)
-	mcp.AddTool(s, &mcp.Tool{Name: "delivery_summary", Description: "Read the saved delivery candidate, included/excluded tasks, conflicts and recorded check outcomes. Does not run checks, apply changes, merge or start workers; a summary is not delivery approval.", Annotations: readOnly}, t.deliverySummary)
-	mcp.AddTool(s, &mcp.Tool{Name: "inspect_cell", Description: "One cell's spec, attempts and result fields; large values are truncated with a note.", Annotations: readOnly}, t.inspectCell)
-	mcp.AddTool(s, &mcp.Tool{Name: "review_list", Description: "Branches and documents awaiting review for a workspace, as `irrigator review list`.", Annotations: readOnly}, t.reviewList)
-	mcp.AddTool(s, &mcp.Tool{Name: "validate_plan", Description: "Validate a plan file (path) or inline plan JSON (json) and return the errors.", Annotations: readOnly}, t.validatePlan)
-	if !cfg.AllowControl {
-		return s
+	instructions := "Inspect local saved Irrigator runs, cells and attempts. Run arguments are paths or names under --runs; --runs is discovery, not filesystem confinement. This inspection profile cannot start, pause or retry work."
+	if cfg.AllowControl {
+		instructions = "Inspect saved Irrigator runs and explicitly control execution. Starting or resuming can contact providers and spend money; pause requests draining. Interrupted work is never replayed automatically. " + mcpToolName(cfg, "retry_cell") + " only prepares a retry and requires explicit uncertainty and cleanup attestations; " + mcpToolName(cfg, "resume") + " executes it. Approval decisions never merge changes."
 	}
-	f := false
-	write := &mcp.ToolAnnotations{DestructiveHint: &f}
-	mcp.AddTool(s, &mcp.Tool{Name: "apply", Description: "Create a run from a plan and start its controller detached, like `irrigator apply`. Returns the run path. A per-call budget is required (not for managed plans).", Annotations: write}, t.apply)
-	mcp.AddTool(s, &mcp.Tool{Name: "pause", Description: "Ask a run to drain; durable state is retained.", Annotations: write}, t.pause)
-	mcp.AddTool(s, &mcp.Tool{Name: "resume", Description: "Start a detached controller for a stopped run, like `irrigator resume`.", Annotations: write}, t.resume)
-	mcp.AddTool(s, &mcp.Tool{Name: "retry_cell", Description: "Prepare an explicit retry of failed or cancelled cells, like `irrigator retry`. allow_uncertain and confirm_stopped are required and keep their CLI meaning; uncertain outcomes are never retried unless both are attested.", Annotations: write}, t.retryCell)
-	mcp.AddTool(s, &mcp.Tool{Name: "decide_approval", Description: "Approve or deny a blocked request through the run's approval ledger/mailbox.", Annotations: write}, t.decideApproval)
+	s := mcp.NewServer(&mcp.Implementation{Name: "irrigator", Version: buildinfo.Version}, &mcp.ServerOptions{Instructions: instructions})
+	t := &mcpTools{cfg: cfg}
+	addMCPTool(s, cfg, "list_runs", t.listRuns)
+	addMCPTool(s, cfg, "run_status", t.runStatus)
+	addMCPTool(s, cfg, "run_logs", t.runLogs)
+	addMCPTool(s, cfg, "attempt_output", t.attemptOutput)
+	addMCPTool(s, cfg, "provider_limit", t.providerLimit)
+	addMCPTool(s, cfg, "delivery_summary", t.deliverySummary)
+	addMCPTool(s, cfg, "inspect_cell", t.inspectCell)
+	addMCPTool(s, cfg, "review_list", t.reviewList)
+	addMCPTool(s, cfg, "inspect_review", t.inspectReview)
+	addMCPTool(s, cfg, "validate_plan", t.validatePlan)
+	if cfg.AllowControl {
+		addMCPTool(s, cfg, "apply", t.apply)
+		addMCPTool(s, cfg, "pause", t.pause)
+		addMCPTool(s, cfg, "resume", t.resume)
+		addMCPTool(s, cfg, "retry_cell", t.retryCell)
+		addMCPTool(s, cfg, "decide_approval", t.decideApproval)
+	}
 	return s
 }
 
