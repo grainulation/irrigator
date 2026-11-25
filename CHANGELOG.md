@@ -3,7 +3,7 @@
 Changes below describe source revisions. A source commit is not a signed binary
 release. Versioned plan and worker protocols are tracked separately from the CLI.
 
-## Unreleased
+## 1.3.1 — 2026-11-24
 
 ### Fixed
 
