@@ -39,7 +39,7 @@ func addMCPTool[In any](s *mcp.Server, cfg McpConfig, name string, handler mcp.T
 	}
 	mcp.AddTool(s, &mcp.Tool{
 		Name: mcpToolName(cfg, name), Description: description,
-		InputSchema: namedMCPInputSchema(cfg, name), OutputSchema: mcpOutputSchema(name),
+		InputSchema: namedMCPInputSchema(cfg, name), OutputSchema: namedMCPOutputSchema(cfg, name),
 		Annotations: toolAnnotations(readOnly, destructive, idempotent, openWorld),
 	}, handler)
 }
@@ -47,13 +47,13 @@ func addMCPTool[In any](s *mcp.Server, cfg McpConfig, name string, handler mcp.T
 var mcpToolDescriptions = map[string]string{
 	"list_runs":        "List saved runs under configured --runs directories, with path, control state, executor, verified/total cells and known reported USD cost. Use to discover run names, then {{run_status}} for one run; without --runs the list is empty. Unreadable roots or checkpoints appear as error rows. Cost is a recorded subtotal, not proof of free execution.",
 	"run_status":       "Read one run's current checkpoint overview: control state, executor, graph revision, cost accounting and per-cell status, attempt count and errors (capped at 1 KB). Use to locate cells needing attention; {{inspect_cell}} returns one cell's specification and results, and {{run_logs}} returns transition events. Missing or unreadable runs are tool errors; this does not start or repair work.",
-	"run_logs":         "Read a page of saved orchestration events, not provider stdout/stderr. Use for state transitions; {{attempt_output}} reads one attempt's captured output. since is the last consumed sequence; pass next_since to continue, while more reports unread checkpoint events. limit defaults to 100 and is clamped to 500. An unknown cell filter or unreadable run is a tool error.",
+	"run_logs":         "Read saved orchestration events to trace state transitions; {{attempt_output}} reads a recorded attempt's stdout/stderr. Pass next_since as since to continue. Filtering by cell still consumes skipped events: with limit=1, a matching event can be followed by more=true even when only other cells remain. A final filtered page can therefore be empty. Unknown cell IDs and unreadable runs are tool errors.",
 	"inspect_cell":     "Read one exact cell's saved specification, current state, accepted result, provider, replay safety and descendant IDs. Use after {{run_status}} identifies the cell; {{attempt_output}} reads historical stdout/stderr instead. Large strings are capped at 8 KB and listed under truncated; missing runs or cells are tool errors. Inspection never retries uncertain work.",
 	"attempt_output":   "Read one exact historical task attempt's bounded, redacted stdout/stderr. Use for process output; {{run_logs}} reads orchestration events. Pass next_cursor only for the same run, task, attempt, stream and source snapshot; a changed source requires restarting without cursor. has_more means unread pages, while source_truncated and capture_complete may be null when capture evidence is absent. Missing captures or invalid cursors are tool errors; this cannot read arbitrary files or retry work.",
 	"provider_limit":   "Read provider quota/reset evidence captured for one exact node attempt. Use after {{attempt_output}} shows a possible provider limit; {{run_status}} reports run accounting. Returns an advisory status, nullable reset_at and observed_at, evidence sources and read_errors. Unknown or conflicting reset evidence stays unknown. This never authenticates an account, queries live quota, retries work or authorizes dispatch; invalid attempts are tool errors.",
-	"delivery_summary": "Read the saved delivery candidate, included/excluded task IDs, output conflicts and recorded check outcomes. Use to inspect recorded delivery evidence; {{review_list}} lists workspace review items. candidate_sha256 may be null when no candidate can be identified. This never assembles files, runs checks, applies changes or grants approval; an unreadable run is a tool error.",
-	"inspect_review":   "Read one queued branch review with its pinned-head diff, or one queued document with its body and comments. Use {{review_list}} to obtain a branch name or snapshot ID; supply exactly one of branch or snapshot. file narrows a branch diff; base/file are invalid for documents. Strings are capped at 8 KB with truncated paths disclosed; use the local CLI for a full oversized diff. Missing/stale documents or invalid revisions are tool errors. This never captures files, marks them viewed, records a verdict or merges.",
-	"review_list":      "List branches and documents awaiting review in a local Git workspace, plus a preview of storage eligible for pruning. Use {{inspect_review}} to read a listed branch or document; {{delivery_summary}} describes one saved run's candidate. workspace defaults to --workspace; base defaults to the remote default branch, then main/master. Invalid Git workspaces or bases are tool errors. No pruning, review decisions or merges are performed.",
+	"delivery_summary": "Inspect a saved run's delivery selection, candidate conflicts and recorded check outcomes. Use it to assess selected run outputs; {{review_list}} and {{inspect_review}} cover workspace branches and documents. Any saved run can be inspected before a delivery selection exists. candidate_sha256 is null when no tasks are selected or conflicts/issues prevent a candidate. Use './r' for a workspace-relative run even with --runs configured. This reads evidence without assembling files, rerunning checks, applying changes or granting approval; unreadable runs are tool errors.",
+	"inspect_review":   "Read one queued branch's diff pinned to review.merge_base/review.head, or a queued document's body and comments. Repeat the workspace used for {{review_list}}. For a branch, pass queue.changes[].branch with queue.base; for a document, pass queue.documents[].snapshot and omit branch/base/file. Each call resolves branch/base again, so inspect a moved head before relying on prior review evidence. file narrows branch diffs; base/file are invalid for documents. Strings are capped at 8 KB with truncated paths disclosed. For a full branch patch, use local git diff --no-ext-diff --no-textconv with the returned merge_base and head IDs. Missing/stale documents or invalid revisions are tool errors; reading records no review decision.",
+	"review_list":      "List local branches ahead of a comparison base, queued review documents and storage eligible for pruning. Repeat this workspace in {{inspect_review}}. Pass queue.changes[].branch with queue.base for a branch; for a document, pass queue.documents[].snapshot and omit branch/base/file. Branches are discovered from Git, while documents and prior review decisions come from saved workspace records. {{delivery_summary}} inspects one run's selected outputs. Invalid Git workspaces or bases are tool errors. Storage is a pruning preview; no review decisions or merges are performed.",
 	"validate_plan":    "Validate exactly one plan file path or inline JSON string, returning valid and errors plus identity/task count when valid. Use before {{apply}} when control is enabled; validation does not start work or estimate provider charges. Invalid plan content is a normal valid:false result; missing/both inputs or path '-' are tool errors. Relative paths use --workspace; inline JSON uses a temporary local file that is removed afterward.",
 	"apply":            "Create a new run from a plan and start its controller detached; returns run path, backend, executor and started:true. Use only for a new run; {{resume}} starts an existing stopped run. Non-managed plans require an explicit backend and positive per-call budget; managed plans use profile budgets and reject budget here. Providers may contact external services and incur charges. Existing runs are never overwritten. If creation succeeds but launch fails, the tool error identifies the created run to inspect before resuming.",
 	"pause":            "Request a run to drain while retaining saved work. Use to stop admitting work; this does not hard-cancel an active provider or prove it stopped. {{resume}} restarts a stopped controller. Every call appends a pause request event, so repeated calls are not idempotent. Returns requested:pause; missing or quarantined runs are tool errors.",
@@ -83,7 +83,7 @@ func nullableField(kind, description string) map[string]any {
 }
 
 func mcpInputSchema(name string) map[string]any {
-	run := schemaField("string", "Saved run directory path, or a bare name under a configured --runs directory; paths are not confined by --runs.")
+	run := schemaField("string", "Saved run directory path, not run_id. Absolute paths are accepted; paths such as ./r resolve under --workspace. Bare names search --runs roots in order and select the first matching directory; an inspection error stops lookup, and a missing name with roots configured is an error rather than a workspace fallback. Without roots, bare names use --workspace. --runs does not confine paths.")
 	props := map[string]any{"run": run}
 	required := []string{"run"}
 	switch name {
@@ -92,9 +92,9 @@ func mcpInputSchema(name string) map[string]any {
 	case "run_logs":
 		props["since"] = map[string]any{"type": "integer", "minimum": 0, "description": "Last event sequence already consumed; zero starts at the beginning."}
 		props["limit"] = map[string]any{"type": "integer", "minimum": 0, "description": "Requested page size; zero/omitted uses 100, values above 500 are clamped."}
-		props["cell"] = schemaField("string", "Optional exact cell ID; unknown nonempty IDs are rejected.")
+		props["cell"] = schemaField("string", "Optional saved task/cell ID from {{run_status}} cells[].id; unknown nonempty IDs are rejected.")
 	case "inspect_cell", "retry_cell":
-		props["cell"] = schemaField("string", "Exact saved cell (node) ID.")
+		props["cell"] = schemaField("string", "Saved task/cell ID from {{run_status}} cells[].id, not the directory returned as {{inspect_cell}} cell.")
 		required = append(required, "cell")
 		if name == "retry_cell" {
 			props["recursive"] = schemaField("boolean", "Include descendants; defaults to false. Verified cells remain accepted.")
@@ -107,8 +107,8 @@ func mcpInputSchema(name string) map[string]any {
 		if name == "provider_limit" {
 			id = "node"
 		}
-		props[id] = schemaField("string", "Exact saved task ID, not a filename or arbitrary path.")
-		props["attempt"] = map[string]any{"type": "integer", "minimum": 1, "description": "Explicit recorded historical attempt number, starting at one."}
+		props[id] = schemaField("string", "Saved task/cell ID from {{run_status}} cells[].id; use the same ID for {{inspect_cell}} cell, {{attempt_output}} task and {{provider_limit}} node. This is not a filename or directory.")
+		props["attempt"] = map[string]any{"type": "integer", "minimum": 1, "description": "Recorded historical attempt number for this task, starting at one. The current attempt count does not guarantee that stdout/stderr was captured for every earlier attempt."}
 		required = append(required, id, "attempt")
 		if name == "attempt_output" {
 			props["stream"] = map[string]any{"type": "string", "enum": []string{"", "stdout", "stderr"}, "description": "Captured stream; omitted or empty selects stdout."}
@@ -116,7 +116,7 @@ func mcpInputSchema(name string) map[string]any {
 			props["max_bytes"] = map[string]any{"type": "integer", "anyOf": []any{map[string]any{"const": 0}, map[string]any{"minimum": 4, "maximum": 8192}}, "description": "Presentation bytes per page, 4..8192; zero/omitted defaults to 4096."}
 		}
 	case "inspect_review":
-		props = map[string]any{"workspace": schemaField("string", "Local Git workspace; defaults to --workspace."), "branch": schemaField("string", "Queued local branch name from review_list; supply this or snapshot."), "snapshot": schemaField("string", "Queued document snapshot ID from review_list; no arbitrary paths."), "base": schemaField("string", "Optional base branch/commit for branch inspection."), "file": schemaField("string", "Optional changed path to narrow the branch diff; invalid for documents.")}
+		props = map[string]any{"workspace": schemaField("string", "Local Git workspace; defaults to --workspace."), "branch": schemaField("string", "Branch from {{review_list}} queue.changes[].branch; supply this or snapshot."), "snapshot": schemaField("string", "Document ID from {{review_list}} queue.documents[].snapshot; no arbitrary paths."), "base": schemaField("string", "Branch comparison base; pass {{review_list}} queue.base to reuse its base reference. Omitted uses remote default, then local main/master. Invalid for documents."), "file": schemaField("string", "Optional changed path to narrow the branch diff; invalid for documents.")}
 		required = nil
 	case "review_list":
 		props = map[string]any{"workspace": schemaField("string", "Local Git workspace; defaults to --workspace, relative paths resolve there."), "base": schemaField("string", "Branch/commit to compare against; omitted uses remote default, then main/master.")}
@@ -140,13 +140,6 @@ func mcpInputSchema(name string) map[string]any {
 		props["request"] = schemaField("string", "Exact blocked request's cell ID in this run.")
 		props["decision"] = map[string]any{"type": "string", "enum": []string{"approve", "deny"}, "description": "Single-use workflow decision; cannot overwrite an earlier decision."}
 		required = append(required, "request", "decision")
-	}
-	for _, value := range props {
-		if field, ok := value.(map[string]any); ok {
-			if description, ok := field["description"].(string); ok {
-				field["description"] = strings.ReplaceAll(description, "review_list", "{{review_list}}")
-			}
-		}
 	}
 	out := schemaObject("Arguments for "+name+".", props, required...)
 	if name == "inspect_review" {
@@ -181,16 +174,16 @@ func mcpOutputSchema(name string) map[string]any {
 	required := []string{}
 	switch name {
 	case "list_runs":
-		props["runs"] = array("Discovered run rows with name/path/control/executor/verified/total/cost_usd, or path/name/error for unreadable entries. cost_usd is only known reported USD.")
+		props["runs"] = array("Successful run rows contain name/path/control/executor/verified/total/cost_usd. Diagnostic rows contain error and representable path/name when available; invalid UTF-8 selectors are omitted. cost_usd is only known reported USD.")
 		required = []string{"runs"}
 	case "run_status":
-		props = map[string]any{"path": text("Resolved run directory."), "backend": text("Saved provider backend."), "control": text("Current durable run control state."), "executor": text("Recorded local executor."), "graph_revision": number("Current admitted graph revision."), "verified": number("Count of accepted verified cells."), "total": number("Total cells."), "cost": object("Reported cost projection; unknown-cost operations remain explicitly unknown."), "cells": array("Per-cell id/status/attempts plus optional capped error, cost_unknown, cost_basis, usage, model and last_activity.")}
+		props = map[string]any{"path": text("Resolved run directory."), "backend": text("Saved provider backend."), "control": text("Current durable run control state."), "executor": text("Recorded local executor."), "graph_revision": number("Current admitted graph revision."), "verified": number("Count of accepted verified cells."), "total": number("Total cells."), "cost": object("Reported cost projection; unknown-cost operations remain explicitly unknown."), "cells": array("Per-cell id/status/attempts plus optional capped error, cost_unknown, cost_basis, usage, model and last_activity. Use id as {{inspect_cell}} cell, {{attempt_output}} task or {{provider_limit}} node; attempts is not a capture inventory.")}
 		required = []string{"path", "backend", "control", "executor", "graph_revision", "verified", "total", "cost", "cells"}
 	case "run_logs":
 		props = map[string]any{"events": array("Each row contains seq (one-based checkpoint event sequence) and event (recorded orchestration event)."), "next_since": number("Sequence consumed including skipped filter entries; pass as since."), "total": number("Total saved events before filtering."), "more": schemaField("boolean", "Unconsumed checkpoint events remain, possibly outside the cell filter.")}
 		required = []string{"events", "next_since", "total", "more"}
 	case "inspect_cell":
-		props = map[string]any{"node": object("Saved TaskState including spec, status, attempts and result; secret fields are redacted."), "provider": text("Resolved saved provider name."), "replay_safe": schemaField("boolean", "Declared replay policy; not proof an uncertain external call had no effects."), "cell": text("Local cell directory."), "descendants": stringArray("Descendant cell IDs, excluding the requested cell."), "last_activity": object("Latest saved attempt activity when a captured activity log is available.")}
+		props = map[string]any{"node": object("Saved TaskState object including spec, status, attempts and result; this is not the string ID accepted by {{provider_limit}} node. Secret fields are redacted."), "provider": text("Resolved saved provider name."), "replay_safe": schemaField("boolean", "Declared replay policy; not proof an uncertain external call had no effects."), "cell": text("Local directory for the requested cell; a path, not the ID accepted by cell/task/node selectors."), "descendants": stringArray("Descendant cell IDs, excluding the requested cell."), "last_activity": object("Latest saved attempt activity when a captured activity log is available.")}
 		required = []string{"node", "provider", "replay_safe", "cell", "descendants"}
 	case "attempt_output":
 		for _, key := range []string{"schema", "run_id", "task", "stream", "representation", "source_sha256", "capture_metadata", "output", "next_cursor"} {
@@ -213,7 +206,7 @@ func mcpOutputSchema(name string) map[string]any {
 		props = map[string]any{"kind": text("branch or document."), "review": object("Branch metadata, exact head, changed files and comments; or queued document ID/kind/title/body/comments."), "diff": text("Branch diff at the returned head, absent for documents; inspect truncated before relying on it.")}
 		required = []string{"kind", "review"}
 	case "review_list":
-		props = map[string]any{"queue": object("Workspace review queue with base, changes and documents."), "storage": object("Preview of eligible storage pruning; nothing removed.")}
+		props = map[string]any{"queue": object("Workspace review queue. Repeat the selected workspace in {{inspect_review}}. For branches pass changes[].branch with base; for documents pass documents[].snapshot and omit branch/base/file."), "storage": object("Preview of eligible storage pruning; nothing removed.")}
 		required = []string{"queue", "storage"}
 	case "validate_plan":
 		props = map[string]any{"valid": schemaField("boolean", "Whether the plan contract validates."), "errors": stringArray("Validation errors; invalid content is a normal result."), "name": text("Plan name, present only for valid plans."), "api_version": text("Plan format, present only for valid plans."), "tasks": number("Initial task count, present only for valid plans.")}
@@ -234,23 +227,44 @@ func mcpOutputSchema(name string) map[string]any {
 		props = map[string]any{"run": text("Resolved run directory."), "request": text("Blocked request cell ID."), "decision": text("Recorded approve or deny decision.")}
 		required = []string{"run", "request", "decision"}
 	}
-	props["truncated"] = stringArray("JSON paths of capped strings; strings end with a truncation notice. This is presentation truncation, not capture-loss evidence.")
-	return schemaObject("Sanitized structured result; strings are capped at 8 KB with a suffix and credential fields are redacted. Tool errors use isError:true text instead of this success result.", props, required...)
+	props["truncated"] = stringArray("Exact JSON paths of shortened display values. These addresses are not shortened, even when they exceed the display-string cap. This is presentation truncation, not capture-loss evidence.")
+	return schemaObject("Sanitized structured result. Display strings are capped at 8192 bytes including any truncation notice; exact addresses in truncated are exempt. Credential fields are redacted. Tool errors use isError:true text instead of this success result.", props, required...)
 }
 
 func namedMCPInputSchema(cfg McpConfig, name string) map[string]any {
 	out := mcpInputSchema(name)
 	out["description"] = "Arguments for " + mcpToolName(cfg, name) + "."
-	props := out["properties"].(map[string]any)
-	for _, value := range props {
-		if field, ok := value.(map[string]any); ok {
-			if description, ok := field["description"].(string); ok {
-				for legacy := range canonicalToolNames {
-					description = strings.ReplaceAll(description, "{{"+legacy+"}}", mcpToolName(cfg, legacy))
+	renderMCPSchemaReferences(cfg, out)
+	return out
+}
+
+func namedMCPOutputSchema(cfg McpConfig, name string) map[string]any {
+	out := mcpOutputSchema(name)
+	renderMCPSchemaReferences(cfg, out)
+	return out
+}
+
+// References can occur in nested properties and array items as well as the
+// top-level description. Only description text is rendered; schema values and
+// externally supplied strings are not renamed.
+func renderMCPSchemaReferences(cfg McpConfig, value any) {
+	switch value := value.(type) {
+	case map[string]any:
+		for key, child := range value {
+			if key == "description" {
+				if description, ok := child.(string); ok {
+					for legacy := range canonicalToolNames {
+						description = strings.ReplaceAll(description, "{{"+legacy+"}}", mcpToolName(cfg, legacy))
+					}
+					value[key] = description
 				}
-				field["description"] = description
+			} else {
+				renderMCPSchemaReferences(cfg, child)
 			}
 		}
+	case []any:
+		for _, child := range value {
+			renderMCPSchemaReferences(cfg, child)
+		}
 	}
-	return out
 }

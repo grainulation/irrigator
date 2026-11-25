@@ -33,7 +33,7 @@ localhost listeners for those checks; a sandbox refusal is not a provider failur
 
 | Gate | Needs | Scope | Expected outcome | Command |
 | --- | --- | --- | --- | --- |
-| `build` | Go 1.26.7+ | Compile `./irrigator` with `-trimpath` | Exit `0`; `./irrigator version` prints `1.2.1` | `make build` |
+| `build` | Go 1.26.7+ | Compile `./irrigator` with `-trimpath` | Exit `0`; `./irrigator version` prints `1.3.0` | `make build` |
 | `check-fast` | Go 1.27.2, `tmux` ≥3.2 | Unit tests across `./internal/...` + `go vet` | Exit `0` | `make check-fast` |
 | `check` | Go 1.27.2, `tmux` ≥3.2 | Default suite under `-race` + `go vet` | Exit `0` | `make check` |
 | `check-integration` | Go 1.27.2, `tmux` ≥3.2 | Full tree with `-tags integration -race -count=1` | Exit `0` | `make check-integration` |
@@ -49,6 +49,15 @@ localhost listeners for those checks; a sandbox refusal is not a provider failur
 
 ## Regression boundaries
 
+- MCP contract checks cover both naming inventories with and without explicit
+  controls. They exercise run-selector and task-identifier transfer, filtered
+  event pagination, delivery/review inspection and result presentation with local
+  fixtures. Credential containers, numeric usage, UTF-8 caps and truncation
+  disclosure have separate regression cases. Run `go test ./internal/mcpserver`.
+  The byte-invalid filename collision fixture skips only when the filesystem
+  rejects those names with `EILSEQ`; diagnostic normalization is tested separately.
+  Discovery captures identify the build and startup profile; they do not establish
+  external score changes, live-provider behavior or native-host acceptance.
 - Codex turn-schema regressions exercise stop, continuation, helper and waiting
   requests through a fake executable that captures the actual `--output-schema`
   file. They check strict object closure and required fields, preserve ordinary
