@@ -1,68 +1,245 @@
 {
   "date": "2026-11-25",
-  "source_base_revision": "1922e619cf73c00350bd2fa806ff55797a4792fc",
-  "source_files": {
-    "internal/mcpserver/tool_definitions.go": "a7eb4120df319669b82b041bd4c444cce94059b6442bf7bb632f34f38cb3703e",
-    "docs/mcp.md": "0edb60fc5856b92a4b3a93b4bc04fccab9d25f5e23a0104a60dc8e99795461bd",
-    "CHANGELOG.md": "ae83fdc60c9c06dc09af4e08757cd7bc464ece810074e76b1a35e5e6fecff282"
+  "scope": "Targeted MCP guidance, compatibility and review-pruning safety verification. Full repository/platform/release gates are tracked separately in PR CI.",
+  "source_base_revision": "8d7f917b6d8bc18c5a6e681f979586953eb3d8a4",
+  "comparison_before": {
+    "revision": "1922e619cf73c00350bd2fa806ff55797a4792fc",
+    "vcs_modified": false,
+    "binary_sha256": "f81aa9cb27004faab39caaf0dad4c61fc74b6366f65bd15c56145cf5221b9719",
+    "version": "1.3.1",
+    "relationship": "Retained pre-guidance binary from the original pass; this ancestor predates the current PR base. The exact inventories are compared directly, rather than assuming identical definitions across bases."
+  },
+  "comparison_after": {
+    "parent_revision": "d5daec39199beb63af73711c49273e4aa85a4476",
+    "vcs_modified": true,
+    "binary_sha256": "966730ffc36c89191ff8bac85636dc004c87c671df5fb634a5585f052d612e67",
+    "version": "1.3.2",
+    "source_files": {
+      ".claude-plugin/marketplace.json": "bbe436c56abc7cb1b9556d411d185095de530de6b787b0ff03f006ef56b724ec",
+      ".claude-plugin/plugin.json": "689d6df446f004473203784676e3ddc4b9c7681fdc307d9dfebbe595bbe954e5",
+      ".codex-plugin/plugin.json": "b6a5fcb711eb3bd2127939e9aef1b35fa65afa4516ae14d4ac00517bdd4cb250",
+      "CHANGELOG.md": "f26df5af6ad27d3605fff282f6e865da9318cbfa93096039718a5f16deab34cb",
+      "docs/local-review.md": "6050f625615620a58b4997481adf2a0ccf6c259360858815d2f00d3954fd0d49",
+      "docs/mcp.md": "9ab90d2e29d768c5c8529c294ff2732fe28b18ba0be8d9c67472f9947d9872ae",
+      "internal/branchreview/review_change_cli.go": "16f8edbbb2f772ba9a2fdc318663596d351b306887518a54f1cab386c5e63660",
+      "internal/branchreview/review_change_test.go": "610f06cccc8168452bb7e780b6724fe462272deae67bcf0301cd9835b8a27166",
+      "internal/branchreview/review_prune.go": "18197a06f4226cbcfc7c0b1b6eba2928da0b6acc4768c30578307ed9f7df3b34",
+      "internal/branchreview/review_prune_test.go": "02a08cafae73d7c7a414313060a9bf10dd52f51845ceb1e2b6e0843f9b785022",
+      "internal/buildinfo/main.go": "ae233efea2a533c7f31220f5ef5e3136b0996de615076abba1a0f62a04fd1d21",
+      "internal/mcpserver/mcp.go": "f449f84e097e3efbf4c528a36d726ee9c8a032a9396978ef255bec4d8de2ead3",
+      "internal/mcpserver/parameter_contract_test.go": "db9d6f6c5a03b654182469e887d1170be2519b3e27c8a84e9594717eb1eee55a",
+      "internal/mcpserver/tool_definitions.go": "97cf668b258d8a88910b8eb20e8c614ddfc8f5800d6b70b7ba8d4405e9440f72",
+      "plugin.json": "6019a8ff5444a59ddfe135fee27feef3772e7034d235fd8f624f25ab2a76bb0b",
+      "tools/compare_mcp_schema.py": "3abd1a027b5d2e41a51cf52de2d96ff9d33820564fd8773f7fe3ff2eb9507027",
+      "tools/test_compare_mcp_schema.py": "f9f077957e2fb0a0de28f43b634a0818ca95ea963edabc62f2c746f46fcaaf3a",
+      "verification/README.md": "6da07baec2b42cc2ee408e18af0a06e52703ae13ecad4953ebdf654becbc2a2e",
+      "verification/golden/subcommands/version.golden": "33158972a53877b421cfe2598b8d93cab169963a4964b45ee889e85349979018"
+    },
+    "build_command": "go build -o ./irrigator ."
   },
   "toolchain": "go1.27.2 darwin/arm64",
-  "scope": "MCP descriptions and lifecycle/CLI handoff documentation; execution code unchanged",
-  "checks": [
+  "profiles": [
     {
-      "command": "go build -o TEMP_BINARY .",
-      "exit_code": 0,
-      "scope": "before and after local binaries"
+      "profile": "legacy-inspection",
+      "capture_flags": [],
+      "expected_changed": [
+        "run_status",
+        "review_list"
+      ],
+      "tools": 10,
+      "contract_unchanged": true,
+      "changed_descriptions": [
+        "attempt_output",
+        "inspect_cell",
+        "list_runs",
+        "provider_limit",
+        "review_list",
+        "run_logs",
+        "run_status",
+        "validate_plan"
+      ],
+      "same_binary_negative_check_passed": true,
+      "capture_commands": {
+        "before": "python3 tools/mcp-schema.py --binary BEFORE ",
+        "after": "python3 tools/mcp-schema.py --binary AFTER "
+      },
+      "capture_sha256": {
+        "before": "5809eb387820ab399fc7baace6b8cc36ae860afa8cf9f6655ac851a790ddcc67",
+        "after": "8a5e7fa58ee2efcdf24948aada80447aaa2d471808ec2b8fa8edb3f59fd8e889"
+      },
+      "compare_command": "python3 tools/compare_mcp_schema.py before.json after.json --changed run_status --changed review_list"
     },
     {
-      "command": "go test -race ./internal/mcpserver",
-      "exit_code": 0,
-      "verdict": "ok github.com/grainulation/irrigator/internal/mcpserver 15.313s",
-      "environment": "Outside filesystem sandbox after existing invalid-filename fixture was denied inside sandbox"
+      "profile": "legacy-control",
+      "capture_flags": [
+        "--allow-control"
+      ],
+      "expected_changed": [
+        "run_status",
+        "review_list",
+        "pause",
+        "resume",
+        "retry_cell"
+      ],
+      "tools": 15,
+      "contract_unchanged": true,
+      "changed_descriptions": [
+        "attempt_output",
+        "inspect_cell",
+        "list_runs",
+        "pause",
+        "provider_limit",
+        "resume",
+        "retry_cell",
+        "review_list",
+        "run_logs",
+        "run_status",
+        "validate_plan"
+      ],
+      "same_binary_negative_check_passed": true,
+      "capture_commands": {
+        "before": "python3 tools/mcp-schema.py --binary BEFORE --allow-control",
+        "after": "python3 tools/mcp-schema.py --binary AFTER --allow-control"
+      },
+      "capture_sha256": {
+        "before": "b1ed8b92ee0dcc83c9df683ff4b7f078e0c8008536c39e9297f770b68d98ead2",
+        "after": "dd2696bb8d1e8d813e18b18ae86f59adccf500b6579372a0ae0cc0eb560118cf"
+      },
+      "compare_command": "python3 tools/compare_mcp_schema.py before.json after.json --changed run_status --changed review_list --changed pause --changed resume --changed retry_cell"
     },
     {
-      "command": "go vet ./internal/mcpserver",
-      "exit_code": 0
+      "profile": "canonical-inspection",
+      "capture_flags": [
+        "--canonical-names"
+      ],
+      "expected_changed": [
+        "get_run_status",
+        "list_reviews"
+      ],
+      "tools": 10,
+      "contract_unchanged": true,
+      "changed_descriptions": [
+        "get_attempt_limit_advisory",
+        "get_attempt_output",
+        "get_run_status",
+        "inspect_cell",
+        "list_reviews",
+        "list_run_events",
+        "list_runs",
+        "validate_plan"
+      ],
+      "same_binary_negative_check_passed": true,
+      "capture_commands": {
+        "before": "python3 tools/mcp-schema.py --binary BEFORE --canonical-names",
+        "after": "python3 tools/mcp-schema.py --binary AFTER --canonical-names"
+      },
+      "capture_sha256": {
+        "before": "9da47593020ba52e4035acf803a5a222211a9784209eec7795bc94a5f4551054",
+        "after": "7ad321ced2410d464e6a3a07f548df31144ea7ad7e2f117e49b7ea8851d8e0e9"
+      },
+      "compare_command": "python3 tools/compare_mcp_schema.py before.json after.json --changed get_run_status --changed list_reviews"
     },
     {
-      "command": "python3 -m unittest discover -s tools -p 'test_mcp_schema.py'",
-      "exit_code": 0,
-      "tests": 8,
-      "verdict": "OK"
-    },
-    {
-      "command": "tools/mcp-schema.py before/after captures for all four startup profiles",
-      "exit_code": 0,
-      "profiles": 4,
-      "schemas_names_annotations_unchanged": true
-    },
-    {
-      "command": "git diff --check",
-      "exit_code": 0
-    },
-    {
-      "command": "gofmt -l internal/mcpserver/tool_definitions.go",
-      "exit_code": 0,
-      "verdict": "no formatting changes"
+      "profile": "canonical-control",
+      "capture_flags": [
+        "--allow-control",
+        "--canonical-names"
+      ],
+      "expected_changed": [
+        "get_run_status",
+        "list_reviews",
+        "pause_run",
+        "resume_run",
+        "retry_cell"
+      ],
+      "tools": 15,
+      "contract_unchanged": true,
+      "changed_descriptions": [
+        "get_attempt_limit_advisory",
+        "get_attempt_output",
+        "get_run_status",
+        "inspect_cell",
+        "list_reviews",
+        "list_run_events",
+        "list_runs",
+        "pause_run",
+        "resume_run",
+        "retry_cell",
+        "validate_plan"
+      ],
+      "same_binary_negative_check_passed": true,
+      "capture_commands": {
+        "before": "python3 tools/mcp-schema.py --binary BEFORE --allow-control --canonical-names",
+        "after": "python3 tools/mcp-schema.py --binary AFTER --allow-control --canonical-names"
+      },
+      "capture_sha256": {
+        "before": "a3e908de93943934ffd8694c7359d810199d72030162410e53852b6c7d269f65",
+        "after": "3dae3411c3aa019f20c957386a7ef060679f3d3898617893cd906219297b1fcf"
+      },
+      "compare_command": "python3 tools/compare_mcp_schema.py before.json after.json --changed get_run_status --changed list_reviews --changed pause_run --changed resume_run --changed retry_cell"
     }
   ],
-  "not_executed": [
-    "Full repository acceptance and lint suites",
-    "Live-provider calls",
-    "Native-host acceptance",
-    "Independent or external model judging",
-    "External publication or registry rescore"
+  "checks": [
+    {
+      "command": "go test -race ./internal/branchreview ./internal/mcpserver",
+      "exit_code": 0,
+      "verdicts": [
+        "ok github.com/grainulation/irrigator/internal/branchreview 74.475s",
+        "ok github.com/grainulation/irrigator/internal/mcpserver 16.871s"
+      ],
+      "scope": "Pruning confinement, corrupt/missing subjects, moved verdict heads and MCP contracts; subsequent description-only refinements recaptured below."
+    },
+    {
+      "command": "python3 -m unittest discover -s tools -p 'test_*mcp_schema.py'",
+      "exit_code": 0,
+      "tests": 13
+    },
+    {
+      "command": "make lint",
+      "exit_code": 0,
+      "verdict": "0 issues for default and integration tags; go mod tidy -diff clean"
+    },
+    {
+      "command": "before/after disposable-repository prune reproduction",
+      "exit_code": 0,
+      "before_external_sentinel_survived": false,
+      "after_external_sentinel_survived": true,
+      "after_tool_exit_code": 1
+    },
+    {
+      "command": "four captured profiles plus same-binary negative comparisons",
+      "exit_code": 0,
+      "contract_unchanged": true,
+      "positive_description_changes": true
+    },
+    {
+      "command": "fresh wrapper-backed installed canonical inspection/control captures",
+      "exit_code": 0,
+      "version": "1.3.2",
+      "tools_match_built_captures": true,
+      "scope": "MCP process discovery, not a restarted native agent host"
+    }
+  ],
+  "independent_review": {
+    "requested_model": "gpt-6.2-astra",
+    "provider_reported_actual_model": null,
+    "source_revision": "d5daec39199beb63af73711c49273e4aa85a4476",
+    "scope": "Static blind-spot review of the pre-fix source packet. No claim of a second model review of these corrections.",
+    "cost_usd": null,
+    "cost_unknown": true
+  },
+  "not_established": [
+    "New registry score",
+    "Full restarted native-host acceptance",
+    "Live-provider acceptance of final fixes",
+    "Release publication or Homebrew channel promotion"
   ],
   "published_score": {
     "value": 4.1,
-    "status": "existing evaluation; no new published score established"
+    "status": "Existing evaluation; no new published score established"
   },
-  "self_review": {
-    "overall": 4.5,
-    "description_quality": 4.6,
-    "coherence": 4.3,
-    "independent": false,
-    "blind": false,
-    "method": "Implementation-author qualitative judgments against TDQS rubric; exact aggregation; no external model call. Not an independently measured score gain."
+  "prior_self_review": {
+    "record_commit": "d5daec39199beb63af73711c49273e4aa85a4476",
+    "status": "Historical implementation-author assessment; not new independent judging or a score of the final corrected inventory."
   }
 }

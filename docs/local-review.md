@@ -152,7 +152,11 @@ Decisions go through the same code as `review approve` and
 `irrigator review` shows how much space local Irrigator data uses.
 `irrigator review prune` previews what can go: review snapshots and agent
 session logs older than 30 days (`--older-than DAYS`), and review state for
-deleted branches or removed snapshots. Add `--apply` to delete them. Commits and branches are never touched.
+deleted branches or removed snapshots. Add `--apply` to recompute eligibility and
+delete eligible items; a prior preview does not freeze the selection. Symlinked
+storage ancestors are rejected and removals stay anchored to opened storage
+directories. An inconclusive Git or snapshot lookup stops pruning rather than
+treating the subject as absent. Commits and branches are never touched.
 
 ## Code changes
 

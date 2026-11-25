@@ -118,7 +118,7 @@ func toolAnnotations(readOnly, destructive, idempotent, openWorld bool) *mcp.Too
 func NewMCPServer(cfg McpConfig) *mcp.Server {
 	instructions := "Inspect local saved Irrigator runs, cells and attempts. Run arguments are paths or names under --runs; --runs is discovery, not filesystem confinement. This inspection profile cannot start, pause or retry work."
 	if cfg.AllowControl {
-		instructions = "Inspect saved Irrigator runs and explicitly control execution. Starting or resuming can contact providers and spend money; pause requests draining. Interrupted work is never replayed automatically. " + mcpToolName(cfg, "retry_cell") + " only prepares a retry and requires explicit uncertainty and cleanup attestations; " + mcpToolName(cfg, "resume") + " executes it. Approval decisions never merge changes."
+		instructions = "Inspect saved Irrigator runs and explicitly control execution. Starting or resuming can contact providers and spend money; pause requests draining. Work classified uncertain is never replayed automatically. " + mcpToolName(cfg, "retry_cell") + " only prepares a retry and requires explicit uncertainty and cleanup arguments; " + mcpToolName(cfg, "resume") + " executes pending work. Approval decisions never merge changes."
 	}
 	s := mcp.NewServer(&mcp.Implementation{Name: "irrigator", Version: buildinfo.Version}, &mcp.ServerOptions{Instructions: instructions})
 	t := &mcpTools{cfg: cfg}

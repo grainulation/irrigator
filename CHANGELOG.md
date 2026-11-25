@@ -5,6 +5,17 @@ release. Versioned plan and worker protocols are tracked separately from the CLI
 
 ## Unreleased
 
+## 1.3.2 — 2026-11-25
+
+### Fixed
+
+- Review pruning pins real storage directories through deletion, rejects linked
+  ancestors and preserves metadata when Git or snapshot evidence is inconclusive.
+  Preview and apply each recompute eligibility.
+- MCP lifecycle guidance distinguishes process launch from controller progress,
+  uncertain work from replay-safe reconciliation, and a verdict-time head from
+  the head inspected earlier. Startup root resolution is explicit.
+
 ### Changed
 
 - MCP guidance distinguishes a saved pause request from completed draining,

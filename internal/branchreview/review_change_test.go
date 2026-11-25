@@ -145,6 +145,24 @@ func TestReviewRequestChangesQuotesFeedbackAndAwaitsAgent(t *testing.T) {
 	}
 }
 
+func TestReviewVerdictResolvesHeadAgainAfterInspection(t *testing.T) {
+	ws := changeTestRepo(t)
+	inspected, _, err := loadChange(ws, "agent-1", "main")
+	if err != nil {
+		t.Fatal(err)
+	}
+	reviewTestGit(t, ws, "switch", "-q", "agent-1")
+	reviewTestGit(t, ws, "commit", "--allow-empty", "-qm", "new head after inspection")
+	reviewTestGit(t, ws, "switch", "-q", "main")
+	decided, _, err := setChangeVerdict(ws, "agent-1", "main", "approved", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if decided.Head == inspected.Head || decided.Verdict == nil || decided.Verdict.Head != decided.Head {
+		t.Fatalf("verdict must record the head at decision time: inspected=%s decided=%+v", inspected.Head, decided)
+	}
+}
+
 func TestReviewRejectsUnchangedFilesAndForeignCommits(t *testing.T) {
 	ws := changeTestRepo(t)
 	if err := markViewed(ws, "agent-1", "", []string{"go.mod"}, true); err == nil {

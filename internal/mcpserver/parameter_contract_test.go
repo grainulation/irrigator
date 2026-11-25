@@ -29,6 +29,34 @@ func forMCPProfiles(t *testing.T, test func(*testing.T, McpConfig)) {
 	}
 }
 
+func TestStartupRootsResolveAgainstProcessDirectory(t *testing.T) {
+	cwd, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	workspace := t.TempDir()
+	omitted, err := newMCPConfig(nil, workspace, false)
+	if err != nil || len(omitted.RunRoots) != 0 {
+		t.Fatalf("omitted: %+v %v", omitted, err)
+	}
+	cfg, err := newMCPConfig([]string{"", "relative-runs", "relative-runs", filepath.Join(workspace, "missing")}, workspace, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []string{cwd, filepath.Join(cwd, "relative-runs"), filepath.Join(cwd, "relative-runs"), filepath.Join(workspace, "missing")}
+	if len(cfg.RunRoots) != len(want) {
+		t.Fatalf("roots=%v", cfg.RunRoots)
+	}
+	for i, root := range want {
+		if cfg.RunRoots[i] != root {
+			t.Fatalf("root %d=%s; want %s", i, cfg.RunRoots[i], root)
+		}
+	}
+	if cfg.Workspace != workspace {
+		t.Fatalf("workspace=%s", cfg.Workspace)
+	}
+}
+
 func callParameterFixture(t *testing.T, cs *mcp.ClientSession, name string, args map[string]any) map[string]any {
 	t.Helper()
 	result, err := cs.CallTool(context.Background(), &mcp.CallToolParams{Name: name, Arguments: args})

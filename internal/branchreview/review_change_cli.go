@@ -13,7 +13,6 @@ import (
 	"github.com/grainulation/irrigator/internal/commandflags"
 	"github.com/grainulation/irrigator/internal/jsonio"
 	"github.com/grainulation/irrigator/internal/launch"
-	"github.com/grainulation/irrigator/internal/messaging"
 	"github.com/grainulation/irrigator/internal/session"
 	"github.com/grainulation/irrigator/internal/terminalview"
 )
@@ -281,110 +280,6 @@ type pruneReport struct {
 	Items      []pruneItem `json:"items"`
 	Bytes      int64       `json:"bytes"`
 	Applied    bool        `json:"applied"`
-}
-
-func reviewDirSize(p string) int64 {
-	var n int64
-	_ = filepath.WalkDir(p, func(_ string, d os.DirEntry, err error) error {
-		if err == nil && d.Type().IsRegular() {
-			if info, err := d.Info(); err == nil {
-				n += info.Size()
-			}
-		}
-		return nil
-	})
-	return n
-}
-
-// pruneReviews finds local data that no longer serves a purpose: state for
-// deleted branches or removed snapshots, and snapshots and agent session logs
-// older than the cutoff.
-// It deletes only with apply, and only real directories and files it created.
-func PruneReviews(ws string, olderThanDays int, apply bool) (*pruneReport, error) {
-	if olderThanDays < 1 {
-		return nil, errors.New("--older-than must be at least 1 day")
-	}
-	r := &pruneReport{Items: []pruneItem{}, Applied: apply}
-	private := filepath.Join(ws, ".irrigator")
-	for _, name := range []string{"reviews", "changes", "sessions"} {
-		r.UsageBytes += reviewDirSize(filepath.Join(private, name))
-	}
-	cutoff := time.Now().Add(-time.Duration(olderThanDays) * 24 * time.Hour)
-	reviews := filepath.Join(private, "reviews")
-	entries, _ := os.ReadDir(reviews)
-	for _, e := range entries {
-		info, err := os.Lstat(filepath.Join(reviews, e.Name()))
-		if err != nil || !info.IsDir() || info.ModTime().After(cutoff) {
-			continue
-		}
-		p := filepath.Join(reviews, e.Name())
-		r.Items = append(r.Items, pruneItem{Path: p, Reason: fmt.Sprintf("snapshot older than %d days", olderThanDays), Bytes: reviewDirSize(p)})
-	}
-	sessions := filepath.Join(private, "sessions")
-	entries, _ = os.ReadDir(sessions)
-	for _, e := range entries {
-		info, err := os.Lstat(filepath.Join(sessions, e.Name()))
-		if err != nil || !info.Mode().IsRegular() || !strings.HasSuffix(e.Name(), ".jsonl") || info.ModTime().After(cutoff) {
-			continue
-		}
-		r.Items = append(r.Items, pruneItem{Path: filepath.Join(sessions, e.Name()), Reason: fmt.Sprintf("agent session idle for %d days", olderThanDays), Bytes: info.Size()})
-	}
-	changes := filepath.Join(private, "changes")
-	entries, _ = os.ReadDir(changes)
-	for _, e := range entries {
-		if !strings.HasSuffix(e.Name(), ".json") || !e.Type().IsRegular() {
-			continue
-		}
-		p := filepath.Join(changes, e.Name())
-		data, err := messaging.ReviewReadFile(p, changeStateLimit)
-		if err != nil {
-			continue
-		}
-		var s changeState
-		if json.Unmarshal(data, &s) != nil || s.Subject == "" {
-			continue
-		}
-		reason := ""
-		if id, ok := strings.CutPrefix(s.Subject, "snapshot:"); ok {
-			if !reviewSnapshotExists(reviews, id) {
-				reason = "its snapshot was removed"
-			}
-		} else if _, err := session.ReviewGit(ws, "show-ref", "--verify", "--quiet", "refs/heads/"+s.Subject); err != nil {
-			reason = "branch " + s.Subject + " no longer exists"
-		}
-		if reason != "" {
-			r.Items = append(r.Items, pruneItem{Path: p, Reason: reason, Bytes: int64(len(data))})
-		}
-	}
-	for _, it := range r.Items {
-		r.Bytes += it.Bytes
-	}
-	if !apply {
-		return r, nil
-	}
-	for _, it := range r.Items {
-		info, err := os.Lstat(it.Path)
-		if err != nil || info.Mode()&os.ModeSymlink != 0 {
-			continue
-		}
-		if err = os.RemoveAll(it.Path); err != nil {
-			return r, err
-		}
-		if strings.HasSuffix(it.Path, ".json") {
-			os.Remove(strings.TrimSuffix(it.Path, ".json") + ".lock")
-		}
-	}
-	return r, nil
-}
-
-func reviewSnapshotExists(reviews, id string) bool {
-	entries, _ := os.ReadDir(reviews)
-	for _, e := range entries {
-		if s, err := readReview(filepath.Join(reviews, e.Name())); err == nil && s.ID == id {
-			return true
-		}
-	}
-	return false
 }
 
 func reviewBytes(n int64) string {
