@@ -279,7 +279,7 @@ func redactAttemptText(raw []byte) string {
 		}
 		return text
 	}
-	text := string(raw)
+	var text string
 	var walk func(any) any
 	walk = func(v any) any {
 		switch item := v.(type) {
