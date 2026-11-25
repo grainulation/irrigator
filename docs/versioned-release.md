@@ -12,6 +12,11 @@ alone is not evidence that a release has been published.
 2. Update `internal/buildinfo/main.go`, `plugin.json`,
    `.claude-plugin/plugin.json`, `.codex-plugin/plugin.json`, and both version
    fields in `.claude-plugin/marketplace.json` together.
+   Rebuild the CLI, regenerate `verification/cli-contract.json` with
+   `irrigator help --json`, and review its diff. Update the intentional version
+   output in `verification/golden/subcommands/version.golden` and the expected
+   build version in `verification/README.md` too. Version-only changes should
+   not alter command flags or schemas.
    Move the intended `CHANGELOG.md` entries into a dated version section.
 3. Review and commit the release contents. Use a clean checkout for release
    validation. Do not delete unrelated local work just to make it clean.
