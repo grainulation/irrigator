@@ -1,6 +1,7 @@
 package mcpserver
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -55,7 +56,9 @@ func mcpDiagnosticObject(v any) (mcpOut, error) {
 		return nil, err
 	}
 	var out mcpOut
-	if err := json.Unmarshal(raw, &out); err != nil {
+	decoder := json.NewDecoder(bytes.NewReader(raw))
+	decoder.UseNumber()
+	if err := decoder.Decode(&out); err != nil {
 		return nil, err
 	}
 	return out, nil

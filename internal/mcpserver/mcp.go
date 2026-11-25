@@ -1,6 +1,7 @@
 package mcpserver
 
 import (
+	"bytes"
 	"context"
 	"crypto/rand"
 	"encoding/hex"
@@ -13,6 +14,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -88,11 +90,17 @@ func newMCPConfig(roots []string, workspace string, allowControl bool) (McpConfi
 		if err != nil {
 			return cfg, err
 		}
+		if !utf8.ValidString(abs) {
+			return cfg, fmt.Errorf("run root is not valid UTF-8: %q", abs)
+		}
 		cfg.RunRoots = append(cfg.RunRoots, abs)
 	}
 	abs, err := filepath.Abs(workspace)
 	if err != nil {
 		return cfg, err
+	}
+	if !utf8.ValidString(abs) {
+		return cfg, fmt.Errorf("workspace is not valid UTF-8: %q", abs)
 	}
 	cfg.Workspace = abs
 	return cfg, nil
@@ -144,19 +152,76 @@ type mcpOut = map[string]any
 
 // mcpResult sanitizes the structured output and pairs it with a short summary.
 func mcpResult(summary string, out mcpOut) (*mcp.CallToolResult, mcpOut, error) {
+	return mcpResultWithTruncation(summary, out, nil)
+}
+
+// mcpResultWithTruncation also preserves paths shortened by a handler's lower
+// presentation limit. Those values will not reach the sanitizer's 8-KB limit.
+func mcpResultWithTruncation(summary string, out mcpOut, shortened []string) (*mcp.CallToolResult, mcpOut, error) {
 	clean, truncated := mcpSanitize(out)
+	truncated = append(truncated, shortened...)
+	slices.Sort(truncated)
+	truncated = slices.Compact(truncated)
 	m, _ := clean.(map[string]any)
 	if m == nil {
 		m = mcpOut{}
 	}
 	if len(truncated) > 0 {
 		m["truncated"] = truncated
-		summary += fmt.Sprintf(" (%d value(s) truncated to %d bytes; see \"truncated\")", len(truncated), McpTextCap)
+		notice := fmt.Sprintf(" (%d structured value(s) shortened; see \"truncated\" and inline byte counts)", len(truncated))
+		summary, _ = mcpTruncate(summary, McpTextCap-len(notice))
+		summary += notice
+	} else {
+		summary, _ = mcpTruncate(summary, McpTextCap)
 	}
 	return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: summary}}}, m, nil
 }
 
 var mcpSecretKey = regexp.MustCompile(`(?i)(token|secret|password|passwd|api[_-]?key|credential|authorization)`)
+var mcpPathIdentifier = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
+
+func mcpPropertyPath(parent, key string) string {
+	if mcpPathIdentifier.MatchString(key) {
+		return parent + "." + key
+	}
+	quoted, _ := json.Marshal(key)
+	return parent + "[" + string(quoted) + "]"
+}
+
+// Token counts are public accounting fields, not authentication credentials.
+// Only their numeric values (and known usage-container shapes) are exempt: a
+// credential hidden in an array/object under one of these names is redacted.
+func mcpTokenMetric(path, key string, value any) bool {
+	switch key {
+	case "input_tokens", "output_tokens", "thinking_tokens", "cache_read_tokens", "cache_write_tokens", "total_tokens", "cached_input_tokens", "cache_write_input_tokens", "reasoning_output_tokens", "max_output_tokens",
+		"inputTokens", "outputTokens", "thinkingTokens", "cacheReadInputTokens", "cacheCreationInputTokens", "maxOutputTokens":
+		_, ok := value.(json.Number)
+		return ok
+	case "tokens":
+		if path != "$.cost.tokens" {
+			return false
+		}
+		fields, ok := value.(map[string]any)
+		if !ok {
+			return false
+		}
+		for field, v := range fields {
+			// CostSummary.tokens is the typed public accounting projection.
+			// Other credential-looking containers do not gain a free-text
+			// exception just by calling one of their fields "model".
+			if path == "$.cost.tokens" && field == "model" {
+				if _, ok := v.(string); ok {
+					continue
+				}
+			}
+			if field == "tokens" || field == "observed_tokens" || field == "provider_reported_token_usage" || !mcpTokenMetric(mcpPropertyPath(path, field), field, v) {
+				return false
+			}
+		}
+		return true
+	}
+	return false
+}
 
 // mcpSanitize round-trips v through JSON, caps every string at mcpTextCap, and
 // never lets environment values or credential-named fields through: "env"
@@ -167,7 +232,11 @@ func mcpSanitize(v any) (any, []string) {
 		return mcpOut{"error": "output could not be encoded"}, nil
 	}
 	var generic any
-	_ = json.Unmarshal(raw, &generic)
+	decoder := json.NewDecoder(bytes.NewReader(raw))
+	decoder.UseNumber()
+	if err := decoder.Decode(&generic); err != nil {
+		return mcpOut{"error": "output could not be decoded"}, nil
+	}
 	var truncated []string
 	var walk func(path string, v any) any
 	walk = func(path string, v any) any {
@@ -185,15 +254,15 @@ func mcpSanitize(v any) (any, []string) {
 			return x
 		case map[string]any:
 			for k, val := range x {
-				child := path + "." + k
+				child := mcpPropertyPath(path, k)
 				switch {
 				case strings.EqualFold(k, "env"):
-					x[k] = mcpEnvNames(val)
+					x[k] = walk(child, mcpEnvNames(val))
 				case mcpSecretKey.MatchString(k):
-					if _, isString := val.(string); isString {
-						x[k] = "[redacted]"
-					} else {
+					if mcpTokenMetric(child, k, val) {
 						x[k] = walk(child, val)
+					} else {
+						x[k] = "[redacted]"
 					}
 				default:
 					x[k] = walk(child, val)
@@ -228,14 +297,30 @@ func mcpEnvNames(v any) any {
 
 // mcpTruncate cuts s to at most limit bytes on a rune boundary.
 func mcpTruncate(s string, limit int) (string, bool) {
+	s = strings.ToValidUTF8(s, "\uFFFD")
 	if len(s) <= limit {
 		return s, false
 	}
-	cut := limit
+	if limit <= 0 {
+		return "", true
+	}
+	// Use the largest possible digit count while reserving notice space. The
+	// final count can be shorter, but the complete string never exceeds limit.
+	notice := fmt.Sprintf("… [truncated: %d of %d bytes shown]", limit, len(s))
+	if len(notice) > limit {
+		notice = "…"
+		if len(notice) > limit {
+			return strings.Repeat(".", limit), true
+		}
+	}
+	cut := limit - len(notice)
 	for cut > 0 && !utf8.RuneStart(s[cut]) {
 		cut--
 	}
-	return s[:cut] + fmt.Sprintf("… [truncated: %d of %d bytes shown]", cut, len(s)), true
+	if notice != "…" {
+		notice = fmt.Sprintf("… [truncated: %d of %d bytes shown]", cut, len(s))
+	}
+	return s[:cut] + notice, true
 }
 
 func (t *mcpTools) resolvePath(p string) string {
@@ -246,14 +331,28 @@ func (t *mcpTools) resolvePath(p string) string {
 }
 
 // resolveRun accepts a run directory path, or a bare name found under a --runs root.
+func mcpBareRunName(ref string) bool {
+	return !strings.ContainsRune(ref, filepath.Separator) && ref != "." && ref != ".."
+}
+
 func (t *mcpTools) resolveRun(ref string) (string, error) {
 	if ref == "" || strings.ContainsRune(ref, 0) {
 		return "", errors.New("run is required: a run directory path or a run name under --runs")
 	}
-	if !strings.ContainsRune(ref, filepath.Separator) && ref != "." && ref != ".." {
+	if mcpBareRunName(ref) {
 		for _, root := range t.cfg.RunRoots {
 			candidate := filepath.Join(root, ref)
-			if info, err := os.Stat(candidate); err == nil && info.IsDir() {
+			if !utf8.ValidString(candidate) {
+				return "", fmt.Errorf("run path is not valid UTF-8: %q", candidate)
+			}
+			info, err := os.Stat(candidate)
+			if err != nil {
+				if errors.Is(err, os.ErrNotExist) {
+					continue
+				}
+				return "", fmt.Errorf("cannot inspect run %q under %s: %w", ref, root, err)
+			}
+			if info.IsDir() {
 				return candidate, nil
 			}
 		}
@@ -261,7 +360,11 @@ func (t *mcpTools) resolveRun(ref string) (string, error) {
 			return "", fmt.Errorf("no run named %q under the configured --runs directories", ref)
 		}
 	}
-	return t.resolvePath(ref), nil
+	path := t.resolvePath(ref)
+	if !utf8.ValidString(path) {
+		return "", fmt.Errorf("run path is not valid UTF-8: %q", path)
+	}
+	return path, nil
 }
 
 // openRun resolves ref and reads its checkpoint.
@@ -290,10 +393,31 @@ type mcpNoInput struct{}
 
 func (t *mcpTools) listRuns(_ context.Context, _ *mcp.CallToolRequest, _ mcpNoInput) (*mcp.CallToolResult, mcpOut, error) {
 	runs := []mcpOut{}
+	discoveredRuns, diagnosticRows := 0, 0
+	var shortened []string
+	appendError := func(path, name string, err error) {
+		diagnosticRows++
+		message, cut := mcpTruncate(err.Error(), McpErrorCap)
+		if cut {
+			shortened = append(shortened, fmt.Sprintf("$.runs[%d].error", len(runs)))
+		}
+		row := mcpOut{"error": message}
+		if path != "" {
+			row["path"] = path
+		}
+		if name != "" {
+			row["name"] = name
+		}
+		runs = append(runs, row)
+	}
 	for _, root := range t.cfg.RunRoots {
+		if !utf8.ValidString(root) {
+			appendError("", "", fmt.Errorf("run root is not valid UTF-8: %q", root))
+			continue
+		}
 		entries, err := os.ReadDir(root)
 		if err != nil {
-			runs = append(runs, mcpOut{"path": root, "error": err.Error()})
+			appendError(root, "", err)
 			continue
 		}
 		for _, e := range entries {
@@ -301,16 +425,23 @@ func (t *mcpTools) listRuns(_ context.Context, _ *mcp.CallToolRequest, _ mcpNoIn
 				continue
 			}
 			path := filepath.Join(root, e.Name())
+			if !utf8.ValidString(path) {
+				appendError("", "", fmt.Errorf("run path is not valid UTF-8: %q", path))
+				continue
+			}
 			if _, err := os.Stat(filepath.Join(path, "state.json")); err != nil {
+				if !errors.Is(err, os.ErrNotExist) {
+					appendError(path, e.Name(), err)
+				}
 				continue
 			}
 			s, err := checkpoint.ReadState(path)
 			if err != nil {
-				msg, _ := mcpTruncate(err.Error(), McpErrorCap)
-				runs = append(runs, mcpOut{"name": e.Name(), "path": path, "error": msg})
+				appendError(path, e.Name(), err)
 				continue
 			}
 			verified, total := mcpVerified(s)
+			discoveredRuns++
 			runs = append(runs, mcpOut{"name": e.Name(), "path": path, "control": s.Control, "executor": dashboard.RunExecutor(path), "verified": verified, "total": total, "cost_usd": provider.ProjectCost(s).KnownReportedUSD})
 		}
 	}
@@ -318,7 +449,7 @@ func (t *mcpTools) listRuns(_ context.Context, _ *mcp.CallToolRequest, _ mcpNoIn
 	if len(t.cfg.RunRoots) == 0 {
 		note = "; no --runs directories configured, pass a run path to the other tools"
 	}
-	return mcpResult(fmt.Sprintf("%d run(s)%s", len(runs), note), mcpOut{"runs": runs})
+	return mcpResultWithTruncation(fmt.Sprintf("%d run(s); %d diagnostic row(s)%s", discoveredRuns, diagnosticRows, note), mcpOut{"runs": runs}, shortened)
 }
 
 type mcpRunInput struct {
@@ -331,11 +462,16 @@ func (t *mcpTools) runStatus(_ context.Context, _ *mcp.CallToolRequest, in mcpRu
 		return nil, nil, err
 	}
 	cells := []mcpOut{}
+	var shortened []string
 	for _, spec := range s.AllTasks() {
 		row := s.Tasks[spec.ID]
 		cell := mcpOut{"id": spec.ID, "status": row.Status, "attempts": row.Attempt}
 		if row.Error != "" {
-			cell["error"], _ = mcpTruncate(row.Error, McpErrorCap)
+			var cut bool
+			cell["error"], cut = mcpTruncate(row.Error, McpErrorCap)
+			if cut {
+				shortened = append(shortened, fmt.Sprintf("$.cells[%d].error", len(cells)))
+			}
 		}
 		if row.CostUnknown {
 			cell["cost_unknown"] = true
@@ -357,7 +493,7 @@ func (t *mcpTools) runStatus(_ context.Context, _ *mcp.CallToolRequest, in mcpRu
 	verified, total := mcpVerified(s)
 	cost := provider.ProjectCost(s)
 	summary := fmt.Sprintf("%s | %s | %s | %s | %d/%d verified | %s", filepath.Base(root), s.Backend, dashboard.RunExecutor(root), s.Control, verified, total, provider.CostStatusText(s))
-	return mcpResult(summary, mcpOut{"path": root, "backend": s.Backend, "control": s.Control, "executor": dashboard.RunExecutor(root), "graph_revision": s.GraphRevision, "verified": verified, "total": total, "cost": cost, "cells": cells})
+	return mcpResultWithTruncation(summary, mcpOut{"path": root, "backend": s.Backend, "control": s.Control, "executor": dashboard.RunExecutor(root), "graph_revision": s.GraphRevision, "verified": verified, "total": total, "cost": cost, "cells": cells}, shortened)
 }
 
 type mcpLogsInput struct {
@@ -585,13 +721,16 @@ func (t *mcpTools) apply(_ context.Context, _ *mcp.CallToolRequest, in mcpApplyI
 	}
 	root := in.Run
 	if !filepath.IsAbs(root) {
-		if strings.ContainsRune(root, filepath.Separator) || len(t.cfg.RunRoots) == 0 {
-			root = t.resolvePath(root)
-		} else {
+		if mcpBareRunName(root) && len(t.cfg.RunRoots) > 0 {
 			root = filepath.Join(t.cfg.RunRoots[0], root)
+		} else {
+			root = t.resolvePath(root)
 		}
 	}
 	root = filepath.Clean(root)
+	if !utf8.ValidString(root) {
+		return nil, nil, fmt.Errorf("run path is not valid UTF-8: %q", root)
+	}
 	t.applyMu.Lock()
 	defer t.applyMu.Unlock()
 	if err := checkpoint.Initialize(p, root, backend, model.Options{Workers: workers, Timeout: timeout, Budget: budget}); err != nil {

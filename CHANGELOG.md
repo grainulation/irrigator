@@ -3,6 +3,34 @@
 Changes below describe source revisions. A source commit is not a signed binary
 release. Versioned plan and worker protocols are tracked separately from the CLI.
 
+## 1.3.1 — 2026-11-24
+
+### Fixed
+
+- MCP credential-container redaction and presentation limits now match the
+  declared result contract, including text summaries and lower-cap error
+  truncation disclosure. Numeric token-usage measurements retain their types and
+  integer precision through response sanitization, schema validation and wire
+  serialization. Byte limits measure valid
+  UTF-8 text, including diagnostics for paths with invalid byte sequences.
+- Run discovery reports unreadable checkpoint diagnostics instead of silently
+  omitting non-absence filesystem failures. Unrepresentable run paths produce
+  diagnostics instead of aliased selectors, and bare-name lookup stops on an
+  inspection error before considering a later matching run.
+- Attempt-output presentation recursively redacts complete JSON-line credential
+  containers before pagination, including records mixed with ordinary log lines.
+- MCP run creation and inspection both treat `.` and `..` as workspace-relative
+  selectors instead of allowing creation to target a discovery root.
+
+### Changed
+
+- MCP parameter guidance explains run-path resolution and task identifiers across
+  inspection tools. Delivery, review and event descriptions clarify selection,
+  comparison and pagination behavior while preserving existing names and controls.
+- MCP setup documents the four naming/control profiles and corrects stale control
+  annotations. External evaluations apply to the inventory actually captured;
+  these changes do not establish a new published score.
+
 ## 1.3.0 — 2026-11-24
 
 ### Added

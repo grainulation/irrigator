@@ -127,6 +127,52 @@ func TestAttemptOutputRedactsKnownSecretsBeforeJSONEscaping(t *testing.T) {
 	}
 }
 
+func TestAttemptOutputRedactsJSONLineContainersBeforePaging(t *testing.T) {
+	content := "provider log before JSON\n" +
+		`{"credentials":["first-private-value","second-private-value"],"answer":"first-safe","env":{"PRIVATE_ENV":"hidden-environment-value"}}` + "\n" +
+		`{"nested":{"api_keys":[{"value":"third-private-value"},{"value":"fourth-private-value"}]},"answer":"second-safe","count":9007199254740993}` + "\n"
+	in, prefix := outputFixture(t, content)
+	if err := os.WriteFile(prefix+".stderr.log", []byte(content), 0600); err != nil {
+		t.Fatal(err)
+	}
+	forMCPProfiles(t, func(t *testing.T, cfg McpConfig) {
+		cfg.Workspace = filepath.Dir(in.Run)
+		cs := connectDefinitionTest(t, cfg)
+		for _, stream := range []string{"stdout", "stderr"} {
+			args := map[string]any{"run": in.Run, "task": in.Task, "attempt": in.Attempt, "stream": stream, "max_bytes": 17}
+			var joined strings.Builder
+			for pageNumber := 0; ; pageNumber++ {
+				if pageNumber >= 256 {
+					t.Fatal("pagination never finished")
+				}
+				page := callParameterFixture(t, cs, mcpToolName(cfg, "attempt_output"), args)
+				joined.WriteString(page["output"].(string))
+				if !page["has_more"].(bool) {
+					break
+				}
+				args["cursor"] = page["next_cursor"]
+			}
+			got := joined.String()
+			for _, forbidden := range []string{"first-private-value", "second-private-value", "third-private-value", "fourth-private-value", "hidden-environment-value"} {
+				if strings.Contains(got, forbidden) {
+					t.Fatalf("%s credential escaped JSON-lines redaction: %s", stream, got)
+				}
+			}
+			for _, retained := range []string{"provider log before JSON", "first-safe", "second-safe", "9007199254740993", "[redacted]"} {
+				if !strings.Contains(got, retained) {
+					t.Fatalf("%s lost non-sensitive output %q: %s", stream, retained, got)
+				}
+			}
+		}
+	})
+	for _, suffix := range []string{".stdout.json", ".stderr.log"} {
+		raw, err := os.ReadFile(prefix + suffix)
+		if err != nil || string(raw) != content {
+			t.Fatalf("source capture was changed: %v", err)
+		}
+	}
+}
+
 func TestAttemptOutputCursorRejectsChangedSourceAndDifferentAttempt(t *testing.T) {
 	in, prefix := outputFixture(t, "abcdefghijk")
 	first, err := readAttemptOutput(in)

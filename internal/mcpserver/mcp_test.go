@@ -20,7 +20,7 @@ func TestMCPSanitizeRedactsCredentialFields(t *testing.T) {
 	if strings.Contains(string(raw), "Bearer") || strings.Contains(string(raw), `"k"`) || strings.Contains(string(raw), "A=b") || !strings.Contains(string(raw), "fine") {
 		t.Fatalf("sanitized: %s", raw)
 	}
-	if s, cut := mcpTruncate(strings.Repeat("é", 10), 5); !cut || !strings.HasPrefix(s, "éé") {
+	if s, cut := mcpTruncate(strings.Repeat("é", 100), 64); !cut || !strings.HasPrefix(s, "éé") || len(s) > 64 {
 		t.Fatalf("rune-boundary truncation: %q", s)
 	}
 }

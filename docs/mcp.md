@@ -13,13 +13,45 @@ irrigator mcp [--runs DIR]... [--workspace DIR] [--allow-control] [--canonical-n
 | Flag | Meaning |
 | --- | --- |
 | `--runs DIR` | A directory whose subdirectories are runs. Repeatable. Tools accept a run name found under these directories. |
-| `--workspace DIR` | Git repository used by `review_list`, and the base for relative plan paths. Default: the current directory. |
+| `--workspace DIR` | Git repository used by review tools, and the base for relative run, workspace and plan paths. Default: the current directory. |
 | `--allow-control` | Also register the tools that change a run. Off by default. |
 | `--canonical-names` | Select the verb/object naming preview. Legacy names remain the default; this flag changes names, not permissions. |
 
 Every tool that takes a `run` also accepts an explicit run directory path, so
 `--runs` is optional. stdout carries the protocol; the server writes nothing else
 there.
+
+### Run selectors and task identifiers
+
+For an existing run, a bare name such as `r` searches the configured `--runs`
+directories in order and selects the first matching directory. With configured
+roots, a missing bare name is an error. A filesystem error while inspecting a
+candidate stops lookup instead of silently selecting a later run. Use `./r` to select a run relative to
+`--workspace`, or an absolute path to select it directly. Without `--runs`, a bare
+name also resolves relative to `--workspace`. Creating a new run with `apply`
+places a bare name under the first configured root. The selectors `.` and `..`
+always resolve relative to `--workspace`, including for creation.
+
+Use a successful `list_runs` row's `path`, or the resolved `path` from
+`run_status`, to select that exact run again. A bare name follows root order and
+can select a different row when multiple roots contain the same name. Diagnostic
+`run_id` fields identify saved runs; they are not directory selectors.
+Discovery reports paths that cannot be represented as UTF-8 as diagnostic rows
+without `path` or `name` selectors; the error quotes the original path bytes.
+Configuration and resolved run destinations must be representable as UTF-8;
+inspection and control reject unrepresentable paths before accessing run state.
+
+The `id` in `run_status.cells[]` is the task identifier accepted as
+`inspect_cell.cell`, `run_logs.cell`, `attempt_output.task`, and
+`provider_limit.node`. Keep that ID when moving between tools. The `cell` returned
+by `inspect_cell` is a directory path, while its `node` is a state object.
+Historical-output tools also require an explicit recorded attempt number;
+an attempt count does not establish that every attempt has captured output.
+
+When passing a queue item from `review_list` to `inspect_review`, repeat the
+selected `workspace`, including when it differs from the server default. For a
+branch, also pass `queue.base`; for a document, pass `snapshot` and omit
+`branch`, `base` and `file`.
 
 ## Tools
 
@@ -38,13 +70,15 @@ Read-only (always registered; annotated with `readOnlyHint: true`, `destructiveH
 | `inspect_review` | One queued branch's pinned-head diff and metadata, or a queued document's body and comments. Supply exactly one `branch` or `snapshot` ID from the queue; `file` narrows branch diffs. No viewed marks or decisions are recorded. |
 | `validate_plan` | Validate a plan `path` or inline `json`; returns `valid` and the errors. An invalid plan is a normal result, not a tool error. |
 
-Control (registered only with `--allow-control`; annotated with `readOnlyHint: false`, `openWorldHint: false`, and per-tool `destructiveHint`/`idempotentHint`):
+Control (registered only with `--allow-control`; all declare `readOnlyHint: false`,
+`destructiveHint: true` and `idempotentHint: false`; `apply` and `resume` also declare
+`openWorldHint: true` because providers can contact external services):
 
 | Tool | Result |
 | --- | --- |
 | `apply` | Create a run from a plan into a new run directory and start its controller detached; returns the run path. Takes `backend`, `budget`, `workers`, `timeout_seconds`, `schedule` (`destructiveHint: true`, `idempotentHint: false`). |
-| `pause` | Ask the run to drain; durable state is retained (`destructiveHint: false`, `idempotentHint: true`). |
-| `resume` | Start a detached controller for a stopped run. `retry_failed` retries replay-safe failures only (`destructiveHint: false`, `idempotentHint: false`). |
+| `pause` | Ask the run to drain; durable state is retained. Active providers can continue, and each repeated request appends an event. |
+| `resume` | Start a detached controller for a stopped run. `retry_failed` retries replay-safe failures only. |
 | `retry_cell` | Prepare an explicit retry. `allow_uncertain` and `confirm_stopped` are required arguments (`destructiveHint: true`, `idempotentHint: false`). |
 | `decide_approval` | Approve or deny a blocked request through the run's mailbox or approval ledger (`destructiveHint: true`, `idempotentHint: false`). |
 
@@ -90,6 +124,22 @@ profile adds run supervision, not Git merging, delivery application or general
 host administration. A score for one startup configuration does not establish
 quality or completeness of the other. Shipped plugins keep their read-only setup.
 
+Select and evaluate each profile independently:
+
+| Startup arguments | Names | Tools | Scope |
+| --- | --- | --- | --- |
+| `mcp` | Legacy | 10 | Saved-run and workspace review inspection |
+| `mcp --canonical-names` | Canonical preview | 10 | The same inspection operations |
+| `mcp --allow-control` | Legacy | 15 | Inspection and explicit run controls |
+| `mcp --allow-control --canonical-names` | Canonical preview | 15 | The same inspection and control operations |
+
+For a host adopting canonical names, update that host's startup arguments,
+tool allowlists and prompts, then reconnect and inspect its actual `tools/list`
+response. A registry or another host runs its own configuration: changing a local
+connection does not select its inventory. Record the startup arguments, build
+identity and captured definitions when comparing external evaluations. A schema
+capture or a local assessment does not establish a new published score.
+
 All hints are explicit, including closed-world local inspection. Mutating tools
 are conservatively destructive: starting a provider can modify its environment,
 pause changes dispatch state, retry resets current cell fields, and approval/denial
@@ -130,15 +180,27 @@ not an execution test, native host acceptance, or a numeric tool-quality score.
 
 ## Results
 
-Each tool advertises its input and output contracts. The SDK validates successful
-structured results against the declared output schema. Tool errors use
+Each tool advertises its input and output contracts. Successful structured
+results are validated against the declared output schema using a numeric
+validation copy; the wire JSON retains the original exact numeric values.
+Clients need integer-preserving JSON decoding to retain that precision.
+The SDK validates inputs. Tool errors use
 `isError:true` with error text rather than the success-result schema.
 
-Each tool returns structured JSON and a short text summary. Any single string
-is capped at 8 KB; when a value is cut it ends with a `[truncated: …]` note, the
-paths are listed under `truncated`, and the summary says so. Tools never return
-environment values: `env` lists keep variable names only, and fields named like
-credentials (token, secret, password, api key, authorization) are redacted.
+Successful calls return structured JSON and a short text summary. Their displayed
+string values and summaries are capped at 8 KiB, including any truncation notice, on a
+UTF-8 boundary. Run-status errors and run-list checkpoint errors have a lower
+1 KiB cap. Truncated structured values end with a `[truncated: …]` note; their
+paths are listed under `truncated`, and the summary discloses the shortening.
+Summaries that need shortening carry their own inline notice; `truncated` paths
+refer to structured values. These generated JSON-path metadata strings retain
+their exact addresses and are exempt from the display-value cap. Simple property
+names use dot notation; other names use quoted bracket selectors.
+In structured results, `env` entries retain variable names only.
+Credential-named values, including arrays and objects, are redacted; ordinary
+numeric token-usage measurements retain their exact numeric values. The public
+`cost.tokens` accounting projection is preserved; credential-looking containers
+in opaque event data do not gain an exception by copying accounting field names.
 Failures are tool errors with a message; the server keeps running.
 
 ## Safety model

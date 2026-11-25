@@ -57,8 +57,10 @@ with the regular checkpoint validator; stdout and stderr retain their capture
 size bounds. Only the two fixed stream filenames can be selected.
 
 Redaction runs on the complete bounded source before pagination, so a secret
-cannot evade a recognized redaction rule by crossing pages. JSON credential
-fields and environment values are filtered; common credential assignments and
+cannot evade a recognized redaction rule by crossing pages. A complete JSON
+document or each complete JSON-line record is redacted recursively, including
+credential arrays and objects in captures mixed with ordinary log lines.
+JSON credential fields and environment values are filtered; common credential assignments and
 Bearer values, plus known secret environment values of at least four bytes,
 are redacted. Terminal controls, bidi formatting and invalid UTF-8 are rendered
 inert through the shared terminal formatter. These rules are best-effort content
