@@ -1,8 +1,16 @@
 package mcpserver
 
 import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"math/big"
+	"strconv"
 	"strings"
 
+	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -37,11 +45,120 @@ func addMCPTool[In any](s *mcp.Server, cfg McpConfig, name string, handler mcp.T
 	case "retry_cell", "decide_approval":
 		readOnly, destructive, idempotent = false, true, false
 	}
+	outputSchema := namedMCPOutputSchema(cfg, name)
 	mcp.AddTool(s, &mcp.Tool{
 		Name: mcpToolName(cfg, name), Description: description,
-		InputSchema: namedMCPInputSchema(cfg, name), OutputSchema: namedMCPOutputSchema(cfg, name),
+		InputSchema: namedMCPInputSchema(cfg, name), OutputSchema: outputSchema,
 		Annotations: toolAnnotations(readOnly, destructive, idempotent, openWorld),
-	}, handler)
+	}, exactMCPOutput(handler, outputSchema))
+}
+
+// The SDK's typed output path decodes object results through float64 while
+// applying schema defaults. Validate a native-number copy against the same
+// published schema, then supply the precise JSON ourselves. Returning nil as the
+// typed output keeps the SDK's input/error handling without its lossy rewrite.
+func exactMCPOutput[In any](handler mcp.ToolHandlerFor[In, mcpOut], schema map[string]any) mcp.ToolHandlerFor[In, any] {
+	var definition jsonschema.Schema
+	raw, err := json.Marshal(schema)
+	if err == nil {
+		err = json.Unmarshal(raw, &definition)
+	}
+	if err != nil {
+		panic(fmt.Errorf("MCP output schema: %w", err))
+	}
+	resolved, err := definition.Resolve(nil)
+	if err != nil {
+		panic(fmt.Errorf("MCP output schema: %w", err))
+	}
+	return func(ctx context.Context, request *mcp.CallToolRequest, in In) (*mcp.CallToolResult, any, error) {
+		result, out, err := handler(ctx, request, in)
+		if err != nil || (result != nil && (result.IsError || result.InputRequests != nil)) {
+			return result, nil, err
+		}
+		raw, err := json.Marshal(out)
+		if err != nil {
+			return nil, nil, fmt.Errorf("marshaling tool output: %w", err)
+		}
+		var value any
+		decoder := json.NewDecoder(bytes.NewReader(raw))
+		decoder.UseNumber()
+		if err := decoder.Decode(&value); err != nil {
+			return nil, nil, fmt.Errorf("decoding tool output: %w", err)
+		}
+		if err := resolved.ApplyDefaults(&value); err != nil {
+			return nil, nil, fmt.Errorf("applying output defaults: %w", err)
+		}
+		validation, err := mcpSchemaValue(value)
+		if err != nil {
+			return nil, nil, fmt.Errorf("validating tool output: %w", err)
+		}
+		if err := resolved.Validate(validation); err != nil {
+			return nil, nil, fmt.Errorf("validating tool output: %w", err)
+		}
+		raw, err = json.Marshal(value)
+		if err != nil {
+			return nil, nil, fmt.Errorf("marshaling validated output: %w", err)
+		}
+		if result == nil {
+			result = &mcp.CallToolResult{}
+		}
+		result.StructuredContent = json.RawMessage(raw)
+		if result.Content == nil {
+			result.Content = []mcp.Content{&mcp.TextContent{Text: string(raw)}}
+		}
+		return result, nil, nil
+	}
+}
+
+// jsonschema-go uses Go numeric kinds for its type checks. Build a separate
+// validation value with native numbers; keep the original json.Number values
+// for serialization. In particular, all int64/uint64 counters validate exactly.
+func mcpSchemaValue(value any) (any, error) {
+	switch value := value.(type) {
+	case json.Number:
+		if number, err := value.Int64(); err == nil {
+			return number, nil
+		}
+		if number, err := strconv.ParseUint(string(value), 10, 64); err == nil {
+			return number, nil
+		}
+		number, err := value.Float64()
+		if err != nil {
+			return nil, err
+		}
+		encoded, err := json.Marshal(number)
+		if err != nil {
+			return nil, err
+		}
+		original, originalOK := new(big.Rat).SetString(string(value))
+		converted, convertedOK := new(big.Rat).SetString(string(encoded))
+		if !originalOK || !convertedOK || original.Cmp(converted) != 0 {
+			return nil, errors.New("number cannot be validated without rounding")
+		}
+		return number, nil
+	case map[string]any:
+		out := make(map[string]any, len(value))
+		for key, item := range value {
+			converted, err := mcpSchemaValue(item)
+			if err != nil {
+				return nil, err
+			}
+			out[key] = converted
+		}
+		return out, nil
+	case []any:
+		out := make([]any, len(value))
+		for i, item := range value {
+			converted, err := mcpSchemaValue(item)
+			if err != nil {
+				return nil, err
+			}
+			out[i] = converted
+		}
+		return out, nil
+	default:
+		return value, nil
+	}
 }
 
 var mcpToolDescriptions = map[string]string{

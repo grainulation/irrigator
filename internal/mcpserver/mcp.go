@@ -331,11 +331,15 @@ func (t *mcpTools) resolvePath(p string) string {
 }
 
 // resolveRun accepts a run directory path, or a bare name found under a --runs root.
+func mcpBareRunName(ref string) bool {
+	return !strings.ContainsRune(ref, filepath.Separator) && ref != "." && ref != ".."
+}
+
 func (t *mcpTools) resolveRun(ref string) (string, error) {
 	if ref == "" || strings.ContainsRune(ref, 0) {
 		return "", errors.New("run is required: a run directory path or a run name under --runs")
 	}
-	if !strings.ContainsRune(ref, filepath.Separator) && ref != "." && ref != ".." {
+	if mcpBareRunName(ref) {
 		for _, root := range t.cfg.RunRoots {
 			candidate := filepath.Join(root, ref)
 			if !utf8.ValidString(candidate) {
@@ -717,10 +721,10 @@ func (t *mcpTools) apply(_ context.Context, _ *mcp.CallToolRequest, in mcpApplyI
 	}
 	root := in.Run
 	if !filepath.IsAbs(root) {
-		if strings.ContainsRune(root, filepath.Separator) || len(t.cfg.RunRoots) == 0 {
-			root = t.resolvePath(root)
-		} else {
+		if mcpBareRunName(root) && len(t.cfg.RunRoots) > 0 {
 			root = filepath.Join(t.cfg.RunRoots[0], root)
+		} else {
+			root = t.resolvePath(root)
 		}
 	}
 	root = filepath.Clean(root)

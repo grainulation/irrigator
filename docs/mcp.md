@@ -29,7 +29,8 @@ roots, a missing bare name is an error. A filesystem error while inspecting a
 candidate stops lookup instead of silently selecting a later run. Use `./r` to select a run relative to
 `--workspace`, or an absolute path to select it directly. Without `--runs`, a bare
 name also resolves relative to `--workspace`. Creating a new run with `apply`
-places a bare name under the first configured root.
+places a bare name under the first configured root. The selectors `.` and `..`
+always resolve relative to `--workspace`, including for creation.
 
 Use a successful `list_runs` row's `path`, or the resolved `path` from
 `run_status`, to select that exact run again. A bare name follows root order and
@@ -179,8 +180,11 @@ not an execution test, native host acceptance, or a numeric tool-quality score.
 
 ## Results
 
-Each tool advertises its input and output contracts. The SDK validates successful
-structured results against the declared output schema. Tool errors use
+Each tool advertises its input and output contracts. Successful structured
+results are validated against the declared output schema using a numeric
+validation copy; the wire JSON retains the original exact numeric values.
+Clients need integer-preserving JSON decoding to retain that precision.
+The SDK validates inputs. Tool errors use
 `isError:true` with error text rather than the success-result schema.
 
 Successful calls return structured JSON and a short text summary. Their displayed

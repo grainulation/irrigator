@@ -32,8 +32,12 @@ func forMCPProfiles(t *testing.T, test func(*testing.T, McpConfig)) {
 func callParameterFixture(t *testing.T, cs *mcp.ClientSession, name string, args map[string]any) map[string]any {
 	t.Helper()
 	result, err := cs.CallTool(context.Background(), &mcp.CallToolParams{Name: name, Arguments: args})
-	if err != nil || result.IsError {
-		t.Fatalf("%s failed: result=%+v err=%v", name, result, err)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.IsError {
+		content, _ := json.Marshal(result.Content)
+		t.Fatalf("%s failed: %s", name, content)
 	}
 	raw, err := json.Marshal(result.StructuredContent)
 	if err != nil {
@@ -102,6 +106,66 @@ func TestMCPRunLookupDoesNotSkipUninspectableCandidate(t *testing.T) {
 		out := callParameterFixture(t, cs, mcpToolName(cfg, "run_status"), map[string]any{"run": second})
 		if out["path"] != second {
 			t.Fatal("explicit second-root selector stopped working")
+		}
+	})
+}
+
+func TestMCPDotRunReferencesStayWorkspaceRelative(t *testing.T) {
+	plan := filepath.Join(t.TempDir(), "plan.json")
+	data, err := json.Marshal(model.Plan{Tasks: []model.Task{runfixture.Task("a", 0)}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(plan, data, 0600); err != nil {
+		t.Fatal(err)
+	}
+	started := make(chan []string, 4)
+	previous := McpStartDetached
+	McpStartDetached = func(args []string) error {
+		started <- append([]string(nil), args...)
+		return nil
+	}
+	t.Cleanup(func() { McpStartDetached = previous })
+	forMCPProfiles(t, func(t *testing.T, cfg McpConfig) {
+		for _, ref := range []string{".", ".."} {
+			parent := t.TempDir()
+			cfg.Workspace = filepath.Join(parent, "workspace", "leaf")
+			cfg.RunRoots = []string{filepath.Join(parent, "discovery")}
+			want := cfg.Workspace
+			if ref == ".." {
+				want = filepath.Dir(want)
+			}
+			cs := connectDefinitionTest(t, cfg)
+			if cfg.AllowControl {
+				out := callParameterFixture(t, cs, mcpToolName(cfg, "apply"), map[string]any{"run": ref, "plan": plan, "backend": "mock", "budget": 0.1})
+				if out["run"] != want {
+					t.Fatalf("apply %q selected %v, want %s", ref, out["run"], want)
+				}
+				select {
+				case args := <-started:
+					if len(args) < 2 || args[0] != "resume" || args[1] != want {
+						t.Fatalf("controller selected a different run: %v", args)
+					}
+				default:
+					t.Fatal("controller launch was not requested")
+				}
+			} else if err := checkpoint.Initialize(model.Plan{Tasks: []model.Task{runfixture.Task("a", 0)}}, want, "mock"); err != nil {
+				t.Fatal(err)
+			}
+			out := callParameterFixture(t, cs, mcpToolName(cfg, "run_status"), map[string]any{"run": ref})
+			if out["path"] != want {
+				t.Fatalf("inspection %q selected %v, want %s", ref, out["path"], want)
+			}
+			if cfg.AllowControl {
+				callParameterFixture(t, cs, mcpToolName(cfg, "pause"), map[string]any{"run": ref})
+				state, err := checkpoint.ReadState(want)
+				if err != nil || state.Control != "pause" {
+					t.Fatalf("pause did not select the initialized run: %+v %v", state, err)
+				}
+			}
+			if _, err := os.Stat(cfg.RunRoots[0]); !os.IsNotExist(err) {
+				t.Fatalf("workspace selector initialized the discovery root: %v", err)
+			}
 		}
 	})
 }

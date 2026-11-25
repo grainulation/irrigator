@@ -52,8 +52,12 @@ localhost listeners for those checks; a sandbox refusal is not a provider failur
 - MCP contract checks cover both naming inventories with and without explicit
   controls. They exercise run-selector and task-identifier transfer, filtered
   event pagination, delivery/review inspection and result presentation with local
-  fixtures. Credential containers, numeric usage, UTF-8 caps and truncation
-  disclosure have separate regression cases. Run `go test ./internal/mcpserver`.
+  fixtures. Credential containers, JSON-line captures, numeric usage, UTF-8 caps
+  and truncation disclosure have separate regression cases. Raw protocol tests
+  assert exact large integers in both cell usage and aggregate accounting;
+  invalid output shapes and numeric types must still fail schema validation.
+  Creation, inspection and pause share dot-selector tests.
+  Run `go test ./internal/mcpserver`.
   The byte-invalid filename collision fixture skips only when the filesystem
   rejects those names with `EILSEQ`; diagnostic normalization is tested separately.
   Discovery captures identify the build and startup profile; they do not establish

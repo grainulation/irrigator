@@ -33,6 +33,52 @@ func connectDefinitionTest(t *testing.T, cfg McpConfig) *mcp.ClientSession {
 	return cs
 }
 
+func TestMCPExactOutputRetainsSchemaValidation(t *testing.T) {
+	forMCPProfiles(t, func(t *testing.T, cfg McpConfig) {
+		server := NewMCPServer(cfg)
+		addMCPTool(server, cfg, "run_status", func(_ context.Context, _ *mcp.CallToolRequest, in mcpRunInput) (*mcp.CallToolResult, mcpOut, error) {
+			out := mcpOut{"path": "fixture", "backend": "mock", "control": "run", "executor": "local", "graph_revision": json.Number("9007199254740993"), "verified": 0, "total": 0, "cost": mcpOut{}, "cells": []any{}}
+			switch in.Run {
+			case "missing-field":
+				delete(out, "cells")
+			case "wrong-type":
+				out["graph_revision"] = "not-a-number"
+			case "fractional":
+				out["graph_revision"] = json.Number("1.5")
+			case "rounded-fraction":
+				out["graph_revision"] = json.Number("9007199254740993.5")
+			}
+			return mcpResult("fixture", out)
+		})
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		a, b := mcp.NewInMemoryTransports()
+		ss, err := server.Connect(ctx, a, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer func() { _ = ss.Close() }()
+		cs, err := mcp.NewClient(&mcp.Implementation{Name: "output-validation-test", Version: "1"}, nil).Connect(ctx, b, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer func() { _ = cs.Close() }()
+		for _, run := range []string{"valid", "missing-field", "wrong-type", "fractional", "rounded-fraction"} {
+			result, err := cs.CallTool(ctx, &mcp.CallToolParams{Name: mcpToolName(cfg, "run_status"), Arguments: map[string]any{"run": run}})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if run == "valid" {
+				if result.IsError || result.StructuredContent == nil {
+					t.Fatalf("valid exact numeric output rejected: %+v", result)
+				}
+			} else if !result.IsError || result.StructuredContent != nil || !strings.Contains(result.Content[0].(*mcp.TextContent).Text, "validating tool output") {
+				t.Fatalf("invalid %s output escaped schema validation: %+v", run, result)
+			}
+		}
+	})
+}
+
 func TestMCPToolProfilesExposeExactNamesAndBehavior(t *testing.T) {
 	read := "attempt_output,delivery_summary,inspect_cell,inspect_review,list_runs,provider_limit,review_list,run_logs,run_status,validate_plan"
 	control := "apply,attempt_output,decide_approval,delivery_summary,inspect_cell,inspect_review,list_runs,pause,provider_limit,resume,retry_cell,review_list,run_logs,run_status,validate_plan"

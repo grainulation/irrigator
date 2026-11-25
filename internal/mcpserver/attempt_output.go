@@ -280,47 +280,63 @@ func redactAttemptText(raw []byte) string {
 		return text
 	}
 	text := string(raw)
-	var value any
-	decoder := json.NewDecoder(bytes.NewReader(raw))
-	decoder.UseNumber()
-	if err := decoder.Decode(&value); err == nil && decoder.Decode(new(any)) == io.EOF {
-		var walk func(any) any
-		walk = func(v any) any {
-			switch item := v.(type) {
-			case string:
-				// Redact decoded values before JSON escaping can hide known
-				// secrets containing quotes, backslashes or HTML characters.
-				return redactKnown(item)
-			case map[string]any:
-				for key, val := range item {
-					switch {
-					case strings.EqualFold(key, "env"):
-						if env, ok := val.(map[string]any); ok {
-							names := make([]string, 0, len(env))
-							for name := range env {
-								names = append(names, name)
-							}
-							sort.Strings(names)
-							item[key] = names
-						} else {
-							item[key] = mcpEnvNames(val)
+	var walk func(any) any
+	walk = func(v any) any {
+		switch item := v.(type) {
+		case string:
+			// Redact decoded values before JSON escaping can hide known
+			// secrets containing quotes, backslashes or HTML characters.
+			return redactKnown(item)
+		case map[string]any:
+			for key, val := range item {
+				switch {
+				case strings.EqualFold(key, "env"):
+					if env, ok := val.(map[string]any); ok {
+						names := make([]string, 0, len(env))
+						for name := range env {
+							names = append(names, name)
 						}
-					case mcpSecretKey.MatchString(key):
-						item[key] = "[redacted]"
-					default:
-						item[key] = walk(val)
+						sort.Strings(names)
+						item[key] = names
+					} else {
+						item[key] = mcpEnvNames(val)
 					}
-				}
-			case []any:
-				for i := range item {
-					item[i] = walk(item[i])
+				case mcpSecretKey.MatchString(key):
+					item[key] = "[redacted]"
+				default:
+					item[key] = walk(val)
 				}
 			}
-			return v
+		case []any:
+			for i := range item {
+				item[i] = walk(item[i])
+			}
 		}
-		if encoded, err := json.Marshal(walk(value)); err == nil {
-			text = string(encoded)
+		return v
+	}
+	redactJSON := func(data []byte) ([]byte, bool) {
+		var value any
+		decoder := json.NewDecoder(bytes.NewReader(data))
+		decoder.UseNumber()
+		if err := decoder.Decode(&value); err != nil || decoder.Decode(new(any)) != io.EOF {
+			return nil, false
 		}
+		encoded, err := json.Marshal(walk(value))
+		return encoded, err == nil
+	}
+	if encoded, ok := redactJSON(raw); ok {
+		text = string(encoded)
+	} else {
+		// Captured stdout/stderr can interleave complete JSON records with
+		// ordinary log lines. Redact each record recursively before paging;
+		// assignment matching alone cannot remove a whole credential array.
+		lines := bytes.Split(raw, []byte{'\n'})
+		for i, line := range lines {
+			if encoded, ok := redactJSON(line); ok {
+				lines[i] = encoded
+			}
+		}
+		text = string(bytes.Join(lines, []byte{'\n'}))
 	}
 	// Object keys and JSON-lines fallback output can still contain encoded
 	// secrets. Cover the canonical JSON spelling as well as decoded text.

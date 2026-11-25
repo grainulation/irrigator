@@ -5,12 +5,14 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net"
 	"os"
 	"path/filepath"
 	"reflect"
 	"strings"
 	"syscall"
 	"testing"
+	"time"
 	"unicode/utf8"
 
 	"github.com/grainulation/irrigator/internal/checkpoint"
@@ -231,6 +233,76 @@ func TestMCPResultPreservesLargeIntegerAccounting(t *testing.T) {
 	if !strings.Contains(result.Content[0].(*mcp.TextContent).Text, "9007199254740993") {
 		t.Fatal("summary and structured accounting disagree")
 	}
+	diagnostic, err := mcpDiagnosticObject(model.TaskUsage{InputTokens: tokens, TotalTokens: tokens})
+	if err != nil || diagnostic["input_tokens"] != json.Number("9007199254740993") {
+		t.Fatalf("diagnostic conversion rounded accounting: %#v %v", diagnostic, err)
+	}
+}
+
+func TestMCPRunStatusPreservesLargeIntegersOnRawWire(t *testing.T) {
+	const tokens int64 = 9007199254740993
+	root := runfixture.New(t, runfixture.Task("a", 0))
+	if err := checkpoint.Update(root, func(s *model.State) error {
+		s.Tasks["a"].Usage = &model.TaskUsage{InputTokens: tokens, TotalTokens: tokens}
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	forMCPProfiles(t, func(t *testing.T, cfg McpConfig) {
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		server, client := net.Pipe()
+		if err := client.SetDeadline(time.Now().Add(10 * time.Second)); err != nil {
+			t.Fatal(err)
+		}
+		ss, err := NewMCPServer(cfg).Connect(ctx, &mcp.IOTransport{Reader: server, Writer: server}, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer func() { _ = client.Close(); _ = ss.Close() }()
+		enc, dec := json.NewEncoder(client), json.NewDecoder(client)
+		if err := enc.Encode(map[string]any{"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": map[string]any{"protocolVersion": "2025-06-18", "capabilities": map[string]any{}, "clientInfo": map[string]any{"name": "accounting-wire-test", "version": "1"}}}); err != nil {
+			t.Fatal(err)
+		}
+		var initialized map[string]json.RawMessage
+		if err := dec.Decode(&initialized); err != nil || initialized["error"] != nil {
+			t.Fatalf("initialize: %s %v", initialized["error"], err)
+		}
+		if err := enc.Encode(map[string]any{"jsonrpc": "2.0", "method": "notifications/initialized"}); err != nil {
+			t.Fatal(err)
+		}
+		if err := enc.Encode(map[string]any{"jsonrpc": "2.0", "id": 2, "method": "tools/call", "params": map[string]any{"name": mcpToolName(cfg, "run_status"), "arguments": map[string]any{"run": root}}}); err != nil {
+			t.Fatal(err)
+		}
+		var response struct {
+			Error  json.RawMessage `json:"error"`
+			Result struct {
+				IsError           bool `json:"isError"`
+				StructuredContent struct {
+					Cells []struct {
+						Usage map[string]json.RawMessage `json:"usage"`
+					} `json:"cells"`
+					Cost struct {
+						Tokens map[string]json.RawMessage `json:"tokens"`
+					} `json:"cost"`
+				} `json:"structuredContent"`
+			} `json:"result"`
+		}
+		if err := dec.Decode(&response); err != nil || response.Error != nil || response.Result.IsError {
+			t.Fatalf("raw tools/call failed: %+v %v", response, err)
+		}
+		out := response.Result.StructuredContent
+		if len(out.Cells) != 1 {
+			t.Fatalf("missing cell usage: %+v", out)
+		}
+		for _, usage := range []map[string]json.RawMessage{out.Cells[0].Usage, out.Cost.Tokens} {
+			for _, field := range []string{"input_tokens", "total_tokens"} {
+				if string(usage[field]) != "9007199254740993" {
+					t.Fatalf("wire %s lost integer precision: %s", field, usage[field])
+				}
+			}
+		}
+	})
 }
 
 func TestMCPDiagnosticCapMeasuresValidUTF8(t *testing.T) {
