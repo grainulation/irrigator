@@ -3,6 +3,16 @@
 Changes below describe source revisions. A source commit is not a signed binary
 release. Versioned plan and worker protocols are tracked separately from the CLI.
 
+## Unreleased
+
+### Changed
+
+- MCP guidance distinguishes a saved pause request from completed draining,
+  declared replay policy from observed effects, and captured quota evidence from
+  live provider availability. Review discovery is shorter, event ordering and
+  cursor continuation are explicit, and local CLI handoffs cover cancellation,
+  review verdicts and storage cleanup.
+
 ## 1.3.1 — 2026-11-24
 
 ### Fixed

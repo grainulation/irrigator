@@ -82,6 +82,38 @@ Control (registered only with `--allow-control`; all declare `readOnlyHint: fals
 | `retry_cell` | Prepare an explicit retry. `allow_uncertain` and `confirm_stopped` are required arguments (`destructiveHint: true`, `idempotentHint: false`). |
 | `decide_approval` | Approve or deny a blocked request through the run's mailbox or approval ledger (`destructiveHint: true`, `idempotentHint: false`). |
 
+## Following a pause and completing local workflows
+
+`pause` saves a drain request and returns immediately. `run_status.control=pause`
+means the request was recorded; active provider calls can still be running.
+Watch cell progress with `run_status` and use `run_logs` for transitions.
+Drain time depends on the active calls. `resume` refuses to launch while another
+controller holds the run. A checkpoint or free controller lock alone cannot
+establish that an interrupted provider process stopped or had no external effects.
+Retry and resolution retain their explicit cleanup and uncertainty checks.
+
+MCP covers inspection and optional run supervision. The local CLI also supports
+operations that require a terminal workflow:
+
+| Intent | Local CLI handoff |
+| --- | --- |
+| Request termination of run compute | `irrigator down RUN` |
+| Cancel a cell and its descendants | `irrigator cancel RUN CELL` |
+| Reconcile an uncertain result | `irrigator resolve RUN CELL --result FILE` |
+| Record a branch review verdict | `irrigator review approve --workspace REPO --base BASE BRANCH` or `irrigator review request-changes --workspace REPO --base BASE BRANCH --body TEXT` |
+| Record a document review verdict | `irrigator review approve --workspace REPO --snapshot ID` or `irrigator review request-changes --workspace REPO --snapshot ID --body TEXT` |
+| Preview review storage cleanup | `irrigator review prune --workspace REPO` |
+| Apply reviewed storage cleanup | `irrigator review prune --workspace REPO --apply` |
+
+These are separate local commands, available when the host has terminal access.
+A stop request does not establish process cleanup or undo external effects; see
+[recovery](recovery.md) before replaying uncertain work. Review verdicts bind to
+the inspected content and do not merge branches. The `storage` field in
+`review_list` previews cleanup with the default 30-day retention; pruning uses
+the selected workspace. See [local review](local-review.md) for review and cleanup
+details. The canonical names `pause_run`, `get_run_status`, `list_run_events`
+and `resume_run` have the same lifecycle as their default counterparts.
+
 `apply` follows the CLI rules: a per-call `budget` is required (managed plans
 use profile budgets and must omit it), a non-managed plan needs an explicit
 `backend` (`mock` is free; `haiku` and named providers can spend money), and an

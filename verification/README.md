@@ -91,6 +91,18 @@ localhost listeners for those checks; a sandbox refusal is not a provider failur
 
 ## Reporting evidence
 
+The 2026-11-25 MCP guidance pass is recorded in
+[mcp-guidance.json](mcp-guidance.json), including the source base revision and
+SHA-256 hashes of the changed definitions and documentation. Go 1.27.2 builds,
+the MCP race suite, package vet, and eight schema-capture helper tests passed.
+Before/after wire captures covered both naming inventories with controls off and
+on; tool names, counts, input/output schemas and annotations matched exactly.
+The race suite required a run outside the filesystem sandbox because its
+existing invalid-filename fixture was denied inside it. No test was weakened.
+This pass changed descriptions and documentation. A subsequent implementation-author
+rubric self-review is recorded separately from the checks; it does not establish
+an independent judgment, registry score, live-provider result or full-repository acceptance.
+
 Record the exact source revision or working-tree digest, toolchain and platform,
 commands executed, results and skipped layers. A cross-build does not establish
 runtime support, and mock scheduling does not establish model quality or speedup.

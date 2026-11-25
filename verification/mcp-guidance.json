@@ -1,0 +1,68 @@
+{
+  "date": "2026-11-25",
+  "source_base_revision": "1922e619cf73c00350bd2fa806ff55797a4792fc",
+  "source_files": {
+    "internal/mcpserver/tool_definitions.go": "a7eb4120df319669b82b041bd4c444cce94059b6442bf7bb632f34f38cb3703e",
+    "docs/mcp.md": "0edb60fc5856b92a4b3a93b4bc04fccab9d25f5e23a0104a60dc8e99795461bd",
+    "CHANGELOG.md": "ae83fdc60c9c06dc09af4e08757cd7bc464ece810074e76b1a35e5e6fecff282"
+  },
+  "toolchain": "go1.27.2 darwin/arm64",
+  "scope": "MCP descriptions and lifecycle/CLI handoff documentation; execution code unchanged",
+  "checks": [
+    {
+      "command": "go build -o TEMP_BINARY .",
+      "exit_code": 0,
+      "scope": "before and after local binaries"
+    },
+    {
+      "command": "go test -race ./internal/mcpserver",
+      "exit_code": 0,
+      "verdict": "ok github.com/grainulation/irrigator/internal/mcpserver 15.313s",
+      "environment": "Outside filesystem sandbox after existing invalid-filename fixture was denied inside sandbox"
+    },
+    {
+      "command": "go vet ./internal/mcpserver",
+      "exit_code": 0
+    },
+    {
+      "command": "python3 -m unittest discover -s tools -p 'test_mcp_schema.py'",
+      "exit_code": 0,
+      "tests": 8,
+      "verdict": "OK"
+    },
+    {
+      "command": "tools/mcp-schema.py before/after captures for all four startup profiles",
+      "exit_code": 0,
+      "profiles": 4,
+      "schemas_names_annotations_unchanged": true
+    },
+    {
+      "command": "git diff --check",
+      "exit_code": 0
+    },
+    {
+      "command": "gofmt -l internal/mcpserver/tool_definitions.go",
+      "exit_code": 0,
+      "verdict": "no formatting changes"
+    }
+  ],
+  "not_executed": [
+    "Full repository acceptance and lint suites",
+    "Live-provider calls",
+    "Native-host acceptance",
+    "Independent or external model judging",
+    "External publication or registry rescore"
+  ],
+  "published_score": {
+    "value": 4.1,
+    "status": "existing evaluation; no new published score established"
+  },
+  "self_review": {
+    "overall": 4.5,
+    "description_quality": 4.6,
+    "coherence": 4.3,
+    "independent": false,
+    "blind": false,
+    "method": "Implementation-author qualitative judgments against TDQS rubric; exact aggregation; no external model call. Not an independently measured score gain."
+  }
+}
