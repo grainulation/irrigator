@@ -29,6 +29,34 @@ func forMCPProfiles(t *testing.T, test func(*testing.T, McpConfig)) {
 	}
 }
 
+func TestStartupRootsResolveAgainstProcessDirectory(t *testing.T) {
+	cwd, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	workspace := t.TempDir()
+	omitted, err := newMCPConfig(nil, workspace, false)
+	if err != nil || len(omitted.RunRoots) != 0 {
+		t.Fatalf("omitted: %+v %v", omitted, err)
+	}
+	cfg, err := newMCPConfig([]string{"", "relative-runs", "relative-runs", filepath.Join(workspace, "missing")}, workspace, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []string{cwd, filepath.Join(cwd, "relative-runs"), filepath.Join(cwd, "relative-runs"), filepath.Join(workspace, "missing")}
+	if len(cfg.RunRoots) != len(want) {
+		t.Fatalf("roots=%v", cfg.RunRoots)
+	}
+	for i, root := range want {
+		if cfg.RunRoots[i] != root {
+			t.Fatalf("root %d=%s; want %s", i, cfg.RunRoots[i], root)
+		}
+	}
+	if cfg.Workspace != workspace {
+		t.Fatalf("workspace=%s", cfg.Workspace)
+	}
+}
+
 func callParameterFixture(t *testing.T, cs *mcp.ClientSession, name string, args map[string]any) map[string]any {
 	t.Helper()
 	result, err := cs.CallTool(context.Background(), &mcp.CallToolParams{Name: name, Arguments: args})
@@ -355,6 +383,32 @@ func TestMCPQueuedBranchComparisonAcrossProfiles(t *testing.T) {
 		}
 		if _, err := os.Stat(filepath.Join(workspace, ".irrigator")); !os.IsNotExist(err) {
 			t.Fatalf("reading branch reviews created local review state: %v", err)
+		}
+	})
+}
+
+func TestMCPQueueSurvivesUnavailableStoragePreview(t *testing.T) {
+	forMCPProfiles(t, func(t *testing.T, cfg McpConfig) {
+		workspace, _ := runfixture.FixtureRepo(t)
+		workspace, err := filepath.EvalSymlinks(workspace)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := os.MkdirAll(filepath.Join(workspace, ".irrigator"), 0700); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Symlink(t.TempDir(), filepath.Join(workspace, ".irrigator", "sessions")); err != nil {
+			t.Fatal(err)
+		}
+		cfg.Workspace = workspace
+		cs := connectDefinitionTest(t, cfg)
+		out := callParameterFixture(t, cs, mcpToolName(cfg, "review_list"), map[string]any{"base": "main"})
+		if out["queue"] == nil {
+			t.Fatal("queue was hidden")
+		}
+		storage := out["storage"].(map[string]any)
+		if storage["error"] == nil || storage["applied"] != false || len(storage["items"].([]any)) != 0 {
+			t.Fatalf("storage diagnostic: %+v", storage)
 		}
 	})
 }

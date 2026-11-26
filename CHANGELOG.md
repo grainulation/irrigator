@@ -3,6 +3,32 @@
 Changes below describe source revisions. A source commit is not a signed binary
 release. Versioned plan and worker protocols are tracked separately from the CLI.
 
+## Unreleased
+
+## 1.3.2 — 2026-11-25
+
+### Fixed
+
+- Reject overflowing review retention, retain unrecognized change-state formats,
+  report partial cleanup completion and keep review queues readable when their
+  storage preview fails. Document verdict handoffs use the queued absolute
+  snapshot directory, including outside the repository.
+
+- Review pruning pins real storage directories through deletion, rejects linked
+  ancestors and preserves metadata when Git or snapshot evidence is inconclusive.
+  Preview and apply each recompute eligibility.
+- MCP lifecycle guidance distinguishes process launch from controller progress,
+  uncertain work from replay-safe reconciliation, and a verdict-time head from
+  the head inspected earlier. Startup root resolution is explicit.
+
+### Changed
+
+- MCP guidance distinguishes a saved pause request from completed draining,
+  declared replay policy from observed effects, and captured quota evidence from
+  live provider availability. Review discovery is shorter, event ordering and
+  cursor continuation are explicit, and local CLI handoffs cover cancellation,
+  review verdicts and storage cleanup.
+
 ## 1.3.1 — 2026-11-24
 
 ### Fixed

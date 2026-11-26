@@ -21,6 +21,13 @@ Every tool that takes a `run` also accepts an explicit run directory path, so
 `--runs` is optional. stdout carries the protocol; the server writes nothing else
 there.
 
+Startup `--runs` and `--workspace` paths resolve against the server process's
+working directory. Relative `--runs` roots do not resolve against `--workspace`.
+Prefer absolute paths in host configuration. Omitting `--runs` gives an empty
+discovery list; explicitly passing `--runs ""` instead selects the process's
+working directory, just like `--runs .`. Repeated roots retain their order, and
+missing or unreadable roots appear as discovery error rows.
+
 ### Run selectors and task identifiers
 
 For an existing run, a bare name such as `r` searches the configured `--runs`
@@ -81,6 +88,56 @@ Control (registered only with `--allow-control`; all declare `readOnlyHint: fals
 | `resume` | Start a detached controller for a stopped run. `retry_failed` retries replay-safe failures only. |
 | `retry_cell` | Prepare an explicit retry. `allow_uncertain` and `confirm_stopped` are required arguments (`destructiveHint: true`, `idempotentHint: false`). |
 | `decide_approval` | Approve or deny a blocked request through the run's mailbox or approval ledger (`destructiveHint: true`, `idempotentHint: false`). |
+
+## Following a pause and completing local workflows
+
+`pause` saves a drain request and returns immediately. `run_status.control=pause`
+means the request was recorded; active provider calls can still be running.
+Watch cell progress with `run_status` and use `run_logs` for transitions.
+Drain time depends on the active calls. `resume` checks for an existing controller
+before launching; `started:true` acknowledges process creation, not controller
+ownership or subsequent progress. A concurrent resume or early child exit can
+prevent that child from running the controller. Check `run_status` and `run_logs`
+for subsequent progress. A checkpoint or free controller lock alone cannot
+establish that an interrupted provider process stopped or had no external effects.
+Retry and resolution retain their existing checks; neither is proof that external
+effects were absent. Legacy attempts can lack process markers, so inspect cleanup
+evidence explicitly before reconciling an uncertain result.
+
+MCP covers inspection and optional run supervision. The local CLI also supports
+operations that require a terminal workflow:
+
+| Intent | Local CLI handoff |
+| --- | --- |
+| Request termination of run compute | `irrigator down RUN` |
+| Request cancellation of a cell and its descendants | `irrigator cancel RUN CELL` |
+| Reconcile an uncertain result | `irrigator resolve RUN CELL --result FILE` |
+| Record a branch review verdict | `irrigator review approve --workspace REPO --base BASE BRANCH` or `irrigator review request-changes --workspace REPO --base BASE BRANCH --body TEXT` |
+| Record a document review verdict | `irrigator review approve --workspace REPO --snapshot SNAPSHOT_DIR` or `irrigator review request-changes --workspace REPO --snapshot SNAPSHOT_DIR --body TEXT` |
+| Preview review storage cleanup | `irrigator review prune --workspace REPO` |
+| Recompute and apply eligible storage cleanup | `irrigator review prune --workspace REPO --apply` |
+
+These are separate local commands, available when the host has terminal access.
+For a CLI document verdict, use the absolute directory in
+`queue.documents[].path`. The `snapshot` ID is the selector for MCP
+`inspect_review`; it is not a CLI directory. `--workspace` selects the
+review ledger, while a relative CLI snapshot directory follows the shell's cwd.
+Use the host's normal permissions and the resolved absolute run path from
+inspection; shell lookup of a bare run name can select a different directory.
+A stop request does not establish process cleanup or undo external effects; see
+[recovery](recovery.md) before replaying uncertain work. Branch verdicts resolve
+the branch again and record its head at verdict time; compare that head with the
+one inspected and review any movement before relying on the verdict. Verdicts
+do not merge branches. The `storage` field in
+`review_list` previews cleanup with the default 30-day retention; pruning uses
+the selected workspace. Each prune call recomputes eligibility; a previous preview
+does not freeze the deletion list. Storage ancestors must be real directories,
+and inconclusive subject lookups stop pruning rather than proving an orphan.
+An unavailable storage preview is returned as `storage.error` without hiding
+an otherwise readable review queue. Explicit pruning still fails closed.
+See [local review](local-review.md) for review and cleanup
+details. The canonical names `pause_run`, `get_run_status`, `list_run_events`
+and `resume_run` have the same lifecycle as their default counterparts.
 
 `apply` follows the CLI rules: a per-call `budget` is required (managed plans
 use profile budgets and must omit it), a non-managed plan needs an explicit
@@ -211,9 +268,13 @@ Failures are tool errors with a message; the server keeps running.
   entry only for hosts and sessions you trust to change runs.
 - **Uncertainty rules are preserved.** `retry_cell` calls the same function as
   `irrigator retry`. `allow_uncertain` and `confirm_stopped` have no defaults and
-  keep the CLI meaning: an uncertain outcome is retried only when you attest
-  both, and a stopped provider process is never assumed. Interrupted work is
-  never replayed automatically, and `resume` only retries replay-safe failures.
+  keep the CLI meaning. Supply both Booleans: `allow_uncertain:true` authorizes
+  duplicate external effects for uncertain work; `confirm_stopped:true` is
+  required when cleanup remains unconfirmed. Supplying a Boolean is distinct
+  from attesting `true`. Work classified uncertain is never automatically
+  replayed. Reconciliation can return an interrupted, declared replay-safe cell
+  to pending when its cleanup and budget conditions permit; `retry_failed`
+  only adds replay-safe failed cells to that work.
 - **Approvals use the existing ledger.** `decide_approval` consumes a single-use
   decision through the same code as `irrigator approvals serve`, recorded with
   `via: mcp`. A decision cannot be applied twice.

@@ -33,7 +33,7 @@ localhost listeners for those checks; a sandbox refusal is not a provider failur
 
 | Gate | Needs | Scope | Expected outcome | Command |
 | --- | --- | --- | --- | --- |
-| `build` | Go 1.26.7+ | Compile `./irrigator` with `-trimpath` | Exit `0`; `./irrigator version` prints `1.3.1` | `make build` |
+| `build` | Go 1.26.7+ | Compile `./irrigator` with `-trimpath` | Exit `0`; `./irrigator version` prints `1.3.2` | `make build` |
 | `check-fast` | Go 1.27.2, `tmux` ≥3.2 | Unit tests across `./internal/...` + `go vet` | Exit `0` | `make check-fast` |
 | `check` | Go 1.27.2, `tmux` ≥3.2 | Default suite under `-race` + `go vet` | Exit `0` | `make check` |
 | `check-integration` | Go 1.27.2, `tmux` ≥3.2 | Full tree with `-tags integration -race -count=1` | Exit `0` | `make check-integration` |
@@ -90,6 +90,28 @@ localhost listeners for those checks; a sandbox refusal is not a provider failur
   binary assets is insufficient; hashes alone do not authenticate a publisher.
 
 ## Reporting evidence
+
+The 2026-11-25 MCP guidance pass and follow-up checks are recorded in
+[mcp-guidance.json](mcp-guidance.json). The wire comparison identifies both
+executables, source revisions or file digests and the exact capture flags.
+It covers both naming inventories with controls off and on: tool names, counts,
+input/output schemas and annotations match, while the expected descriptions
+change. Comparing the same binary twice fails that positive change check.
+
+Reproduce a comparison after building the two intended revisions:
+
+```sh
+python3 tools/mcp-schema.py --binary BEFORE --allow-control --canonical-names > before.json
+python3 tools/mcp-schema.py --binary AFTER --allow-control --canonical-names > after.json
+python3 tools/compare_mcp_schema.py before.json after.json --changed pause_run --changed get_run_status
+python3 -m unittest discover -s tools -p 'test_*mcp_schema.py'
+```
+
+The follow-up also tests review-storage confinement and inconclusive lookup
+handling. A local check or implementation-author rubric assessment does not
+establish a new registry score or full native-host acceptance. Astra reviewed
+the pre-fix PR snapshots; later corrections use the explicit checks recorded
+here, rather than an implied second independent review.
 
 Record the exact source revision or working-tree digest, toolchain and platform,
 commands executed, results and skipped layers. A cross-build does not establish

@@ -152,7 +152,18 @@ Decisions go through the same code as `review approve` and
 `irrigator review` shows how much space local Irrigator data uses.
 `irrigator review prune` previews what can go: review snapshots and agent
 session logs older than 30 days (`--older-than DAYS`), and review state for
-deleted branches or removed snapshots. Add `--apply` to delete them. Commits and branches are never touched.
+deleted branches or removed snapshots. Add `--apply` to recompute eligibility and
+delete eligible items; a prior preview does not freeze the selection. Symlinked
+storage ancestors are rejected and removals stay anchored to opened storage
+directories. An inconclusive Git or snapshot lookup stops pruning rather than
+treating the subject as absent. Commits and branches are never touched.
+Retention accepts 1–106751 days; larger values are rejected before selection.
+Unrecognized change-state formats are retained. An apply error reports completed
+removals in `removed`, the failing `failed_path` and `error`; `applied`
+is true only when the whole operation succeeds. Cleanup is not transactional:
+already completed removals remain completed, and a failing directory may itself
+be partly removed. Inspect that path before another apply. A queue can still be inspected when
+its storage preview is unavailable; the diagnostic appears separately.
 
 ## Code changes
 
