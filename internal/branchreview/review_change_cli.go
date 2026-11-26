@@ -88,7 +88,7 @@ func changeCLI(action string, args []string) (int, error) {
 		}
 	case "prune":
 		fs.BoolVar(&apply, "apply", false, "delete the listed items (default: preview only)")
-		fs.IntVar(&olderThan, "older-than", 30, "days after which saved review snapshots are removed")
+		fs.IntVar(&olderThan, "older-than", 30, fmt.Sprintf("retention days, 1..%d, after which saved review snapshots are removed", maxPruneDays))
 	}
 	if err := commandflags.ParseCommandArguments(fs, args); err != nil {
 		return 2, err
@@ -151,7 +151,7 @@ func changeCLI(action string, args []string) (int, error) {
 			return 1, err
 		}
 		report, err := PruneReviews(ws, 30, false)
-		if err != nil {
+		if err != nil && report == nil {
 			return 1, err
 		}
 		if *asJSON {
@@ -258,6 +258,15 @@ func changeCLI(action string, args []string) (int, error) {
 	case "prune":
 		report, err := PruneReviews(ws, olderThan, apply)
 		if err != nil {
+			if report != nil {
+				if *asJSON {
+					if printErr := jsonio.PrintJSON(report); printErr != nil {
+						return 1, printErr
+					}
+				} else {
+					printPrune(report)
+				}
+			}
 			return 1, err
 		}
 		if *asJSON {
@@ -280,6 +289,9 @@ type pruneReport struct {
 	Items      []pruneItem `json:"items"`
 	Bytes      int64       `json:"bytes"`
 	Applied    bool        `json:"applied"`
+	Removed    []pruneItem `json:"removed,omitempty"`
+	FailedPath string      `json:"failed_path,omitempty"`
+	Error      string      `json:"error,omitempty"`
 }
 
 func reviewBytes(n int64) string {
@@ -384,6 +396,10 @@ func printQueue(q *reviewQueue, storage *pruneReport) {
 			fmt.Printf("   %s: %s\n", session.ReviewTerminalText(o[0]), session.ReviewTerminalText(strings.Join(o[1:], ", ")))
 		}
 	}
+	if storage.Error != "" {
+		fmt.Printf("\nStorage preview unavailable: %s\n", session.ReviewTerminalText(storage.Error))
+		return
+	}
 	fmt.Printf("\nLocal Irrigator data: %s", reviewBytes(storage.UsageBytes))
 	if len(storage.Items) > 0 {
 		fmt.Printf(" · %d item(s) can be removed: irrigator review prune", len(storage.Items))
@@ -425,6 +441,14 @@ func printChange(v *changeView) {
 }
 
 func printPrune(r *pruneReport) {
+	if r.Error != "" {
+		fmt.Printf("Cleanup incomplete: %d item(s) removed.\n", len(r.Removed))
+		for _, item := range r.Removed {
+			fmt.Printf("  Removed %s\n", session.ReviewTerminalText(item.Path))
+		}
+		fmt.Printf("Error: %s\n", session.ReviewTerminalText(r.Error))
+		return
+	}
 	fmt.Printf("Local Irrigator data: %s\n", reviewBytes(r.UsageBytes))
 	if len(r.Items) == 0 {
 		fmt.Println("Nothing to remove.")

@@ -163,6 +163,52 @@ func TestReviewVerdictResolvesHeadAgainAfterInspection(t *testing.T) {
 	}
 }
 
+func TestDocumentVerdictHandoffUsesQueuedDirectoryOutsideWorkspace(t *testing.T) {
+	ws := changeTestRepo(t)
+	if err := os.WriteFile(filepath.Join(ws, "proposal.txt"), []byte("Review this proposal."), 0600); err != nil {
+		t.Fatal(err)
+	}
+	snapshot, err := requestReview(ws, "plan", "Proposal", "proposal.txt", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	parent := filepath.Join(ws, ".irrigator", "reviews")
+	if err := os.MkdirAll(parent, 0700); err != nil {
+		t.Fatal(err)
+	}
+	directory, err := writeReviewOut(snapshot, filepath.Join(parent, "friendly-name"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	queue, err := ListReviews(ws, "main")
+	if err != nil || len(queue.Documents) != 1 {
+		t.Fatalf("queue: %+v %v", queue, err)
+	}
+	doc := queue.Documents[0]
+	if doc.Path != directory || filepath.Base(directory) == doc.Snapshot {
+		t.Fatalf("fixture did not distinguish ID and directory: %+v", doc)
+	}
+	before, err := os.ReadFile(filepath.Join(directory, "snapshot.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Chdir(t.TempDir())
+	for _, action := range []string{"approve", "request-changes"} {
+		code, err := changeCLI(action, []string{"--workspace", ws, "--snapshot", doc.Path, "--body", "Review verdict"})
+		if code != 0 || err != nil {
+			t.Fatalf("directory handoff failed: %s %d %v", action, code, err)
+		}
+	}
+	state, err := readChangeState(ws, "snapshot:"+doc.Snapshot)
+	if err != nil || len(state.Verdicts) != 2 {
+		t.Fatalf("verdicts: %+v %v", state, err)
+	}
+	after, err := os.ReadFile(filepath.Join(directory, "snapshot.json"))
+	if err != nil || string(before) != string(after) {
+		t.Fatal("verdict changed immutable snapshot", err)
+	}
+}
+
 func TestReviewRejectsUnchangedFilesAndForeignCommits(t *testing.T) {
 	ws := changeTestRepo(t)
 	if err := markViewed(ws, "agent-1", "", []string{"go.mod"}, true); err == nil {

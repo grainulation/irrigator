@@ -113,11 +113,15 @@ operations that require a terminal workflow:
 | Request cancellation of a cell and its descendants | `irrigator cancel RUN CELL` |
 | Reconcile an uncertain result | `irrigator resolve RUN CELL --result FILE` |
 | Record a branch review verdict | `irrigator review approve --workspace REPO --base BASE BRANCH` or `irrigator review request-changes --workspace REPO --base BASE BRANCH --body TEXT` |
-| Record a document review verdict | `irrigator review approve --workspace REPO --snapshot ID` or `irrigator review request-changes --workspace REPO --snapshot ID --body TEXT` |
+| Record a document review verdict | `irrigator review approve --workspace REPO --snapshot SNAPSHOT_DIR` or `irrigator review request-changes --workspace REPO --snapshot SNAPSHOT_DIR --body TEXT` |
 | Preview review storage cleanup | `irrigator review prune --workspace REPO` |
 | Recompute and apply eligible storage cleanup | `irrigator review prune --workspace REPO --apply` |
 
 These are separate local commands, available when the host has terminal access.
+For a CLI document verdict, use the absolute directory in
+`queue.documents[].path`. The `snapshot` ID is the selector for MCP
+`inspect_review`; it is not a CLI directory. `--workspace` selects the
+review ledger, while a relative CLI snapshot directory follows the shell's cwd.
 Use the host's normal permissions and the resolved absolute run path from
 inspection; shell lookup of a bare run name can select a different directory.
 A stop request does not establish process cleanup or undo external effects; see
@@ -129,6 +133,8 @@ do not merge branches. The `storage` field in
 the selected workspace. Each prune call recomputes eligibility; a previous preview
 does not freeze the deletion list. Storage ancestors must be real directories,
 and inconclusive subject lookups stop pruning rather than proving an orphan.
+An unavailable storage preview is returned as `storage.error` without hiding
+an otherwise readable review queue. Explicit pruning still fails closed.
 See [local review](local-review.md) for review and cleanup
 details. The canonical names `pause_run`, `get_run_status`, `list_run_events`
 and `resume_run` have the same lifecycle as their default counterparts.

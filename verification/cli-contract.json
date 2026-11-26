@@ -1353,7 +1353,7 @@
         {
           "name": "older-than",
           "default": "30",
-          "usage": "days after which saved review snapshots are removed",
+          "usage": "retention days, 1..106751, after which saved review snapshots are removed",
           "boolean": false
         },
         {

@@ -582,10 +582,14 @@ func (t *mcpTools) reviewList(_ context.Context, _ *mcp.CallToolRequest, in mcpR
 		return nil, nil, err
 	}
 	report, err := branchreview.PruneReviews(ws, 30, false)
-	if err != nil {
+	if err != nil && report == nil {
 		return nil, nil, err
 	}
-	return mcpResult(fmt.Sprintf("%d change(s), %d document(s) against %s", len(q.Changes), len(q.Documents), q.Base), mcpOut{"queue": q, "storage": report})
+	summary := fmt.Sprintf("%d change(s), %d document(s) against %s", len(q.Changes), len(q.Documents), q.Base)
+	if report.Error != "" {
+		summary += "; storage preview unavailable"
+	}
+	return mcpResult(summary, mcpOut{"queue": q, "storage": report})
 }
 
 type mcpValidateInput struct {

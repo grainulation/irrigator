@@ -9,6 +9,11 @@ release. Versioned plan and worker protocols are tracked separately from the CLI
 
 ### Fixed
 
+- Reject overflowing review retention, retain unrecognized change-state formats,
+  report partial cleanup completion and keep review queues readable when their
+  storage preview fails. Document verdict handoffs use the queued absolute
+  snapshot directory, including outside the repository.
+
 - Review pruning pins real storage directories through deletion, rejects linked
   ancestors and preserves metadata when Git or snapshot evidence is inconclusive.
   Preview and apply each recompute eligibility.

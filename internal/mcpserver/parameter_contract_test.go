@@ -387,6 +387,32 @@ func TestMCPQueuedBranchComparisonAcrossProfiles(t *testing.T) {
 	})
 }
 
+func TestMCPQueueSurvivesUnavailableStoragePreview(t *testing.T) {
+	forMCPProfiles(t, func(t *testing.T, cfg McpConfig) {
+		workspace, _ := runfixture.FixtureRepo(t)
+		workspace, err := filepath.EvalSymlinks(workspace)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := os.MkdirAll(filepath.Join(workspace, ".irrigator"), 0700); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Symlink(t.TempDir(), filepath.Join(workspace, ".irrigator", "sessions")); err != nil {
+			t.Fatal(err)
+		}
+		cfg.Workspace = workspace
+		cs := connectDefinitionTest(t, cfg)
+		out := callParameterFixture(t, cs, mcpToolName(cfg, "review_list"), map[string]any{"base": "main"})
+		if out["queue"] == nil {
+			t.Fatal("queue was hidden")
+		}
+		storage := out["storage"].(map[string]any)
+		if storage["error"] == nil || storage["applied"] != false || len(storage["items"].([]any)) != 0 {
+			t.Fatalf("storage diagnostic: %+v", storage)
+		}
+	})
+}
+
 func TestMCPQueuedDocumentRetainsExplicitWorkspace(t *testing.T) {
 	forMCPProfiles(t, func(t *testing.T, cfg McpConfig) {
 		workspace, _ := runfixture.FixtureRepo(t)

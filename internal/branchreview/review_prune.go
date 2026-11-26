@@ -1,6 +1,7 @@
 package branchreview
 
 import (
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -17,6 +18,8 @@ import (
 	"github.com/grainulation/irrigator/internal/review"
 	"github.com/grainulation/irrigator/internal/session"
 )
+
+const maxPruneDays = int((1<<63 - 1) / (24 * time.Hour))
 
 // Pin storage before enumeration and retain the handle through deletion. Neither
 // an ancestor symlink nor a replacement of its pathname can redirect removal.
@@ -89,14 +92,26 @@ func (c pruneCandidate) remove() error {
 
 // PruneReviews previews or removes eligible local review storage. Selection is
 // recomputed for each invocation; an earlier preview is not a deletion token.
-func PruneReviews(ws string, olderThanDays int, apply bool) (*pruneReport, error) {
-	if olderThanDays < 1 {
-		return nil, errors.New("--older-than must be at least 1 day")
+func PruneReviews(ws string, olderThanDays int, apply bool) (report *pruneReport, resultErr error) {
+	if olderThanDays < 1 || olderThanDays > maxPruneDays {
+		return nil, fmt.Errorf("--older-than must be between 1 and %d days", maxPruneDays)
 	}
-	r := &pruneReport{Items: []pruneItem{}, Applied: apply}
+	r := &pruneReport{Items: []pruneItem{}}
+	defer func() {
+		if resultErr == nil {
+			r.Applied = apply
+		} else {
+			r.Error = resultErr.Error()
+			if !apply {
+				// An incomplete inventory is not a usable deletion preview.
+				r.Items = []pruneItem{}
+				r.Bytes = 0
+			}
+		}
+	}()
 	workspace, err := localfs.Root(ws)
 	if err != nil {
-		return nil, err
+		return r, err
 	}
 	defer workspace.Close()
 	private, err := openPruneRoot(workspace, ".irrigator")
@@ -161,11 +176,15 @@ func PruneReviews(ws string, olderThanDays int, apply bool) (*pruneReport, error
 					return r, err
 				}
 				var state changeState
-				if json.Unmarshal(data, &state) != nil || state.Subject == "" {
+				if json.Unmarshal(data, &state) != nil || state.Version != changeStateVersion || state.Subject == "" || name != changeStateID(state.Subject)+".json" {
 					continue // Unrecognized state is never evidence of an orphan.
 				}
 				reason := ""
 				if id, ok := strings.CutPrefix(state.Subject, "snapshot:"); ok {
+					digest, err := hex.DecodeString(id)
+					if err != nil || len(digest) != 32 || hex.EncodeToString(digest) != id {
+						continue
+					}
 					exists, err := pruneSnapshotExists(roots["reviews"], id)
 					if err != nil {
 						return r, err
@@ -174,6 +193,13 @@ func PruneReviews(ws string, olderThanDays int, apply bool) (*pruneReport, error
 						reason = "its snapshot was removed"
 					}
 				} else {
+					if _, err := session.ReviewGit(ws, "check-ref-format", "refs/heads/"+state.Subject); err != nil {
+						var exit *exec.ExitError
+						if errors.As(err, &exit) && exit.ExitCode() == 1 {
+							continue
+						}
+						return r, fmt.Errorf("cannot recognize branch subject: %w", err)
+					}
 					if branches == nil {
 						branches, err = pruneBranchRefs(ws)
 						if err != nil {
@@ -191,13 +217,24 @@ func PruneReviews(ws string, olderThanDays int, apply bool) (*pruneReport, error
 		}
 	}
 	if apply {
-		for _, candidate := range candidates {
-			if err := candidate.remove(); err != nil {
-				return r, err
-			}
+		if err := applyPruneCandidates(r, candidates); err != nil {
+			return r, err
 		}
 	}
 	return r, nil
+}
+
+func applyPruneCandidates(r *pruneReport, candidates []pruneCandidate) error {
+	for i, candidate := range candidates {
+		if err := candidate.remove(); err != nil {
+			r.FailedPath = r.Items[i].Path
+			r.Error = fmt.Sprintf("prune %s after %d completed removal(s); failing path may be partially removed: %v", r.FailedPath, len(r.Removed), err)
+			return errors.New(r.Error)
+		}
+		r.Removed = append(r.Removed, r.Items[i])
+	}
+	r.Applied = true
+	return nil
 }
 
 func pruneBranchRefs(ws string) (map[string]bool, error) {

@@ -1,8 +1,10 @@
 package branchreview
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
@@ -121,8 +123,13 @@ func TestPrunePreservesStateWhenSnapshotCannotBeRead(t *testing.T) {
 	if err := os.MkdirAll(reviews, 0700); err != nil {
 		t.Fatal(err)
 	}
-	state := filepath.Join(changes, "document.json")
-	if err := os.WriteFile(state, []byte(`{"subject":"snapshot:document"}`), 0600); err != nil {
+	subject := "snapshot:" + strings.Repeat("d", 64)
+	state := filepath.Join(changes, changeStateID(subject)+".json")
+	data, err := json.Marshal(changeState{Version: changeStateVersion, Subject: subject})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(state, data, 0600); err != nil {
 		t.Fatal(err)
 	}
 	for _, data := range []string{"", "{", `{"version":1,"id":"document"}`} {
@@ -137,6 +144,135 @@ func TestPrunePreservesStateWhenSnapshotCannotBeRead(t *testing.T) {
 				t.Fatal("review state lost:", err)
 			}
 		}
+	}
+}
+
+func TestPruneRejectsOverflowAndPreservesFreshEvidence(t *testing.T) {
+	ws := changeTestRepo(t)
+	dir := filepath.Join(ws, ".irrigator", "sessions")
+	if err := os.MkdirAll(dir, 0700); err != nil {
+		t.Fatal(err)
+	}
+	fresh := filepath.Join(dir, "fresh.jsonl")
+	if err := os.WriteFile(fresh, []byte("fresh evidence\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	for _, days := range []int{maxPruneDays, maxPruneDays + 1, 365000} {
+		for _, apply := range []bool{false, true} {
+			report, err := PruneReviews(ws, days, apply)
+			if days == maxPruneDays {
+				if err != nil || len(report.Items) != 0 {
+					t.Fatalf("supported retention: %+v %v", report, err)
+				}
+			} else if err == nil {
+				t.Fatalf("unsafe retention accepted: %d", days)
+			}
+			if data, err := os.ReadFile(fresh); err != nil || string(data) != "fresh evidence\n" {
+				t.Fatalf("fresh evidence changed: %q %v", data, err)
+			}
+		}
+	}
+}
+
+func TestPrunePreservesUnrecognizedStateBesideRealOrphan(t *testing.T) {
+	ws := changeTestRepo(t)
+	if _, _, err := setChangeVerdict(ws, "agent-2", "main", "approved", "orphan"); err != nil {
+		t.Fatal(err)
+	}
+	reviewTestGit(t, ws, "branch", "-qD", "agent-2")
+	dir := filepath.Join(ws, ".irrigator", "changes")
+	preserved := map[string][]byte{}
+	for _, state := range []changeState{
+		{Version: 2, Subject: "future-branch"},
+		{Version: 0, Subject: "legacy-unrecognized"},
+		{Version: 1, Subject: "snapshot:invalid"},
+		{Version: 1, Subject: "invalid branch name"},
+	} {
+		name := filepath.Join(dir, changeStateID(state.Subject)+".json")
+		data, err := json.Marshal(state)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(name, data, 0600); err != nil {
+			t.Fatal(err)
+		}
+		preserved[name] = data
+	}
+	for _, apply := range []bool{false, true} {
+		report, err := PruneReviews(ws, 30, apply)
+		if err != nil || len(report.Items) != 1 || !strings.Contains(report.Items[0].Reason, "agent-2") {
+			t.Fatalf("orphan selection: %+v %v", report, err)
+		}
+		for name, want := range preserved {
+			if got, err := os.ReadFile(name); err != nil || string(got) != string(want) {
+				t.Fatalf("unrecognized state changed: %s %v", name, err)
+			}
+		}
+	}
+}
+
+func TestPrunePartialFailureReportsCompletedAndFailedPaths(t *testing.T) {
+	dir, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	root, err := os.OpenRoot(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer root.Close()
+	report := &pruneReport{Items: []pruneItem{}}
+	var candidates []pruneCandidate
+	for _, name := range []string{"first.jsonl", "second.jsonl", "third.jsonl"} {
+		if err := root.WriteFile(name, []byte("evidence"), 0600); err != nil {
+			t.Fatal(err)
+		}
+		info, err := root.Lstat(name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		report.Items = append(report.Items, pruneItem{Path: filepath.Join(dir, name)})
+		candidates = append(candidates, pruneCandidate{root: root, name: name, info: info})
+	}
+	// Change the second selected item before apply; the first still succeeds.
+	if err := root.Rename("second.jsonl", "retained.jsonl"); err != nil {
+		t.Fatal(err)
+	}
+	if err := root.WriteFile("second.jsonl", []byte("new evidence"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	err = applyPruneCandidates(report, candidates)
+	if err == nil || report.Applied || len(report.Removed) != 1 || report.Removed[0].Path != report.Items[0].Path || report.FailedPath != report.Items[1].Path || report.Error == "" {
+		t.Fatalf("partial report: %+v %v", report, err)
+	}
+	if _, err := root.Stat("first.jsonl"); !os.IsNotExist(err) {
+		t.Fatal("first item not removed")
+	}
+	for _, name := range []string{"second.jsonl", "third.jsonl", "retained.jsonl"} {
+		if _, err := root.Stat(name); err != nil {
+			t.Fatal("uncompleted item lost:", name, err)
+		}
+	}
+	data, err := json.Marshal(report)
+	if err != nil || !strings.Contains(string(data), "removed") || !strings.Contains(string(data), "failed_path") {
+		t.Fatalf("partial JSON: %s %v", data, err)
+	}
+}
+
+func TestReviewQueueSurvivesStoragePreviewError(t *testing.T) {
+	ws := changeTestRepo(t)
+	if err := os.MkdirAll(filepath.Join(ws, ".irrigator"), 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(t.TempDir(), filepath.Join(ws, ".irrigator", "sessions")); err != nil {
+		t.Fatal(err)
+	}
+	if code, err := changeCLI("list", []string{"--workspace", ws, "--json"}); code != 0 || err != nil {
+		t.Fatalf("queue unavailable: %d %v", code, err)
+	}
+	report, err := PruneReviews(ws, 30, true)
+	if err == nil || report.Error == "" || report.Applied {
+		t.Fatalf("unsafe cleanup accepted: %+v %v", report, err)
 	}
 }
 

@@ -1,6 +1,6 @@
 {
   "date": "2026-11-25",
-  "scope": "Targeted MCP guidance, compatibility and review-pruning safety verification. Full repository/platform/release gates are tracked separately in PR CI.",
+  "scope": "MCP guidance, unchanged contracts, safe CLI handoffs and verified premortem corrections. Local full acceptance and lint passed; platform and release-candidate checks are recorded independently on the PR.",
   "source_base_revision": "8d7f917b6d8bc18c5a6e681f979586953eb3d8a4",
   "comparison_before": {
     "revision": "1922e619cf73c00350bd2fa806ff55797a4792fc",
@@ -10,34 +10,34 @@
     "relationship": "Retained pre-guidance binary from the original pass; this ancestor predates the current PR base. The exact inventories are compared directly, rather than assuming identical definitions across bases."
   },
   "comparison_after": {
-    "parent_revision": "e8c8c487ed1fcc4f6f0e9d0e1e6b1120d1a82227",
+    "parent_revision": "77e76bb69537bf69217ecd8739dbbb61e5e4a4d9",
     "vcs_modified": true,
-    "binary_sha256": "1469e22bbca40a5edfa7dc823b108332064a1ab09109ed4b07284613b84b9d20",
+    "binary_sha256": "b05d74a55f907d4616664371180fae67915e035623f93eee4a934d5feb380dea",
     "version": "1.3.2",
     "source_files": {
       ".claude-plugin/marketplace.json": "bbe436c56abc7cb1b9556d411d185095de530de6b787b0ff03f006ef56b724ec",
       ".claude-plugin/plugin.json": "689d6df446f004473203784676e3ddc4b9c7681fdc307d9dfebbe595bbe954e5",
       ".codex-plugin/plugin.json": "b6a5fcb711eb3bd2127939e9aef1b35fa65afa4516ae14d4ac00517bdd4cb250",
-      "CHANGELOG.md": "f26df5af6ad27d3605fff282f6e865da9318cbfa93096039718a5f16deab34cb",
-      "docs/local-review.md": "6050f625615620a58b4997481adf2a0ccf6c259360858815d2f00d3954fd0d49",
-      "docs/mcp.md": "9ab90d2e29d768c5c8529c294ff2732fe28b18ba0be8d9c67472f9947d9872ae",
-      "internal/branchreview/review_change_cli.go": "16f8edbbb2f772ba9a2fdc318663596d351b306887518a54f1cab386c5e63660",
-      "internal/branchreview/review_change_test.go": "610f06cccc8168452bb7e780b6724fe462272deae67bcf0301cd9835b8a27166",
-      "internal/branchreview/review_prune.go": "18197a06f4226cbcfc7c0b1b6eba2928da0b6acc4768c30578307ed9f7df3b34",
-      "internal/branchreview/review_prune_test.go": "02a08cafae73d7c7a414313060a9bf10dd52f51845ceb1e2b6e0843f9b785022",
+      "CHANGELOG.md": "c5492a6f03c64e0d3959d905e9f43e9f656fa95e860ee0888185fcb18a752ee8",
+      "docs/local-review.md": "48782f7693a46e9e8bc20dc066e7419193bb94242a8b68ba5362a09659a68da0",
+      "docs/mcp.md": "07ebed8fbb865a08b2f034c387cdc4b4f1987cd5334536b2b90eff2ec3f2ad1d",
+      "internal/branchreview/review_change_cli.go": "09b5614cfd634c9aa67ef2d7fd2647de0fe5e4065858d5d81197b90104749873",
+      "internal/branchreview/review_change_test.go": "6fb0f23f71204a57f131e8d08897ee01f2d65cc1b1cc610c3ccdb440aa0e3e1d",
+      "internal/branchreview/review_prune.go": "ceb0beffc2e478164bdfec71844e23cc43c7ad2f7903a903a342e4fa4ede68fd",
+      "internal/branchreview/review_prune_test.go": "2b7b5e11eb77948c101edc9d1e96734690a2050544c268c5ee8da013bfdb268d",
       "internal/buildinfo/main.go": "ae233efea2a533c7f31220f5ef5e3136b0996de615076abba1a0f62a04fd1d21",
-      "internal/mcpserver/mcp.go": "f449f84e097e3efbf4c528a36d726ee9c8a032a9396978ef255bec4d8de2ead3",
-      "internal/mcpserver/parameter_contract_test.go": "db9d6f6c5a03b654182469e887d1170be2519b3e27c8a84e9594717eb1eee55a",
-      "internal/mcpserver/tool_definitions.go": "97cf668b258d8a88910b8eb20e8c614ddfc8f5800d6b70b7ba8d4405e9440f72",
+      "internal/mcpserver/mcp.go": "74d109a268abfeda7c6a0cf20bd31a6ffaa57ab3c3e5897e3c908b35d6e7046d",
+      "internal/mcpserver/parameter_contract_test.go": "d32fd8dbfd5c348bbb4350d9a99f62bbd96e50af83a41f3c6c2d2dd7dd9f8e75",
+      "internal/mcpserver/tool_definitions.go": "5264e206c2853c699045db44eb920a78c87a4956294c6fd58bfc0fca3e335d9b",
       "plugin.json": "6019a8ff5444a59ddfe135fee27feef3772e7034d235fd8f624f25ab2a76bb0b",
       "tools/compare_mcp_schema.py": "3abd1a027b5d2e41a51cf52de2d96ff9d33820564fd8773f7fe3ff2eb9507027",
       "tools/test_compare_mcp_schema.py": "f9f077957e2fb0a0de28f43b634a0818ca95ea963edabc62f2c746f46fcaaf3a",
       "verification/README.md": "26e01646d891c8977bc0ca2e0cf155741908c3b1dc9c434128f33404d3e234f6",
       "verification/golden/subcommands/version.golden": "33158972a53877b421cfe2598b8d93cab169963a4964b45ee889e85349979018",
-      "verification/cli-contract.json": "960ed0fe81332541f06eeeb8a0752ba0d82984e7c8a075692d6bc8ec6936f5ba",
+      "verification/cli-contract.json": "2e5b0ed0b1326b1c37ba152e0bf61b1211be8c72248b46eb44162c450f1ab086",
       "docs/versioned-release.md": "3110e4df93e10456a66e8327e5263dff7257ddc790eda7565bddfca4cbb34e91"
     },
-    "build_command": "go build -o ./irrigator ."
+    "build_command": "make build"
   },
   "toolchain": "go1.27.2 darwin/arm64",
   "profiles": [
@@ -67,7 +67,7 @@
       },
       "capture_sha256": {
         "before": "5809eb387820ab399fc7baace6b8cc36ae860afa8cf9f6655ac851a790ddcc67",
-        "after": "8a5e7fa58ee2efcdf24948aada80447aaa2d471808ec2b8fa8edb3f59fd8e889"
+        "after": "d286beb0faeff199224dcd5c00fbbc938331fc0a45505b06763ce2f7456f982c"
       },
       "compare_command": "python3 tools/compare_mcp_schema.py before.json after.json --changed run_status --changed review_list"
     },
@@ -105,7 +105,7 @@
       },
       "capture_sha256": {
         "before": "b1ed8b92ee0dcc83c9df683ff4b7f078e0c8008536c39e9297f770b68d98ead2",
-        "after": "dd2696bb8d1e8d813e18b18ae86f59adccf500b6579372a0ae0cc0eb560118cf"
+        "after": "36ba2567d2b30977f4d91525368ed45d9231096b5a9fa7048e59797f4176078b"
       },
       "compare_command": "python3 tools/compare_mcp_schema.py before.json after.json --changed run_status --changed review_list --changed pause --changed resume --changed retry_cell"
     },
@@ -137,7 +137,7 @@
       },
       "capture_sha256": {
         "before": "9da47593020ba52e4035acf803a5a222211a9784209eec7795bc94a5f4551054",
-        "after": "7ad321ced2410d464e6a3a07f548df31144ea7ad7e2f117e49b7ea8851d8e0e9"
+        "after": "63eaeb323f413a1a157073446bd7105793afde26850dac316304249328f38b7f"
       },
       "compare_command": "python3 tools/compare_mcp_schema.py before.json after.json --changed get_run_status --changed list_reviews"
     },
@@ -176,7 +176,7 @@
       },
       "capture_sha256": {
         "before": "a3e908de93943934ffd8694c7359d810199d72030162410e53852b6c7d269f65",
-        "after": "3dae3411c3aa019f20c957386a7ef060679f3d3898617893cd906219297b1fcf"
+        "after": "ee0e046f0bbd218456e826712d895237322b750d1fcaf83dbfd7495f1b74b71c"
       },
       "compare_command": "python3 tools/compare_mcp_schema.py before.json after.json --changed get_run_status --changed list_reviews --changed pause_run --changed resume_run --changed retry_cell"
     }
@@ -186,10 +186,10 @@
       "command": "go test -race ./internal/branchreview ./internal/mcpserver",
       "exit_code": 0,
       "verdicts": [
-        "ok github.com/grainulation/irrigator/internal/branchreview 74.475s",
-        "ok github.com/grainulation/irrigator/internal/mcpserver 16.871s"
+        "ok github.com/grainulation/irrigator/internal/branchreview 74.152s",
+        "ok github.com/grainulation/irrigator/internal/mcpserver 18.155s"
       ],
-      "scope": "Pruning confinement, corrupt/missing subjects, moved verdict heads and MCP contracts; subsequent description-only refinements recaptured below."
+      "scope": "Storage confinement, retention bounds, positive saved-format recognition, partial removal evidence, document selector handoff and queue availability across all MCP profiles."
     },
     {
       "command": "python3 -m unittest discover -s tools -p 'test_*mcp_schema.py'",
@@ -197,35 +197,24 @@
       "tests": 13
     },
     {
+      "command": "make acceptance",
+      "exit_code": 0,
+      "verdicts": [
+        "First-use smoke passed.",
+        "PASS: stop kept 2 verified tasks; resume finished the rest (0 left unfinished) without repeating any"
+      ],
+      "scope": "Full local default/integration race suites, packaging, CLI metadata, mock smoke/demo and durability gates."
+    },
+    {
       "command": "make lint",
       "exit_code": 0,
       "verdict": "0 issues for default and integration tags; go mod tidy -diff clean"
-    },
-    {
-      "command": "before/after disposable-repository prune reproduction",
-      "exit_code": 0,
-      "before_external_sentinel_survived": false,
-      "after_external_sentinel_survived": true,
-      "after_tool_exit_code": 1
     },
     {
       "command": "four captured profiles plus same-binary negative comparisons",
       "exit_code": 0,
       "contract_unchanged": true,
       "positive_description_changes": true
-    },
-    {
-      "command": "fresh wrapper-backed installed canonical inspection/control captures",
-      "exit_code": 0,
-      "version": "1.3.2",
-      "tools_match_built_captures": true,
-      "scope": "MCP process discovery, not a restarted native agent host"
-    },
-    {
-      "command": "go test -race -tags integration ./internal/cli -run TestCommandMetadataSnapshotMatchesRuntime -count=1",
-      "exit_code": 0,
-      "verdict": "ok github.com/grainulation/irrigator/internal/cli 1.892s",
-      "scope": "The reviewed generated CLI-contract diff changes only the intentional 1.3.1 to 1.3.2 version field."
     }
   ],
   "independent_review": {
@@ -249,5 +238,13 @@
   "prior_self_review": {
     "record_commit": "d5daec39199beb63af73711c49273e4aa85a4476",
     "status": "Historical implementation-author assessment; not new independent judging or a score of the final corrected inventory."
+  },
+  "premortem_review": {
+    "requested_model": "gpt-6.2-astra",
+    "provider_reported_actual_model": null,
+    "source_revision": "77e76bb69537bf69217ecd8739dbbb61e5e4a4d9",
+    "scope": "Independent pre-correction premortem; identified scenarios reproduced or checked against handlers before correction. No claim of independent review of subsequent fixes.",
+    "cost_usd": null,
+    "cost_unknown": true
   }
 }
