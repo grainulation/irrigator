@@ -90,10 +90,24 @@ func deliveryLockState(root string) (held, known bool) {
 }
 
 // deliveryCleanupUncertain mirrors deliver's own fail-closed marker rule.
-func deliveryCleanupUncertain(root string) bool {
-	raw, err := ReadBoundedFile(filepath.Join(root, "delivery-check.process.json"), deliveryMarkerLimit)
+func deliveryCleanupUncertain(root string, prefixes ...string) bool {
+	prefix := "delivery-check"
+	if len(prefixes) > 0 && prefixes[0] != "" {
+		prefix = prefixes[0]
+		if !strings.HasPrefix(prefix, "delivery-check-") || len(prefix) != len("delivery-check-")+32 {
+			return true
+		}
+		for _, r := range strings.TrimPrefix(prefix, "delivery-check-") {
+			if !(r >= '0' && r <= '9') && !(r >= 'a' && r <= 'f') {
+				return true
+			}
+		}
+	}
+	raw, err := ReadBoundedFile(filepath.Join(root, prefix+".process.json"), deliveryMarkerLimit)
 	if errors.Is(err, os.ErrNotExist) {
-		return false
+		// New request-scoped checker intent can precede process-marker creation.
+		// A missing marker cannot establish that an admitted checker stopped.
+		return len(prefixes) > 0 && prefixes[0] != ""
 	}
 	if err != nil {
 		return true
@@ -190,7 +204,7 @@ func ProjectDelivery(root string, s *model.State) DeliveryView {
 		if !checked {
 			return deliveryUnknown()
 		}
-		if deliveryCleanupUncertain(root) {
+		if deliveryCleanupUncertain(root, rec.CheckPrefix) {
 			return DeliveryView{Stage: "blocked", Acceptance: "unknown", Recovery: "inspect"}
 		}
 		// No delivery lock holder: the checker died mid-run. Its outcome is unknown
@@ -200,7 +214,7 @@ func ProjectDelivery(root string, s *model.State) DeliveryView {
 		if !checked {
 			return deliveryUnknown()
 		}
-		if deliveryCleanupUncertain(root) {
+		if deliveryCleanupUncertain(root, rec.CheckPrefix) {
 			return DeliveryView{Stage: "blocked", Acceptance: "unknown", Recovery: "inspect"}
 		}
 		if !complete {

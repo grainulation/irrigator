@@ -105,8 +105,9 @@ type Event struct {
 	Detail any       `json:"detail,omitempty"`
 }
 type State struct {
-	SchemaVersion int              `json:"schema_version,omitempty"`
-	CallLimits    *SavedCallLimits `json:"call_limits,omitempty"`
+	ControlRequests map[string]ControlRequestReceipt `json:"control_requests,omitempty"`
+	SchemaVersion   int                              `json:"schema_version,omitempty"`
+	CallLimits      *SavedCallLimits                 `json:"call_limits,omitempty"`
 	// UnbudgetedDecision is the durable, schema-independent record of how a run
 	// without an explicit call budget was admitted. Storage schema is never
 	// consent: ordinary checkpoint updates stamp SchemaVersion on old runs.

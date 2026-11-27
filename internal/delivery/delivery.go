@@ -214,6 +214,12 @@ func Deliver(planPath, root, backend, dir, nodes, field, checkJSON string, check
 	}
 	if len(check) > 0 {
 		prefix := filepath.Join(root, "delivery-check")
+		if record.CheckPrefix != "" {
+			if !validCheckPrefix(record.CheckPrefix) {
+				return fail("check_failed", errors.New("invalid delivery checker prefix"))
+			}
+			prefix = filepath.Join(root, record.CheckPrefix)
+		}
 		if raw, e := os.ReadFile(prefix + ".process.json"); e == nil {
 			var marker model.ProcessMarker
 			if json.Unmarshal(raw, &marker) != nil || marker.Status != "stopped" {

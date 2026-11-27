@@ -48,6 +48,7 @@ type McpConfig struct {
 	RunRoots       []string
 	Workspace      string
 	AllowControl   bool
+	Profile        string
 	canonicalNames bool
 }
 
@@ -61,18 +62,26 @@ func McpCLI(args []string) (int, error) {
 	var roots mcpPathList
 	fs.Var(&roots, "runs", "directory whose subdirectories are runs (repeatable)")
 	workspace := fs.String("workspace", ".", "Git repository for review_list and base for relative plan paths")
-	allowControl := fs.Bool("allow-control", false, "also register tools that change runs: apply, pause, resume, retry_cell, decide_approval")
+	allowControl := fs.Bool("allow-control", false, "register the selected profile's explicit run or delivery mutations")
+	profile := fs.String("profile", "legacy", "tool inventory: legacy, inspection, execution or delivery")
 	canonicalNames := fs.Bool("canonical-names", false, "advertise the versioned verb_object naming preview instead of legacy names")
 	if err := commandflags.ParseCommandArguments(fs, args); err != nil {
 		return 2, err
 	}
 	if fs.NArg() != 0 {
-		return 2, errors.New("usage: irrigator mcp [--runs DIR]... [--workspace DIR] [--allow-control] [--canonical-names]")
+		return 2, errors.New("usage: irrigator mcp [--runs DIR]... [--workspace DIR] [--allow-control] [--canonical-names] [--profile legacy|inspection|execution|delivery]")
 	}
 	cfg, err := newMCPConfig(roots, *workspace, *allowControl)
 	if err != nil {
 		return 1, err
 	}
+	if !validMCPProfile(*profile) {
+		return 2, errors.New("--profile must be legacy, inspection, execution or delivery")
+	}
+	if *profile == "execution" && !*allowControl {
+		return 2, errors.New("--profile execution requires --allow-control")
+	}
+	cfg.Profile = *profile
 	cfg.canonicalNames = *canonicalNames
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
@@ -120,25 +129,15 @@ func NewMCPServer(cfg McpConfig) *mcp.Server {
 	if cfg.AllowControl {
 		instructions = "Inspect saved Irrigator runs and explicitly control execution. Starting or resuming can contact providers and spend money; pause requests draining. Work classified uncertain is never replayed automatically. " + mcpToolName(cfg, "retry_cell") + " only prepares a retry and requires explicit uncertainty and cleanup arguments; " + mcpToolName(cfg, "resume") + " executes pending work. Approval decisions never merge changes."
 	}
+	if cfg.Profile == "inspection" {
+		instructions = "Inspect saved Irrigator runs and accepted artifacts. This inventory is read-only, including when --allow-control was supplied."
+	}
+	if cfg.Profile == "delivery" {
+		instructions = "Inspect completed Irrigator candidates and review evidence. With --allow-control, explicitly assemble file maps or run a fenced local checker. These tools never initialize or resume graph work, launch model providers or submit externally. A checker can have external effects; interrupted requests are never silently repeated."
+	}
 	s := mcp.NewServer(&mcp.Implementation{Name: "irrigator", Version: buildinfo.Version}, &mcp.ServerOptions{Instructions: instructions})
 	t := &mcpTools{cfg: cfg}
-	addMCPTool(s, cfg, "list_runs", t.listRuns)
-	addMCPTool(s, cfg, "run_status", t.runStatus)
-	addMCPTool(s, cfg, "run_logs", t.runLogs)
-	addMCPTool(s, cfg, "attempt_output", t.attemptOutput)
-	addMCPTool(s, cfg, "provider_limit", t.providerLimit)
-	addMCPTool(s, cfg, "delivery_summary", t.deliverySummary)
-	addMCPTool(s, cfg, "inspect_cell", t.inspectCell)
-	addMCPTool(s, cfg, "review_list", t.reviewList)
-	addMCPTool(s, cfg, "inspect_review", t.inspectReview)
-	addMCPTool(s, cfg, "validate_plan", t.validatePlan)
-	if cfg.AllowControl {
-		addMCPTool(s, cfg, "apply", t.apply)
-		addMCPTool(s, cfg, "pause", t.pause)
-		addMCPTool(s, cfg, "resume", t.resume)
-		addMCPTool(s, cfg, "retry_cell", t.retryCell)
-		addMCPTool(s, cfg, "decide_approval", t.decideApproval)
-	}
+	registerMCPProfile(s, cfg, t)
 	return s
 }
 
@@ -493,7 +492,7 @@ func (t *mcpTools) runStatus(_ context.Context, _ *mcp.CallToolRequest, in mcpRu
 	verified, total := mcpVerified(s)
 	cost := provider.ProjectCost(s)
 	summary := fmt.Sprintf("%s | %s | %s | %s | %d/%d verified | %s", filepath.Base(root), s.Backend, dashboard.RunExecutor(root), s.Control, verified, total, provider.CostStatusText(s))
-	return mcpResultWithTruncation(summary, mcpOut{"path": root, "backend": s.Backend, "control": s.Control, "executor": dashboard.RunExecutor(root), "graph_revision": s.GraphRevision, "verified": verified, "total": total, "cost": cost, "cells": cells}, shortened)
+	return mcpResultWithTruncation(summary, mcpOut{"path": root, "run_id": s.RunID, "plan_sha256": s.PlanHash, "backend": s.Backend, "control": s.Control, "executor": dashboard.RunExecutor(root), "graph_revision": s.GraphRevision, "verified": verified, "total": total, "cost": cost, "cells": cells}, shortened)
 }
 
 type mcpLogsInput struct {
