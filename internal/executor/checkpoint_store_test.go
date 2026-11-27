@@ -275,6 +275,8 @@ func TestCheckpointStorePublicationFailureDoesNotRetry(t *testing.T) {
 	// A rename onto a directory must fail, independently of process privileges.
 	e := store.Update(context.Background(), checkpoint.CheckpointUpdateOptions{}, func(s *model.State) error {
 		calls++
+		// A real mutation is required: no-op callbacks are suppressed and never publish.
+		s.Control = "pause"
 		if e := os.Remove(filepath.Join(root, "state.json")); e != nil {
 			return e
 		}
