@@ -67,11 +67,11 @@ Command names in this workflow are the real CLI: `init`, `demo`, `review`, `sess
 
 Use **A×D×S** (or `AxDxS`): A root agents, D total levels **including** roots, at most S children per node. The coordinator is excluded. `W×D` means `W×D×1`.
 
-- Maximum nodes = A × (1 + S + … + S^(D−1)); with S=1 this is A×D. `2x5` = 10, `10x2x9` = 100, `25x5x2` = **775**, not 125. The runtime bound is 1024 nodes and D ≤ 16.
+- Maximum nodes = A × (1 + S + … + S^(D−1)); with S=1 this is A×D. `2x5` = 10, `10x2x9` = 100, `25x5x2` = **775**, not 125. The runtime bound is 10000 nodes and D ≤ 16.
 - A shape is a ceiling, not a promise of expansion and not an instruction to fill every slot.
 - `--workers` is separate (1..128). Roots do not set it. Waiting ancestors do not occupy worker capacity. Never infer a speedup from worker count.
 - Preview a shape with no provider calls: `irrigator size --shape AxDxS --sizing FILE --budget USD --backend NAME [--json]`. `PLAN` and `--shape` are mutually exclusive. Depth is ownership depth, not the dependency critical path. Read `feasible`, `full_expansion_within_budget` and `full_expansion_meets_reliability_floor` separately.
-- Expand a shape into an explicit plan: A root tasks, `spawn.max_children` = S on eligible nodes, `max_depth` = D−1 (roots are depth 0), `max_tasks` sized to the intended graph (defaults 128/4, maximums 1024/16). Leaves must not spawn. A static task list does not demonstrate agent spawning; recursive tests need real child manifests from the agents.
+- Expand a shape into an explicit plan: A root tasks, `spawn.max_children` = S on eligible nodes, `max_depth` = D−1 (roots are depth 0), `max_tasks` sized to the intended graph (defaults 128/4, maximums 10000/16). Leaves must not spawn. A static task list does not demonstrate agent spawning; recursive tests need real child manifests from the agents.
 - Declare `observer_shape` (`roots`, `levels`, `max_children`) when the structure is known. It is read-only provenance and grants no rights. Validation rejects an initially invalid shape at plan load (non-positive or oversized values, `roots` not equal to the root task count, `levels`-1 above the effective `max_depth`, a root without `spawn` when levels > 1, or a root spawn cap above `max_children`). Only a persisted or revised actual topology that later diverges from a valid shape makes the observer report capacity unknown. Unknown capacity is allowed only with a stated reason.
 
 ## 3. Public run and task metadata is part of the plan
