@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"reflect"
+	"time"
 
 	"github.com/grainulation/irrigator/internal/model"
 	"github.com/grainulation/irrigator/internal/store"
@@ -62,11 +63,18 @@ func (f FileCheckpointStore) Update(ctx context.Context, options CheckpointUpdat
 	if err := RejectQuarantinedRun(f.Root); err != nil {
 		return err
 	}
+	prewarmJournal(f.Root)
+	waitStart := time.Now()
 	lock, err := FileLock(filepath.Join(f.Root, "state.lock"), options.Nonblocking)
 	if err != nil {
 		return err
 	}
-	defer Unlock(lock)
+	acquired := time.Now()
+	checkpointLockWaitNanos.Add(uint64(acquired.Sub(waitStart)))
+	defer func() {
+		checkpointLockHeldNanos.Add(uint64(time.Since(acquired)))
+		Unlock(lock)
+	}()
 	if err := ctx.Err(); err != nil {
 		return err
 	}

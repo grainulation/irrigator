@@ -9,6 +9,8 @@ var checkpointNoops atomic.Uint64
 var checkpointSnapshots atomic.Uint64
 var checkpointTransactions atomic.Uint64
 var checkpointIncrementalReplays atomic.Uint64
+var checkpointLockWaitNanos atomic.Uint64
+var checkpointLockHeldNanos atomic.Uint64
 
 // StorageMetrics reports application counters in this process only. It does not
 // measure physical disk traffic or counters in re-executed worker processes.
@@ -21,5 +23,7 @@ func StorageMetrics() map[string]uint64 {
 		"snapshots":             checkpointSnapshots.Load(),
 		"journal_transactions":  checkpointTransactions.Load(),
 		"incremental_replays":   checkpointIncrementalReplays.Load(),
+		"lock_wait_ms":          checkpointLockWaitNanos.Load() / 1e6,
+		"lock_held_ms":          checkpointLockHeldNanos.Load() / 1e6,
 	}
 }
