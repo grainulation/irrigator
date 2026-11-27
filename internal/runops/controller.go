@@ -233,6 +233,7 @@ func Run(root string, opts model.Options) (code int, runErr error) {
 	}()
 	wakeup := make(chan struct{}, 1)
 	last := ""
+	watch := checkpoint.StateWatch{Root: root, Refresh: controllerIdleRefresh}
 	for {
 		select {
 		case <-signals:
@@ -241,6 +242,9 @@ func Run(root string, opts model.Options) (code int, runErr error) {
 			}
 		default:
 		}
+		// Stamp the checkpoint before this pass reads it: a publication that
+		// races the pass then still ends the next wait.
+		watch.Due(clock.ActiveClock.Now())
 		// Experimental channels: post newly verified outputs (idempotent).
 		if err = messaging.PublishChannels(root); err != nil {
 			return 1, err
@@ -399,13 +403,44 @@ func Run(root string, opts model.Options) (code int, runErr error) {
 		}
 		// Local completions wake the scheduler immediately. Polling remains a
 		// recovery fallback for adopted workers and external control requests.
-		select {
-		case <-wakeup:
-		case <-signals:
+		if waitForWork(clock.ActiveClock, &watch, wakeup, signals, func(now time.Time) {
+			if ui != nil {
+				ui.Render(s, now)
+			}
+		}) {
 			if err := checkpoint.SetControl(root, "pause"); err != nil {
 				return 1, err
 			}
-		case <-clock.ActiveClock.After(50 * time.Millisecond):
+		}
+	}
+}
+
+// controllerIdleRefresh bounds how long an idle controller goes without a full
+// scheduling pass when nothing wakes it.
+const controllerIdleRefresh = time.Second
+
+// waitForWork blocks between scheduling passes and reports whether a signal
+// ended the wait. A local child exit or a signal ends it at once. Otherwise it
+// polls every 50ms but ends the wait only when watch is due: state.json was
+// replaced (control requests, mailbox messages, revision proposals and adopted
+// workers' commits are all checkpoint publications) or the refresh interval has
+// passed (a lease released without a publication). A scheduling pass decodes
+// the checkpoint several times and probes every cell lease, which on a large
+// run costs far more than the stat that lets an idle tick skip it. idle runs on
+// every skipped tick, so a terminal dashboard keeps its clock moving.
+func waitForWork(c clock.Clock, watch *checkpoint.StateWatch, wakeup <-chan struct{}, signals <-chan os.Signal, idle func(time.Time)) (signalled bool) {
+	for {
+		select {
+		case <-wakeup:
+			return false
+		case <-signals:
+			return true
+		case <-c.After(50 * time.Millisecond):
+			now := c.Now()
+			if watch.Due(now) {
+				return false
+			}
+			idle(now)
 		}
 	}
 }
