@@ -73,7 +73,7 @@ func (f FileCheckpointStore) Update(ctx context.Context, options CheckpointUpdat
 	if err := RejectQuarantinedRun(f.Root); err != nil {
 		return err
 	}
-	s, raw, err := readCheckpointForUpdate(f.Root)
+	s, raw, base, err := readCheckpointForUpdate(f.Root)
 	if err != nil {
 		return err
 	}
@@ -86,7 +86,12 @@ func (f FileCheckpointStore) Update(ctx context.Context, options CheckpointUpdat
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	before := cloneCheckpoint(s)
+	// A journal read hands back its cache entry as an immutable base equal to s,
+	// so the before-image costs nothing; otherwise take a private copy.
+	before := base
+	if before == nil {
+		before = cloneCheckpoint(s)
+	}
 	if err := fn(s); err != nil {
 		if errors.Is(err, ErrUnchanged) {
 			checkpointNoops.Add(1)
@@ -97,12 +102,14 @@ func (f FileCheckpointStore) Update(ctx context.Context, options CheckpointUpdat
 	if err := ctx.Err(); err != nil {
 		return err
 	}
+	// The journal diff reports an unchanged state as no patches and counts it as
+	// a no-op itself, so it needs no separate whole-state comparison first.
+	if isJournalCheckpoint(raw) {
+		return publishJournalUpdate(f.Root, raw, before, s)
+	}
 	if s.SchemaVersion >= model.CurrentSchemaVersion && reflect.DeepEqual(before, s) {
 		checkpointNoops.Add(1)
 		return nil
-	}
-	if isJournalCheckpoint(raw) {
-		return publishJournalUpdate(f.Root, raw, before, s)
 	}
 	if s.SchemaVersion < model.CurrentSchemaVersion {
 		if err := store.EnsureBackup(filepath.Join(f.Root, "state.json")); err != nil {

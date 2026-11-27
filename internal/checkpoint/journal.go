@@ -218,31 +218,40 @@ func readPlainCheckpoint(root string, raw []byte) (*model.State, error) {
 // lock. Cache identities include actual snapshot and committed log bytes, not
 // just mtimes; external corruption is never hidden by a warm cache.
 func readJournalModel(root string, raw []byte) (*model.State, error) {
+	s, _, err := readJournalModelWithBase(root, raw)
+	return s, err
+}
+
+// readJournalModelWithBase also returns base, a read-only state equal to the
+// returned one before the caller changes it, or nil when none is retained. base
+// is the cache's own immutable entry: the caller may compare against it but
+// must never modify it, which saves a whole-state clone per commit.
+func readJournalModelWithBase(root string, raw []byte) (*model.State, *model.State, error) {
 	h, err := parseJournalHead(raw)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	snapshot, err := journalReadFile(root, h.Storage.Snapshot)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	if digestCheckpoint(snapshot) != h.Storage.SnapshotSHA256 {
-		return nil, errors.New("journal snapshot digest mismatch")
+		return nil, nil, errors.New("journal snapshot digest mismatch")
 	}
 	if h.Storage.LogicalBound != int64(len(snapshot))+h.Storage.Bytes {
-		return nil, errors.New("journal logical size bound mismatch")
+		return nil, nil, errors.New("journal logical size bound mismatch")
 	}
 	log, err := journalReadFile(root, h.Storage.Journal)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	if int64(len(log)) < h.Storage.Bytes {
-		return nil, errors.New("journal committed prefix is truncated")
+		return nil, nil, errors.New("journal committed prefix is truncated")
 	}
 	prefix := digestCheckpoint(log[:h.Storage.Bytes])
 	key, err := filepath.Abs(root)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	committedCache.Lock()
 	defer committedCache.Unlock()
@@ -250,9 +259,9 @@ func readJournalModel(root string, raw []byte) (*model.State, error) {
 	if ok && reflect.DeepEqual(prior.head, h) && prior.prefixSHA256 == prefix {
 		s := cloneCheckpoint(prior.state)
 		if err := validateRecoveryCheckpoint(root, s); err != nil {
-			return nil, err
+			return nil, nil, err
 		}
-		return s, nil
+		return s, prior.state, nil
 	}
 	var cached *journalCacheEntry
 	if ok && prior.head.Storage.Snapshot == h.Storage.Snapshot && prior.head.Storage.Journal == h.Storage.Journal && prior.head.Storage.Bytes <= h.Storage.Bytes &&
@@ -269,19 +278,20 @@ func readJournalModel(root string, raw []byte) (*model.State, error) {
 		return nil, errors.New("unknown journal file")
 	}, cached)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	logical, err := json.Marshal(s)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	if int64(len(logical)) > StateReadLimit {
-		return nil, errors.New("logical checkpoint exceeds byte limit")
+		return nil, nil, errors.New("logical checkpoint exceeds byte limit")
 	}
 	validated, err := DecodeState(root, logical)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
+	var base *model.State
 	if len(logical) <= 32<<20 {
 		if len(committedCache.entries) >= 2 && !ok {
 			for old := range committedCache.entries {
@@ -289,9 +299,10 @@ func readJournalModel(root string, raw []byte) (*model.State, error) {
 				break
 			}
 		}
-		committedCache.entries[key] = journalCacheEntry{h, cloneCheckpoint(validated), prefix}
+		base = cloneCheckpoint(validated)
+		committedCache.entries[key] = journalCacheEntry{h, base, prefix}
 	}
-	return validated, nil
+	return validated, base, nil
 }
 
 // expandJournal reconstructs only committed transactions and checks the entire
@@ -444,17 +455,20 @@ func CheckpointStorageFiles(root string) (map[string]bool, error) {
 	return map[string]bool{h.Storage.Snapshot: true, h.Storage.Journal: true}, nil
 }
 
-func readCheckpointForUpdate(root string) (*model.State, []byte, error) {
+// readCheckpointForUpdate returns the validated state for the caller to change,
+// the raw commit marker and, for a journal checkpoint, a read-only base equal to
+// the state before the change (nil when none is retained).
+func readCheckpointForUpdate(root string) (*model.State, []byte, *model.State, error) {
 	b, err := readBoundedCheckpoint(filepath.Join(root, "state.json"), StateReadLimit)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 	if isJournalCheckpoint(b) {
-		s, readErr := readJournalModel(root, b)
-		return s, b, readErr
+		s, base, readErr := readJournalModelWithBase(root, b)
+		return s, b, base, readErr
 	}
 	s, err := readPlainCheckpoint(root, b)
-	return s, b, err
+	return s, b, nil, err
 }
 
 func readCurrentJournal(root string) (*model.State, error) {
@@ -630,7 +644,7 @@ func EnableJournal(root string) error {
 		return err
 	}
 	defer Unlock(lock)
-	s, raw, err := readCheckpointForUpdate(root)
+	s, raw, _, err := readCheckpointForUpdate(root)
 	if err != nil {
 		return err
 	}
@@ -705,6 +719,19 @@ func cloneValue(v reflect.Value) reflect.Value {
 	}
 }
 
+// diffDescendsFirst reports whether diffState descends into a without comparing
+// it whole first: the root struct, and a non-nil string-keyed map on both sides.
+// Both cases recurse over every member, so an equal pair emits nothing.
+func diffDescendsFirst(a, b reflect.Value, path []string) bool {
+	switch a.Kind() {
+	case reflect.Struct:
+		return len(path) == 0 && a.Type().PkgPath() != "time"
+	case reflect.Map:
+		return !a.IsNil() && !b.IsNil() && a.Type().Key().Kind() == reflect.String
+	}
+	return false
+}
+
 func jsonField(t reflect.StructField) string {
 	name := strings.Split(t.Tag.Get("json"), ",")[0]
 	if name == "" {
@@ -714,7 +741,11 @@ func jsonField(t reflect.StructField) string {
 }
 
 func diffState(a, b reflect.Value, path []string, out *[]statePatch) error {
-	if reflect.DeepEqual(a.Interface(), b.Interface()) {
+	// Comparing a container before descending into it walks the same data again
+	// at every level, so the root struct and string-keyed maps go straight to
+	// their members; each member still gets its own comparison. Identical
+	// inputs then produce no patches exactly as before.
+	if !diffDescendsFirst(a, b, path) && reflect.DeepEqual(a.Interface(), b.Interface()) {
 		return nil
 	}
 	emit := func(value reflect.Value, appendOnly bool) error {
