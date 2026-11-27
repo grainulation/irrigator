@@ -51,7 +51,7 @@ var codexDisabledFeatures = []string{"shell_tool", "apps", "plugins", "hooks", "
 // owned-loopback fixture. No custom provider, auth key, or model fallback here.
 func managedCodexArgs(b model.ExecutionBinding, dir, schema string) []string {
 	args := []string{"exec", "--ignore-user-config", "--ignore-rules", "--ephemeral", "--sandbox", "read-only", "--skip-git-repo-check", "--cd", dir, "--model", b.Profile.Model, "--output-schema", schema, "--json", "--color", "never"}
-	config := []string{`model_reasoning_effort="low"`, `approval_policy="never"`, `web_search="disabled"`, `project_doc_max_bytes=0`, `features.skip_host_skill_discovery=true`, "projects." + strconv.Quote(dir) + `.trust_level="untrusted"`}
+	config := []string{`model_reasoning_effort=` + strconv.Quote(b.Profile.Effort), `approval_policy="never"`, `web_search="disabled"`, `project_doc_max_bytes=0`, `features.skip_host_skill_discovery=true`, "projects." + strconv.Quote(dir) + `.trust_level="untrusted"`}
 	for _, f := range codexDisabledFeatures {
 		config = append(config, "features."+f+"=false")
 	}

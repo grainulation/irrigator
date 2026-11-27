@@ -89,7 +89,7 @@ Before any paid launch, verify and record:
 1. **Exact source identity.** The plan file path and content you will pass, and any input files it relies on, read from their exact absolute paths. Confirm they exist, are non-empty and readable. Do not substitute a similar file, a summary, or memory. If an input cannot be read from its authorized path, report that and stop.
 2. **Plan validity:** `irrigator plan PLAN` (add `--json` to see structure). Plan validation rejects cycles, missing dependencies, unsafe IDs and invalid limits.
 3. **Unique new run directory.** `apply` and `prepare` do not overwrite. Check for duplicate running operations on the same run. A matching `--run` for `deliver` resumes.
-4. **Provider availability:** `doctor` for Haiku. Absolute executable paths for named providers. Never claim a login was verified.
+4. **Provider selection and availability:** follow `docs/provider-selection.md`. Retain a supplied launcher provider/model/effort; do not guess the model or silently use Claude/Haiku/low effort. `agents` reports discovery; `doctor` reports selected-route passive readiness separately from model entitlement and generation evidence. Named providers need their own preflight. Discovery never opts a provider into multi-model routing.
 5. **Output paths** are unique and inside the intended directory.
 6. **Free dry run first** where possible: `--backend mock`, `prepare`, `size`.
 7. **Concurrency and budget statement** (next section).

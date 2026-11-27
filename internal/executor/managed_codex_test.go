@@ -146,7 +146,7 @@ func TestManagedCodexPreflightRefusesBeforeInvocation(t *testing.T) {
 			case "credential":
 				b.Instance.CredentialRefs = []model.ExecutionCredentialRef{{Kind: "env", Name: "OPENAI_API_KEY"}}
 			case "effort":
-				b.Profile.Effort = "high"
+				b.Profile.Effort = "unsupported"
 			}
 			b.Digest = ""
 			b.Digest = launch.ExecutionDigest(b)

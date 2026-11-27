@@ -26,12 +26,19 @@ import (
 	"github.com/grainulation/irrigator/internal/session"
 )
 
-func cmdInit(out, initProfile string, managedInit bool) (int, error) {
-	if managedInit {
-		return 0, managed.WriteManagedInitialPlan(out, initProfile)
+func cmdInit(out, initProfile string, managedInit bool, options ...string) (int, error) {
+	var effort, preferences string
+	if len(options) > 0 {
+		effort = options[0]
 	}
-	if initProfile != "" {
-		return 2, errors.New("--profile requires --managed")
+	if len(options) > 1 {
+		preferences = options[1]
+	}
+	if managedInit {
+		return 0, managed.WriteManagedInitialPlanWithOptions(out, initProfile, effort, preferences)
+	}
+	if initProfile != "" || effort != "" || preferences != "" {
+		return 2, errors.New("--profile, --effort and --preferences require --managed")
 	}
 	p := model.Plan{APIVersion: "swarm/v1", Name: "first Irrigator graph", Tasks: []model.Task{
 		{ID: "draft", Prompt: "Write a concise implementation brief for a durable task runner.", Requires: []string{"brief"}, Outputs: map[string]string{"brief": "brief.txt"}},

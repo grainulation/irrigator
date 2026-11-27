@@ -120,7 +120,7 @@ func builtinCLI(args []string) (int, error) {
 	var root, out, dir, resultPath, backend, taskFilter, sizingPath, legacyUnbudgeted string
 	var contextFiles checkpoint.ContextImportFlags
 	var managedInit bool
-	var initProfile string
+	var initProfile, initEffort, preferences string
 	var shape string
 	var deliveryNodes, deliveryField, deliveryCheck string
 	var expectedOperation string
@@ -136,7 +136,9 @@ func builtinCLI(args []string) (int, error) {
 	switch command {
 	case "init":
 		fs.BoolVar(&managedInit, "managed", false, "create a managed plan with an explicit local CLI profile")
-		fs.StringVar(&initProfile, "profile", "", "managed profile selector: claude:MODEL, codex:MODEL or agy:MODEL")
+		fs.StringVar(&initProfile, "profile", "", "managed profile selector; omitted uses explicit launcher/default preferences")
+		fs.StringVar(&initEffort, "effort", "", "managed reasoning effort; inherits matching launcher preferences")
+		fs.StringVar(&preferences, "preferences", "", "execution preference JSON; otherwise IRRIGATOR_EXECUTION_PREFERENCES")
 		fs.StringVar(&out, "out", "irrigator.json", "new plan file")
 		expected = 0
 	case "deliver":
@@ -162,9 +164,10 @@ func builtinCLI(args []string) (int, error) {
 		fs.Var(&contextFiles, "context-file", "import named UTF-8 context KEY=PATH (repeatable; requires --out)")
 		fs.StringVar(&out, "out", "", "write a new validated plan without overwriting")
 	case "size":
+		fs.StringVar(&preferences, "preferences", "", "execution preference JSON for an explicit reservation route")
 		fs.BoolVar(&asJSON, "json", false, "JSON report")
 		fs.StringVar(&sizingPath, "sizing", "", "sizing.v1 calibration JSON")
-		fs.StringVar(&backend, "backend", "haiku", "backend assumed for tasks without a provider (reservation estimate)")
+		fs.StringVar(&backend, "backend", "", "explicit backend for tasks without a provider; no Claude assumption (reservation estimate)")
 		fs.Float64Var(&budget, "budget", budget, "per-call budget USD used for the reservation estimate")
 		fs.StringVar(&shape, "shape", "", "AxDxS ownership shape (or WxD) to size without a PLAN")
 	case "status":
@@ -336,10 +339,18 @@ func builtinCLI(args []string) (int, error) {
 	}
 	switch command {
 	case "init":
-		return cmdInit(out, initProfile, managedInit)
+		return cmdInit(out, initProfile, managedInit, initEffort, preferences)
 	case "plan":
 		return cmdPlan(target, contextFiles, out, asJSON)
 	case "size":
+		if backend == "" && (preferences != "" || os.Getenv(launch.ExecutionPreferencesEnv) != "") {
+			selection, err := launch.ResolveExecutionPreference(launch.ExecutionPreference{}, preferences, true)
+			if err != nil {
+				return 2, err
+			}
+			backend = selection.Preference.Provider + ":" + selection.Preference.Model
+			fmt.Fprintf(os.Stderr, "reservation route: %s (requested preference; calibration must name this route, no provider dispatched)\n", backend)
+		}
 		if shape != "" {
 			return sizing.SizeShapeCLI(shape, sizing.ActiveSizingPath, asJSON, budget, backend)
 		}

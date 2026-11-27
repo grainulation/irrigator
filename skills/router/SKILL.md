@@ -9,6 +9,20 @@ Maps a user's message to an Irrigator workflow. This is a Markdown decision tabl
 
 The skills are `irrigator` (general workflow), `swarm` (swarm-first front door, see below), `plan`, `run`, `resume`, `observe`, `debug`, `budget`. Verify the file exists before routing. If it does not, say so and apply `skills/irrigator/SKILL.md`.
 
+## Provider selection for new runs
+
+Keep the current launcher provider, canonical model selector and reasoning
+setting when that identity is supplied by the host or user. Read
+`docs/provider-selection.md`. Pass those preferences explicitly through the
+versioned preferences file or `--profile` / `--agent`, `--model` and `--effort`.
+Never infer the conversation model from the host name or a model nickname.
+If exact metadata is unavailable, use an explicit saved choice or ask for the
+missing selector. Do not default to Claude, Haiku or low effort. Detection is
+not opt-in: multi-model routing requires the user's selected allowed profiles,
+with explicit include/exclude choices. Keep one resolved profile for tasks,
+helpers, reviews and retries unless multi-model routing was requested.
+Existing admitted plans retain their saved identities on resume.
+
 ## Managed execution profiles
 
 For a plan with `execution`, see `docs/execution-profiles.md` before choosing

@@ -242,8 +242,8 @@ func ValidateExecutionCatalog(c model.ExecutionCatalog) error {
 				return errors.New("mock requires model mock, effort none, and zero budget")
 			}
 		} else {
-			if a.Kind == "codex_cli" && p.Effort != "low" {
-				return errors.New("current codex adapter supports low effort only")
+			if a.Kind == "codex_cli" && !ExecutionEffortSupported("codex", p.Effort) {
+				return errors.New("codex adapter supports low, medium or high effort; no downgrade was applied")
 			}
 			if a.Kind == "agy_cli" && p.Effort != "low" {
 				return errors.New("agy adapter supports low effort only; choose the effort through the agy model id (for example gemini-3.8-flash-low)")
