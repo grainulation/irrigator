@@ -1,5 +1,21 @@
 Usage of benchmark:
   -dir string
     	new private benchmark directory
+  -endpoint string
+    	explicit numeric loopback Ollama endpoint for scale mode
+  -max-output-tokens int
+    	scale Ollama per-generation token cap (1..512) (default 32)
+  -mode string
+    	scale workload: mock or ollama (local model calls) (default "mock")
+  -model string
+    	already installed Ollama model tag for scale mode
+  -model-digest string
+    	pinned local model digest for scale mode
   -runs int
     	repetitions per serial/parallel arm (1..10) (default 2)
+  -tasks int
+    	scale workload task count (1..10000); omitted keeps the five-task offline comparison
+  -timeout duration
+    	scale per-task execution timeout (default 30s)
+  -workers int
+    	scale workload worker slots (1..128) (default 6)

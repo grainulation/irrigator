@@ -1,7 +1,11 @@
 Usage of init:
+  -effort string
+    	managed reasoning effort; inherits matching launcher preferences
   -managed
     	create a managed plan with an explicit local CLI profile
   -out string
     	new plan file (default "irrigator.json")
+  -preferences string
+    	execution preference JSON; otherwise IRRIGATOR_EXECUTION_PREFERENCES
   -profile string
-    	managed profile selector: claude:MODEL, codex:MODEL or agy:MODEL
+    	managed profile selector; omitted uses explicit launcher/default preferences

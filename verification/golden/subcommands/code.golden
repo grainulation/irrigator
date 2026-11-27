@@ -2,7 +2,7 @@ Usage of code:
   -add-dir value
     	extra directory agents may read, outside the worktree (repeatable)
   -agent string
-    	coding agent: claude, codex or agy (default "claude")
+    	coding agent: claude, codex or agy; otherwise use launcher preferences
   -base string
     	branch or commit each cell branch starts from (default "main")
   -call-budget float
@@ -11,14 +11,18 @@ Usage of code:
     	start each cell from irrigator/<RUNID[:8]>/<cell> when that branch exists
   -depends value
     	ID=DEP[,DEP]: run ID after DEP and show it DEP's summary
+  -effort string
+    	validated reasoning effort; inherits matching launcher preference
   -model string
-    	agent model (default: sonnet for claude, the agent's own default otherwise)
+    	agent model; inherits matching launcher preference, otherwise explicit agent default
   -name string
     	plan name
   -out string
     	also write the plan to this file
   -plan-only
     	print the plan and do not run it
+  -preferences string
+    	execution preference JSON; otherwise IRRIGATOR_EXECUTION_PREFERENCES
   -repo string
     	git repository the agents change (default ".")
   -run string
