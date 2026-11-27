@@ -274,9 +274,57 @@
           "boolean": false
         },
         {
+          "name": "endpoint",
+          "default": "",
+          "usage": "explicit numeric loopback Ollama endpoint for scale mode",
+          "boolean": false
+        },
+        {
+          "name": "max-output-tokens",
+          "default": "32",
+          "usage": "scale Ollama per-generation token cap (1..512)",
+          "boolean": false
+        },
+        {
+          "name": "mode",
+          "default": "mock",
+          "usage": "scale workload: mock or ollama (local model calls)",
+          "boolean": false
+        },
+        {
+          "name": "model",
+          "default": "",
+          "usage": "already installed Ollama model tag for scale mode",
+          "boolean": false
+        },
+        {
+          "name": "model-digest",
+          "default": "",
+          "usage": "pinned local model digest for scale mode",
+          "boolean": false
+        },
+        {
           "name": "runs",
           "default": "2",
           "usage": "repetitions per serial/parallel arm (1..10)",
+          "boolean": false
+        },
+        {
+          "name": "tasks",
+          "default": "0",
+          "usage": "scale workload task count (1..10000); omitted keeps the five-task offline comparison",
+          "boolean": false
+        },
+        {
+          "name": "timeout",
+          "default": "30s",
+          "usage": "scale per-task execution timeout",
+          "boolean": false
+        },
+        {
+          "name": "workers",
+          "default": "6",
+          "usage": "scale workload worker slots (1..128)",
           "boolean": false
         }
       ]
@@ -365,8 +413,8 @@
         },
         {
           "name": "agent",
-          "default": "claude",
-          "usage": "coding agent: claude, codex or agy",
+          "default": "",
+          "usage": "coding agent: claude, codex or agy; otherwise use launcher preferences",
           "boolean": false
         },
         {
@@ -406,6 +454,12 @@
           "boolean": true
         },
         {
+          "name": "effort",
+          "default": "",
+          "usage": "validated reasoning effort; inherits matching launcher preference",
+          "boolean": false
+        },
+        {
           "name": "force",
           "default": "false",
           "usage": "remove dirty worktrees too, discarding uncommitted work",
@@ -414,7 +468,7 @@
         {
           "name": "model",
           "default": "",
-          "usage": "agent model (default: sonnet for claude, the agent's own default otherwise)",
+          "usage": "agent model; inherits matching launcher preference, otherwise explicit agent default",
           "boolean": false
         },
         {
@@ -434,6 +488,12 @@
           "default": "false",
           "usage": "print the plan and do not run it",
           "boolean": true
+        },
+        {
+          "name": "preferences",
+          "default": "",
+          "usage": "execution preference JSON; otherwise IRRIGATOR_EXECUTION_PREFERENCES",
+          "boolean": false
         },
         {
           "name": "repo",
@@ -818,6 +878,12 @@
       "name": "init",
       "flags": [
         {
+          "name": "effort",
+          "default": "",
+          "usage": "managed reasoning effort; inherits matching launcher preferences",
+          "boolean": false
+        },
+        {
           "name": "managed",
           "default": "false",
           "usage": "create a managed plan with an explicit local CLI profile",
@@ -830,9 +896,15 @@
           "boolean": false
         },
         {
+          "name": "preferences",
+          "default": "",
+          "usage": "execution preference JSON; otherwise IRRIGATOR_EXECUTION_PREFERENCES",
+          "boolean": false
+        },
+        {
           "name": "profile",
           "default": "",
-          "usage": "managed profile selector: claude:MODEL, codex:MODEL or agy:MODEL",
+          "usage": "managed profile selector; omitted uses explicit launcher/default preferences",
           "boolean": false
         }
       ]
@@ -886,7 +958,7 @@
         {
           "name": "allow-control",
           "default": "false",
-          "usage": "also register tools that change runs: apply, pause, resume, retry_cell, decide_approval",
+          "usage": "register the selected profile's explicit run or delivery mutations",
           "boolean": true
         },
         {
@@ -894,6 +966,12 @@
           "default": "false",
           "usage": "advertise the versioned verb_object naming preview instead of legacy names",
           "boolean": true
+        },
+        {
+          "name": "profile",
+          "default": "legacy",
+          "usage": "tool inventory: legacy, inspection, execution or delivery",
+          "boolean": false
         },
         {
           "name": "runs",
@@ -1035,10 +1113,28 @@
           "boolean": true
         },
         {
+          "name": "exclude-profiles",
+          "default": "",
+          "usage": "comma-separated profiles to opt out",
+          "boolean": false
+        },
+        {
           "name": "executable",
           "default": "",
           "usage": "replacement executable; resolved and hashed without launching",
           "boolean": false
+        },
+        {
+          "name": "include-profiles",
+          "default": "",
+          "usage": "comma-separated profiles to opt in; narrows the existing allowed set",
+          "boolean": false
+        },
+        {
+          "name": "multimodel",
+          "default": "false",
+          "usage": "explicitly opt a new launcher-selected plan into multiple profiles",
+          "boolean": true
         },
         {
           "name": "out",
@@ -1050,6 +1146,12 @@
           "name": "policy",
           "default": "",
           "usage": "explicit roles/difficulty JSON policy",
+          "boolean": false
+        },
+        {
+          "name": "preferences",
+          "default": "",
+          "usage": "execution preference JSON; otherwise IRRIGATOR_EXECUTION_PREFERENCES",
           "boolean": false
         },
         {
@@ -1500,8 +1602,8 @@
       "flags": [
         {
           "name": "backend",
-          "default": "haiku",
-          "usage": "backend assumed for tasks without a provider (reservation estimate)",
+          "default": "",
+          "usage": "explicit backend for tasks without a provider; no Claude assumption (reservation estimate)",
           "boolean": false
         },
         {
@@ -1515,6 +1617,12 @@
           "default": "false",
           "usage": "JSON report",
           "boolean": true
+        },
+        {
+          "name": "preferences",
+          "default": "",
+          "usage": "execution preference JSON for an explicit reservation route",
+          "boolean": false
         },
         {
           "name": "shape",
@@ -1551,6 +1659,26 @@
           "usage": "watch until run stops",
           "boolean": true
         }
+      ]
+    },
+    {
+      "name": "storage",
+      "flags": [
+        {
+          "name": "format",
+          "default": "",
+          "usage": "required: journal",
+          "boolean": false
+        },
+        {
+          "name": "run",
+          "default": "",
+          "usage": "saved run directory",
+          "boolean": false
+        }
+      ],
+      "subcommands": [
+        "migrate"
       ]
     },
     {

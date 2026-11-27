@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -156,6 +157,16 @@ func TestCompletedCheckRefusesStaleCandidateAndDoesNotReplayInterruptedIntent(t 
 	}
 	if _, err := os.Stat(filepath.Join(in.Directory, "count")); !os.IsNotExist(err) {
 		t.Fatal("interrupted check replayed")
+	}
+	// The legacy deliver route shares the same cleanup fence; selecting another
+	// interface cannot authorize replay of the missing-marker request.
+	planPath := filepath.Join(t.TempDir(), "plan.json")
+	if err := jsonio.AtomicJSON(planPath, runfixture.Read(t, root).Plan); err != nil {
+		t.Fatal(err)
+	}
+	checkJSON, _ := json.Marshal(check.Check)
+	if code, err := Deliver(planPath, root, "mock", rec.Directory, "source", "files", string(checkJSON), 5*time.Second, true, model.Options{}); code == 0 || err == nil || !strings.Contains(err.Error(), "cleanup is unknown") {
+		t.Fatal("legacy route bypassed uncertainty", code, err)
 	}
 	check.RequestID = "fresh-check"
 	check.Recheck = true

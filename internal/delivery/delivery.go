@@ -227,6 +227,10 @@ func Deliver(planPath, root, backend, dir, nodes, field, checkJSON string, check
 			}
 		} else if !os.IsNotExist(e) {
 			return fail("check_failed", e)
+		} else if record.CheckPrefix != "" && gate != "" {
+			// A request-scoped checker was admitted before its process marker
+			// could be written. The legacy CLI must not bypass that uncertainty.
+			return fail("check_failed", errors.New("acceptance cleanup is unknown: the prior admitted checker has no process marker"))
 		}
 		record.Status = "checking"
 		if err = save(); err != nil {
