@@ -23,6 +23,7 @@ import (
 	"github.com/grainulation/irrigator/internal/managed"
 	"github.com/grainulation/irrigator/internal/messaging"
 	"github.com/grainulation/irrigator/internal/model"
+	"github.com/grainulation/irrigator/internal/phasetrace"
 	"github.com/grainulation/irrigator/internal/provider"
 	"github.com/grainulation/irrigator/internal/session"
 	"github.com/grainulation/irrigator/internal/sizing"
@@ -242,6 +243,7 @@ func Run(root string, opts model.Options) (code int, runErr error) {
 			}
 		default:
 		}
+		phasetrace.Emit("ctl", "pass_start", "")
 		// Stamp the checkpoint before this pass reads it: a publication that
 		// races the pass then still ends the next wait.
 		watch.Due(clock.ActiveClock.Now())
@@ -263,6 +265,7 @@ func Run(root string, opts model.Options) (code int, runErr error) {
 			return 1, err
 		}
 		notifier.Observe(s)
+		phasetrace.Emit("ctl", "pass_reads_done", "")
 		var snapshot strings.Builder
 		snapshot.WriteString(s.Control)
 		for _, spec := range s.AllTasks() {
@@ -300,6 +303,7 @@ func Run(root string, opts model.Options) (code int, runErr error) {
 			}
 			checkpoint.Unlock(lease)
 		}
+		phasetrace.Emit("ctl", "pass_probe_done", "")
 		// A worker can commit and release its lease between reconcile and this
 		// scan. Reconcile that response before declaring the run drained/blocked.
 		needsReconcile := false
@@ -346,15 +350,18 @@ func Run(root string, opts model.Options) (code int, runErr error) {
 				}
 				attempt := s.Tasks[id].Attempt + 1
 				workerArgs := []string{"_worker", root, id, "--operation", s.Tasks[id].OperationID, "--timeout", opts.Timeout.String(), "--budget", strconv.FormatFloat(opts.Budget, 'f', -1, 64)}
+				phasetrace.Emit("ctl", "dispatch", id)
 				cmd, process, release, e := executor.Start(binary, root, s.RunID, id, attempt, workerArgs)
 				if e != nil {
 					return 1, e
 				}
+				phasetrace.Emit("ctl", "spawned", id)
 				child := &controllerChild{process: process, done: make(chan struct{}), attempt: attempt}
 				children[id] = child
 				ownedChildren[id] = child
 				commandflags.GoLabeled(func() {
 					child.err = cmd.Wait()
+					phasetrace.Emit("ctl", "reaped", id)
 					release()
 					close(child.done)
 					select {
@@ -405,6 +412,7 @@ func Run(root string, opts model.Options) (code int, runErr error) {
 		}
 		// Local completions wake the scheduler immediately. Polling remains a
 		// recovery fallback for adopted workers and external control requests.
+		phasetrace.Emit("ctl", "wait_start", "")
 		if waitForWork(clock.ActiveClock, &watch, wakeup, signals, func(now time.Time) {
 			if ui != nil {
 				ui.RenderIdle(s, now)
@@ -414,6 +422,7 @@ func Run(root string, opts model.Options) (code int, runErr error) {
 				return 1, err
 			}
 		}
+		phasetrace.Emit("ctl", "wait_end", "")
 	}
 }
 

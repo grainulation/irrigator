@@ -21,6 +21,7 @@ import (
 	"github.com/grainulation/irrigator/internal/launch"
 	"github.com/grainulation/irrigator/internal/managed"
 	"github.com/grainulation/irrigator/internal/model"
+	"github.com/grainulation/irrigator/internal/phasetrace"
 	"github.com/grainulation/irrigator/internal/provider"
 	"github.com/grainulation/irrigator/internal/providerenv"
 	"github.com/grainulation/irrigator/internal/terminalview"
@@ -82,6 +83,8 @@ func workerProgressCost(cost float64, unknown bool, usage ...*model.TaskUsage) s
 // Fence admission as well as result commit so that it cannot run the new task
 // using the old controller's scheduling decision.
 func WorkerOperation(root, id string, opts model.Options, expectedOperation string) error {
+	phasetrace.Emit("wrk", "worker_main", id)
+	defer phasetrace.Emit("wrk", "worker_exit", id)
 	return workerOperationWithExecutor(root, id, opts, expectedOperation, nil)
 }
 
@@ -91,6 +94,7 @@ func workerOperationWithExecutor(root, id string, opts model.Options, expectedOp
 	}
 	// Look up the task before deriving a filesystem path from its ID.
 	s, err := checkpoint.ReadState(root)
+	phasetrace.Emit("wrk", "w_state_read", id)
 	if err != nil {
 		return err
 	}
@@ -116,7 +120,9 @@ func workerOperationWithExecutor(root, id string, opts model.Options, expectedOp
 		return err
 	}
 	cells := CheckpointCells{Root: root}
+	phasetrace.Emit("wrk", "w_begin_start", id)
 	admitted, err := cells.BeginAttempt(id, expectedOperation, os.Getpid())
+	phasetrace.Emit("wrk", "w_begin_done", id)
 	if errors.Is(err, launch.ErrNoWork) {
 		return nil
 	}
@@ -159,7 +165,9 @@ func workerOperationWithExecutor(root, id string, opts model.Options, expectedOp
 				if !watch.Due(now) {
 					continue
 				}
+				phasetrace.Emit("wrk", "watch_read_start", id)
 				current, e := checkpoint.ReadState(root)
+				phasetrace.Emit("wrk", "watch_read_end", id)
 				if e != nil || current.Control == "down" || current.Tasks[id] == nil || current.Tasks[id].OperationID != operation || current.Tasks[id].CancelRequested {
 					cancel()
 					return
@@ -169,12 +177,15 @@ func workerOperationWithExecutor(root, id string, opts model.Options, expectedOp
 	}, "irrigator.role", "worker-watch", "run.id", s.RunID, "task.id", id, "attempt", strconv.Itoa(attempt))
 	workerMark(terminalview.MarkOutputStart)
 	workerProgress("%s attempt %d provider started", id, attempt)
+	phasetrace.Emit("wrk", "w_exec_start", id)
 	receipt, executionErr := executeCellAttempt(ctx, s, admitted, cell, opts, factory)
+	phasetrace.Emit("wrk", "w_exec_end", id)
 	result, cost, costUnknown, diag := receipt.Output, receipt.CostUSD, receipt.CostUnknown, receipt.Diagnostic
 	err = executionErr
 	cancel()
 	<-watchDone
 	unresolved, markerErr := launch.UnresolvedProcess(cell, attempt)
+	phasetrace.Emit("wrk", "w_outcome_start", id)
 	commitErr := cells.RecordOutcome(managed.CellOutcome{
 		Fence: admitted.Fence, Result: result, Cost: cost, CostUnknown: costUnknown,
 		CostBasis: receipt.CostBasis, Usage: receipt.Usage, Model: receipt.Model,

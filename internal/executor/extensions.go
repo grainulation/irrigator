@@ -29,6 +29,7 @@ import (
 	"github.com/grainulation/irrigator/internal/managed"
 	"github.com/grainulation/irrigator/internal/messaging"
 	"github.com/grainulation/irrigator/internal/model"
+	"github.com/grainulation/irrigator/internal/phasetrace"
 	"github.com/grainulation/irrigator/internal/provider"
 )
 
@@ -476,7 +477,10 @@ func Finalize(root, id string, leases ...*os.File) error {
 	cancel()
 	<-done
 	if checkErr == nil && checkpoint.HasTurnSemantics(s.Plan.APIVersion) {
-		if err := graph.CommitTurnExpansionFenced(root, id, level, &fence); err == nil {
+		phasetrace.Emit("wrk", "w_verify_start", id)
+		err := graph.CommitTurnExpansionFenced(root, id, level, &fence)
+		phasetrace.Emit("wrk", "w_verify_end", id)
+		if err == nil {
 			return nil
 		} else {
 			checkErr = err

@@ -24,6 +24,7 @@ import (
 
 	"github.com/grainulation/irrigator/internal/jsonio"
 	"github.com/grainulation/irrigator/internal/model"
+	"github.com/grainulation/irrigator/internal/phasetrace"
 	"github.com/grainulation/irrigator/internal/store"
 )
 
@@ -509,6 +510,7 @@ func readCheckpointForUpdate(root string) (*model.State, []byte, *model.State, e
 }
 
 func readCurrentJournal(root string) (*model.State, error) {
+	phasetrace.Emit("ckpt", "rd_enter", "")
 	f, err := os.OpenFile(filepath.Join(root, "state.lock"), os.O_RDONLY|syscall.O_NOFOLLOW, 0)
 	if err != nil {
 		return nil, err
@@ -517,7 +519,11 @@ func readCurrentJournal(root string) (*model.State, error) {
 	if err = syscall.Flock(int(f.Fd()), syscall.LOCK_SH); err != nil {
 		return nil, err
 	}
-	defer func() { _ = syscall.Flock(int(f.Fd()), syscall.LOCK_UN) }()
+	phasetrace.Emit("ckpt", "rd_locked", "")
+	defer func() {
+		_ = syscall.Flock(int(f.Fd()), syscall.LOCK_UN)
+		phasetrace.Emit("ckpt", "rd_unlocked", "")
+	}()
 	raw, err := readBoundedCheckpoint(filepath.Join(root, "state.json"), StateReadLimit)
 	if err != nil {
 		return nil, err

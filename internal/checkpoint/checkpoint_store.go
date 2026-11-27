@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/grainulation/irrigator/internal/model"
+	"github.com/grainulation/irrigator/internal/phasetrace"
 	"github.com/grainulation/irrigator/internal/store"
 )
 
@@ -63,17 +64,21 @@ func (f FileCheckpointStore) Update(ctx context.Context, options CheckpointUpdat
 	if err := RejectQuarantinedRun(f.Root); err != nil {
 		return err
 	}
+	phasetrace.Emit("ckpt", "upd_enter", "")
 	prewarmJournal(f.Root)
+	phasetrace.Emit("ckpt", "upd_prewarmed", "")
 	waitStart := time.Now()
 	lock, err := FileLock(filepath.Join(f.Root, "state.lock"), options.Nonblocking)
 	if err != nil {
 		return err
 	}
 	acquired := time.Now()
+	phasetrace.Emit("ckpt", "upd_locked", "")
 	checkpointLockWaitNanos.Add(uint64(acquired.Sub(waitStart)))
 	defer func() {
 		checkpointLockHeldNanos.Add(uint64(time.Since(acquired)))
 		Unlock(lock)
+		phasetrace.Emit("ckpt", "upd_unlocked", "")
 	}()
 	if err := ctx.Err(); err != nil {
 		return err
@@ -85,6 +90,7 @@ func (f FileCheckpointStore) Update(ctx context.Context, options CheckpointUpdat
 	if err != nil {
 		return err
 	}
+	phasetrace.Emit("ckpt", "upd_read", "")
 	if err := ValidateCampaignAuthority(f.Root, s.Plan, options.Nonblocking); err != nil {
 		return err
 	}
@@ -110,6 +116,7 @@ func (f FileCheckpointStore) Update(ctx context.Context, options CheckpointUpdat
 	if err := ctx.Err(); err != nil {
 		return err
 	}
+	phasetrace.Emit("ckpt", "upd_callback_done", "")
 	// The journal diff reports an unchanged state as no patches and counts it as
 	// a no-op itself, so it needs no separate whole-state comparison first.
 	if isJournalCheckpoint(raw) {
