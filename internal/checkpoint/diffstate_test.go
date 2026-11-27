@@ -133,8 +133,13 @@ func TestDiffStateMatchesReference(t *testing.T) {
 		"event detail edited": func(s *model.State) {
 			s.Events[len(s.Events)-2].Detail.(map[string]any)["nested"].(map[string]any)["list"].([]any)[0] = "x"
 		},
-		"time field":   func(s *model.State) { s.Events[0].Time = s.Events[0].Time.Add(time.Second) },
-		"many changes": func(s *model.State) { s.Control = "x"; s.Tasks["a"].Attempt = 2; delete(s.Tasks, "b"); s.Event("e", "", nil) },
+		"time field": func(s *model.State) { s.Events[0].Time = s.Events[0].Time.Add(time.Second) },
+		"many changes": func(s *model.State) {
+			s.Control = "x"
+			s.Tasks["a"].Attempt = 2
+			delete(s.Tasks, "b")
+			s.Event("e", "", nil)
+		},
 	}
 	for name, mutate := range cases {
 		t.Run(name, func(t *testing.T) {
