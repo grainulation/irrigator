@@ -228,23 +228,51 @@ func readJournalModel(root string, raw []byte) (*model.State, error) {
 // is the cache's own immutable entry: the caller may compare against it but
 // must never modify it, which saves a whole-state clone per commit.
 func readJournalModelWithBase(root string, raw []byte) (*model.State, *model.State, error) {
-	h, err := parseJournalHead(raw)
+	in, err := loadJournalInputs(root, raw)
 	if err != nil {
 		return nil, nil, err
+	}
+	return decodeJournalInputs(root, in)
+}
+
+// journalInputs are the committed bytes of one journal generation, read while
+// the state lock was held. Everything after that point works from these owned
+// bytes, so a shared reader need not keep the lock through the decode.
+type journalInputs struct {
+	raw      []byte
+	head     journalHead
+	snapshot []byte
+	log      []byte
+	logErr   error // reported where the unsplit read reported it, after the snapshot checks
+}
+
+// loadJournalInputs parses the commit marker and reads the snapshot and journal
+// files. It is the only part of a journal read that needs the state lock.
+func loadJournalInputs(root string, raw []byte) (journalInputs, error) {
+	h, err := parseJournalHead(raw)
+	if err != nil {
+		return journalInputs{}, err
 	}
 	snapshot, err := journalReadFile(root, h.Storage.Snapshot)
 	if err != nil {
-		return nil, nil, err
+		return journalInputs{}, err
 	}
+	log, logErr := journalReadFile(root, h.Storage.Journal)
+	return journalInputs{raw: raw, head: h, snapshot: snapshot, log: log, logErr: logErr}, nil
+}
+
+// decodeJournalInputs verifies, replays and validates inputs read by
+// loadJournalInputs. It needs no state lock.
+func decodeJournalInputs(root string, in journalInputs) (*model.State, *model.State, error) {
+	raw, h, snapshot, log := in.raw, in.head, in.snapshot, in.log
 	if digestCheckpoint(snapshot) != h.Storage.SnapshotSHA256 {
 		return nil, nil, errors.New("journal snapshot digest mismatch")
 	}
 	if h.Storage.LogicalBound != int64(len(snapshot))+h.Storage.Bytes {
 		return nil, nil, errors.New("journal logical size bound mismatch")
 	}
-	log, err := journalReadFile(root, h.Storage.Journal)
-	if err != nil {
-		return nil, nil, err
+	if in.logErr != nil {
+		return nil, nil, in.logErr
 	}
 	if int64(len(log)) < h.Storage.Bytes {
 		return nil, nil, errors.New("journal committed prefix is truncated")
@@ -510,14 +538,38 @@ func readCheckpointForUpdate(root string) (*model.State, []byte, *model.State, e
 }
 
 func readCurrentJournal(root string) (*model.State, error) {
-	phasetrace.Emit("ckpt", "rd_enter", "")
-	f, err := os.OpenFile(filepath.Join(root, "state.lock"), os.O_RDONLY|syscall.O_NOFOLLOW, 0)
+	in, plain, err := loadCurrentCheckpoint(root)
 	if err != nil {
 		return nil, err
 	}
+	if plain != nil {
+		return plain, nil
+	}
+	if journalReadHook != nil {
+		journalReadHook()
+	}
+	s, _, err := decodeJournalInputs(root, in)
+	return s, err
+}
+
+// journalReadHook, when set by a test, runs after a journal read has released
+// the shared state lock and before it decodes.
+var journalReadHook func()
+
+// loadCurrentCheckpoint holds the shared state lock only long enough to read the
+// commit marker and the committed journal files; a plain checkpoint is decoded
+// under the lock as before. A journal checkpoint comes back as inputs for
+// decodeJournalInputs, which runs after the lock is released so that a long
+// decode never makes a committing writer wait.
+func loadCurrentCheckpoint(root string) (journalInputs, *model.State, error) {
+	phasetrace.Emit("ckpt", "rd_enter", "")
+	f, err := os.OpenFile(filepath.Join(root, "state.lock"), os.O_RDONLY|syscall.O_NOFOLLOW, 0)
+	if err != nil {
+		return journalInputs{}, nil, err
+	}
 	defer f.Close()
 	if err = syscall.Flock(int(f.Fd()), syscall.LOCK_SH); err != nil {
-		return nil, err
+		return journalInputs{}, nil, err
 	}
 	phasetrace.Emit("ckpt", "rd_locked", "")
 	defer func() {
@@ -526,12 +578,14 @@ func readCurrentJournal(root string) (*model.State, error) {
 	}()
 	raw, err := readBoundedCheckpoint(filepath.Join(root, "state.json"), StateReadLimit)
 	if err != nil {
-		return nil, err
+		return journalInputs{}, nil, err
 	}
 	if !isJournalCheckpoint(raw) {
-		return DecodeState(root, raw)
+		s, err := DecodeState(root, raw)
+		return journalInputs{}, s, err
 	}
-	return readJournalModel(root, raw)
+	in, err := loadJournalInputs(root, raw)
+	return in, nil, err
 }
 
 func publishJournalSnapshot(root string, s *model.State, sequence uint64) error {
