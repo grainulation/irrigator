@@ -28,6 +28,10 @@ import (
 
 var errStopped = errors.New("swarm stopped")
 
+// workerWatchRefresh bounds how long a waiting worker goes without fully
+// re-reading an unchanged checkpoint (see checkpoint.StateWatch).
+const workerWatchRefresh = time.Second
+
 // workerProgressEnv turns on short progress lines on a worker's stdout. The
 // herdr launcher sets it so `hc attach` and `hc read` show something; the local
 // executor never does, so the dashboard is unaffected.
@@ -141,6 +145,9 @@ func workerOperationWithExecutor(root, id string, opts model.Options, expectedOp
 		defer close(watchDone)
 		tick := time.NewTicker(50 * time.Millisecond)
 		defer tick.Stop()
+		// Down and cancel requests are checkpoint publications, so an unchanged
+		// state.json cannot carry one: skip re-decoding it between changes.
+		watch := checkpoint.StateWatch{Root: root, Refresh: workerWatchRefresh}
 		for {
 			select {
 			case <-ctx.Done():
@@ -148,7 +155,10 @@ func workerOperationWithExecutor(root, id string, opts model.Options, expectedOp
 			case <-signals:
 				cancel()
 				return
-			case <-tick.C:
+			case now := <-tick.C:
+				if !watch.Due(now) {
+					continue
+				}
 				current, e := checkpoint.ReadState(root)
 				if e != nil || current.Control == "down" || current.Tasks[id] == nil || current.Tasks[id].OperationID != operation || current.Tasks[id].CancelRequested {
 					cancel()
