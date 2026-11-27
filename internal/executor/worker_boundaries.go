@@ -8,7 +8,7 @@ import (
 func workerBoundaries(s *model.State, t model.Task) *model.WorkerBoundaries {
 	maxTasks := s.Plan.MaxTasks
 	if maxTasks == 0 {
-		maxTasks = 128
+		maxTasks = model.DefaultGraphTasks
 	}
 	b := &model.WorkerBoundaries{Topology: "recursive", TaskSlotsRemaining: max(0, maxTasks-len(s.Tasks)), Basis: "admission_snapshot_not_reservation"}
 	if checkpoint.HasTurnSemantics(s.Plan.APIVersion) && t.Turn != nil && s.Plan.TurnShape != nil {

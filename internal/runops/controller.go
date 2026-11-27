@@ -317,6 +317,7 @@ func Run(root string, opts model.Options) (code int, runErr error) {
 			}
 		} else {
 			var ready []string
+			canBegin := managed.SnapshotAdmissionCheck(s)
 			for _, spec := range s.AllTasks() {
 				if s.Tasks[spec.ID].Status != "pending" || s.Tasks[spec.ID].CancelRequested || busy[spec.ID] {
 					continue
@@ -325,7 +326,7 @@ func Run(root string, opts model.Options) (code int, runErr error) {
 				for _, d := range spec.DependsOn {
 					ok = ok && s.Tasks[d].Status == "verified"
 				}
-				if ok && managed.ManagedCanBegin(s, s.Tasks[spec.ID]) == nil {
+				if ok && canBegin(s.Tasks[spec.ID]) == nil {
 					ready = append(ready, spec.ID)
 				}
 			}
@@ -375,9 +376,10 @@ func Run(root string, opts model.Options) (code int, runErr error) {
 					s.Control = control
 					s.Event(control, "", nil)
 					if checkpoint.ManagedRun(s) && control == "blocked" {
+						canBegin := managed.SnapshotAdmissionCheck(s)
 						for id, row := range s.Tasks {
 							if row.Status == "pending" {
-								if err := managed.ManagedCanBegin(s, row); err != nil {
+								if err := canBegin(row); err != nil {
 									s.Event("budget_blocked", id, err.Error())
 								}
 							}
@@ -405,7 +407,7 @@ func Run(root string, opts model.Options) (code int, runErr error) {
 		// recovery fallback for adopted workers and external control requests.
 		if waitForWork(clock.ActiveClock, &watch, wakeup, signals, func(now time.Time) {
 			if ui != nil {
-				ui.Render(s, now)
+				ui.RenderIdle(s, now)
 			}
 		}) {
 			if err := checkpoint.SetControl(root, "pause"); err != nil {
@@ -457,7 +459,7 @@ type controllerChild struct {
 func controllerFailureDown(root string) error {
 	return (checkpoint.FileCheckpointStore{Root: root}).Update(context.Background(), checkpoint.CheckpointUpdateOptions{Nonblocking: true}, func(s *model.State) error {
 		if s.Control == "down" {
-			return nil
+			return checkpoint.ErrUnchanged
 		}
 		s.Control = "down"
 		s.Event("controller_failed", "", map[string]string{"action": "drain_owned_workers"})

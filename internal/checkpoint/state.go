@@ -18,7 +18,6 @@ import (
 
 	"github.com/grainulation/irrigator/internal/artifactstore"
 	"github.com/grainulation/irrigator/internal/cost"
-	"github.com/grainulation/irrigator/internal/jsonio"
 	"github.com/grainulation/irrigator/internal/launch"
 	"github.com/grainulation/irrigator/internal/model"
 )
@@ -53,17 +52,34 @@ func ReadState(root string) (*model.State, error) {
 }
 
 func readFileCheckpoint(root string) (*model.State, error) {
-	data, err := os.ReadFile(filepath.Join(root, "state.json"))
+	data, err := readBoundedCheckpoint(filepath.Join(root, "state.json"), StateReadLimit)
 	if err != nil {
 		return nil, err
 	}
-	return DecodeState(root, data)
+	if isJournalCheckpoint(data) {
+		return readCurrentJournal(root)
+	}
+	return readPlainCheckpoint(root, data)
 }
 
 // DecodeState validates checkpoint bytes using the same contract as ReadState.
 // root supplies the run location for existing recovery-receipt validation.
 // Callers that already hold a confined file handle can avoid reopening state.json.
 func DecodeState(root string, data []byte) (*model.State, error) {
+	checkpointDecodes.Add(1)
+	if int64(len(data)) > StateReadLimit {
+		return nil, errors.New("checkpoint exceeds byte limit")
+	}
+	if isJournalCheckpoint(data) {
+		logical, err := expandFileJournal(root, data, false)
+		if err != nil {
+			return nil, err
+		}
+		data = logical
+		if int64(len(data)) > StateReadLimit {
+			return nil, errors.New("logical checkpoint exceeds byte limit")
+		}
+	}
 	var s model.State
 	if err := json.Unmarshal(data, &s); err != nil {
 		return nil, fmt.Errorf("invalid checkpoint: %w", err)
@@ -227,12 +243,12 @@ func ValidatePlanContext(p model.Plan, campaignAdmission bool) error {
 	if err := validateTurnPlan(p); err != nil {
 		return err
 	}
-	if p.MaxTasks < 0 || p.MaxTasks > 1024 || p.MaxDepth < 0 || p.MaxDepth > 16 {
-		return errors.New("max_tasks must be 1..1024 and max_depth 1..16 (or omitted)")
+	if p.MaxTasks < 0 || p.MaxTasks > model.MaxGraphTasks || p.MaxDepth < 0 || p.MaxDepth > 16 {
+		return fmt.Errorf("max_tasks must be 1..%d and max_depth 1..16 (or omitted)", model.MaxGraphTasks)
 	}
 	maxTasks := p.MaxTasks
 	if maxTasks == 0 {
-		maxTasks = 128
+		maxTasks = model.DefaultGraphTasks
 	}
 	if len(p.Tasks) > maxTasks {
 		return errors.New("plan exceeds max_tasks")
@@ -391,29 +407,7 @@ func ValidatePlanContext(p model.Plan, campaignAdmission bool) error {
 			}
 		}
 	}
-	seen := map[string]bool{}
-	for len(seen) < len(p.Tasks) {
-		before := len(seen)
-		for _, t := range p.Tasks {
-			ready := true
-			for _, d := range t.DependsOn {
-				ready = ready && seen[d]
-			}
-			if ready {
-				seen[t.ID] = true
-			}
-		}
-		if len(seen) == before {
-			blocked := make([]string, 0)
-			for _, task := range p.Tasks {
-				if !seen[task.ID] {
-					blocked = append(blocked, task.ID)
-				}
-			}
-			return fmt.Errorf("dependency cycle; unresolved nodes: %s", strings.Join(blocked, ", "))
-		}
-	}
-	return nil
+	return validateDependencyGraph(p.Tasks)
 }
 func LoadPlan(path string) (model.Plan, error) {
 	return LoadPlanWithContext(path, nil)
@@ -602,8 +596,14 @@ func Initialize(p model.Plan, root, backend string, options ...model.Options) er
 		s.Tasks[t.ID] = s.NewTask(t)
 	}
 	s.Event("created", "", map[string]string{"backend": backend})
-	if err := jsonio.AtomicJSON(filepath.Join(tmp, "state.json"), s); err != nil {
-		return err
+	if len(p.Tasks) > 1024 {
+		if err := publishJournalSnapshot(tmp, s, 0); err != nil {
+			return err
+		}
+	} else {
+		if err := publishPlainCheckpoint(tmp, s); err != nil {
+			return err
+		}
 	}
 	if err := os.Rename(tmp, root); err != nil {
 		return err

@@ -41,7 +41,7 @@ $ARGUMENTS
 ## Terms (do not mix them up)
 
 - **Shape `A×D×S`** (also `AxDxS`): A root agents, D total levels including roots (at most 16), at most S children per node. The coordinator is excluded. `W×D` means `W×D×1`.
-- **Maximum nodes** = A × (S^0 + S^1 + ... + S^(D-1)). With S=1 this is A×D. Examples: `1x1x1` = 1, `2x5` = 10, `25x5x2` = **775**, not 125. The tool bound is 1024 nodes. This is an upper bound, not a promised expansion.
+- **Maximum nodes** = A × (S^0 + S^1 + ... + S^(D-1)). With S=1 this is A×D. Examples: `1x1x1` = 1, `2x5` = 10, `25x5x2` = **775**, not 125. The tool bound is 10000 nodes. This is an upper bound, not a promised expansion.
 - **Intended tasks**: the number you actually plan to run. It may be well below the maximum.
 - **Concurrency**: `--workers` (1..128). It is separate from the shape. Waiting parents do not occupy worker capacity. More workers does not mean more agents, and more agents does not mean more concurrency.
 - **Per-call budget**: `--budget USD` (default 0.25). It limits a single call. It is **not** a graph-wide cap.
@@ -85,7 +85,7 @@ Unknown-cost operations: <count or 0>
 Source and plan checked: <plan path, hash or name, preflight result>
 ```
 
-The plan's `max_tasks` and `max_depth` default to 128 and 4 (maximums 1024 and 16). If the intended shape needs more, the plan must set them explicitly. `irrigator plan PLAN` validates the plan first. Retries, replays, and additional review passes spend again. Count them in the aggregate and do not hide them inside the per-call figure.
+The plan's `max_tasks` and `max_depth` default to 128 and 4 (maximums 10000 and 16). If the intended shape needs more, the plan must set them explicitly. `irrigator plan PLAN` validates the plan first. Retries, replays, and additional review passes spend again. Count them in the aggregate and do not hide them inside the per-call figure.
 
 ## Step 3: Authorization gate
 

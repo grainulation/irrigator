@@ -85,7 +85,7 @@ commands, tool grants, credentials, context files, file exports, spawning,
 continuations, or helper admission. The existing runtime validates the completed
 plan. Each node is a main agent with exactly one turn and zero helpers, and the
 output plan's task capacity is tightened to its actual expanded task count.
-The parent's task ceiling must be between 1 and 1024. Profile input/output byte
+The parent's task ceiling must be between 1 and 10000. Profile input/output byte
 limits must fit the explicit parent ceilings; the compiled prompt also must fit
 the selected profile input bound. Runtime accounting and actual payload limits
 remain authoritative, including dependency artifacts added at execution time.

@@ -74,11 +74,42 @@ func offlineBenchmarkCLI(args []string) (int, error) {
 	fs := flag.NewFlagSet("benchmark", flag.ContinueOnError)
 	dir := fs.String("dir", "", "new private benchmark directory")
 	repeats := fs.Int("runs", 2, "repetitions per serial/parallel arm (1..10)")
+	tasks := fs.Int("tasks", 0, "scale workload task count (1..10000); omitted keeps the five-task offline comparison")
+	mode := fs.String("mode", "mock", "scale workload: mock or ollama (local model calls)")
+	workers := fs.Int("workers", 6, "scale workload worker slots (1..128)")
+	endpoint := fs.String("endpoint", "", "explicit numeric loopback Ollama endpoint for scale mode")
+	modelName := fs.String("model", "", "already installed Ollama model tag for scale mode")
+	digest := fs.String("model-digest", "", "pinned local model digest for scale mode")
+	outputTokens := fs.Int64("max-output-tokens", 32, "scale Ollama per-generation token cap (1..512)")
+	timeout := fs.Duration("timeout", 30*time.Second, "scale per-task execution timeout")
 	if err := commandflags.ParseCommandFlags(fs, args); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
 			return 0, nil
 		}
 		return 2, err
+	}
+	tasksSpecified, scaleOptions, repeatsSpecified := false, false, false
+	fs.Visit(func(f *flag.Flag) {
+		switch f.Name {
+		case "tasks":
+			tasksSpecified = true
+		case "runs":
+			repeatsSpecified = true
+		case "mode", "workers", "endpoint", "model", "model-digest", "max-output-tokens", "timeout":
+			scaleOptions = true
+		}
+	})
+	if tasksSpecified {
+		if fs.NArg() != 0 || *dir == "" {
+			return 2, errors.New("scale benchmark requires --dir NEW_DIRECTORY and no positional arguments")
+		}
+		if repeatsSpecified {
+			return 2, errors.New("scale checks run exactly one workload; --runs applies only to the offline comparison")
+		}
+		return scaleBenchmarkCLI(scaleBenchmarkConfig{Dir: *dir, Tasks: *tasks, Mode: *mode, Workers: *workers, Endpoint: *endpoint, Model: *modelName, Digest: *digest, OutputTokens: *outputTokens, Timeout: *timeout})
+	}
+	if scaleOptions {
+		return 2, errors.New("scale provider flags require --tasks")
 	}
 	if fs.NArg() != 0 || *dir == "" || *repeats < 1 || *repeats > 10 {
 		return 2, errors.New("benchmark --dir NEW_DIRECTORY [--runs 1..10]; mock only")

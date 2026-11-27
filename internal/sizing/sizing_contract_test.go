@@ -58,7 +58,7 @@ func TestShapeReliabilityUsesRecommendedConcurrency(t *testing.T) {
 }
 
 func TestShapeSingleLevelStillBoundsChildren(t *testing.T) {
-	if _, err := ParseShape("1x1x1025"); err == nil {
+	if _, err := ParseShape("1x1x10001"); err == nil {
 		t.Fatal("single level bypassed child bound")
 	}
 	if maxSizingTasks != checkpoint.MaxShapeNodes {

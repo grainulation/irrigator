@@ -107,7 +107,7 @@ func TestShape775AndDefaults(t *testing.T) {
 
 func TestObserverShapeRejections(t *testing.T) {
 	wantErr(t, shapePlan(3, 2, &model.ObserverShape{Roots: 4, Levels: 2, MaxChildren: 2}), "root task count")
-	wantErr(t, shapePlan(1, 64, &model.ObserverShape{Roots: 1, Levels: 4, MaxChildren: 64}), "1024")
+	wantErr(t, shapePlan(1, 64, &model.ObserverShape{Roots: 1, Levels: 4, MaxChildren: 64}), "10000")
 	wantErr(t, shapePlan(2, -1, &model.ObserverShape{Roots: 2, Levels: 2, MaxChildren: 2}), "without spawn")
 	wantErr(t, shapePlan(2, 3, &model.ObserverShape{Roots: 2, Levels: 2, MaxChildren: 2}), "spawn cap")
 	wantErr(t, shapePlan(2, 0, &model.ObserverShape{Roots: 2, Levels: 2, MaxChildren: 4}), "spawn cap") // default 8 > 4

@@ -75,3 +75,7 @@ Mock costs are zero. This measures scheduler overhead and fixture correctness,
 not model quality, provider token economics or a general speed/cost saving.
 There are no credentials, network requests or live model calls. A live comparison
 requires a separately authorized budget and matched held-out tasks.
+
+For explicit 900/2,000/10,000-task workloads, restart and backup checks, and
+separately authorized local-model generations, use the [scale harness](scale-checks.md).
+The original five-task comparison remains credential-free and mock-only.

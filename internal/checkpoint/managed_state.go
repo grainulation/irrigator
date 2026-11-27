@@ -59,6 +59,12 @@ func ManagedExpectedBinding(c model.ExecutionCatalog, name string) model.Executi
 }
 
 func ValidateManagedPlan(p model.Plan) error {
+	return validateManagedPlan(p, nil)
+}
+
+// validated, when supplied, receives only bindings whose catalog, digest and
+// dispatch contract passed this invocation's checks. It never survives a read.
+func validateManagedPlan(p model.Plan, validated map[string]model.ExecutionBinding) error {
 	if err := ValidateCampaignPlan(p); err != nil {
 		return err
 	}
@@ -113,8 +119,12 @@ func ValidateManagedPlan(p model.Plan) error {
 		if launch.ManagedHistoryEnabled(e.Catalog.Profiles[name]) && !launch.SupportsGovernedPlan(p.APIVersion) {
 			return errors.New("managed explicit_history requires swarm/v5")
 		}
-		if err := ValidateManagedBinding(ManagedExpectedBinding(e.Catalog, name)); err != nil {
+		binding := ManagedExpectedBinding(e.Catalog, name)
+		if err := ValidateManagedBinding(binding); err != nil {
 			return err
+		}
+		if validated != nil {
+			validated[name] = binding
 		}
 		allowed[name] = true
 	}
@@ -195,7 +205,8 @@ func ValidateManagedState(s *model.State) error {
 	if s.Version != expectedVersion || s.Backend != "managed" || s.Execution == nil {
 		return errors.New("managed execution checkpoint version or backend mismatch")
 	}
-	if err := ValidateManagedPlan(s.Plan); err != nil {
+	expectedBindings := map[string]model.ExecutionBinding{}
+	if err := validateManagedPlan(s.Plan, expectedBindings); err != nil {
 		return err
 	}
 	e := s.Execution
@@ -203,26 +214,37 @@ func ValidateManagedState(s *model.State) error {
 	if e.CeilingMicros != ceiling || len(e.Bindings) != len(s.Plan.Execution.AllowedProfiles) || e.Reservations == nil {
 		return errors.New("managed budget/catalog checkpoint changed")
 	}
+	type bindingKey struct{ profile, digest string }
+	bindings := make(map[bindingKey]model.ExecutionBinding, len(e.Bindings)+len(e.Migrations))
 	for _, name := range s.Plan.Execution.AllowedProfiles {
 		b, ok := e.Bindings[name]
 		if !ok {
 			return errors.New("missing pinned profile")
 		}
-		expected := ManagedExpectedBinding(s.Plan.Execution.Catalog, name)
+		expected := expectedBindings[name]
 		if !reflect.DeepEqual(b, expected) {
 			return errors.New("pinned binding differs from immutable catalog")
 		}
-		if err := ValidateManagedBinding(b); err != nil {
-			return err
+		// Deep equality binds every stored field to the validated expectation;
+		// hashing and revalidating that same profile for each row adds no check.
+		bindings[bindingKey{name, b.Digest}] = b
+	}
+	// ValidateProviderMigrations above checked each historical replacement and
+	// its provenance. Match ManagedBindingByDigest's first-match lookup order.
+	for _, migration := range e.Migrations {
+		b := migration.Proposal.Replacement
+		key := bindingKey{migration.Proposal.Profile, b.Digest}
+		if _, present := bindings[key]; !present {
+			bindings[key] = b
 		}
 	}
 	for _, r := range s.Tasks {
 		if r.CostUnknown && s.Version != 3 && s.Version != 4 && s.Version != 5 {
 			return errors.New("unknown cost requires checkpoint3")
 		}
-		b, err := ManagedBinding(s, r)
-		if err != nil {
-			return err
+		b, exists := bindings[bindingKey{model.ManagedProfile(s.Plan, r.Spec), r.BindingDigest}]
+		if !exists {
+			return errors.New("cell execution binding changed")
 		}
 		if r.Attempt > 0 && (r.Status == "running" || r.Status == "produced" || r.Status == "verified" || r.Status == "uncertain" || r.Status == "failed") {
 			receipt, ok := e.Reservations[r.OperationID]
@@ -258,9 +280,9 @@ func ValidateManagedState(s *model.State) error {
 				break
 			}
 		}
-		b, err := ManagedBindingByDigest(s, model.ManagedProfile(s.Plan, row.Spec), r.BindingDigest)
-		if err != nil {
-			return err
+		b, exists := bindings[bindingKey{model.ManagedProfile(s.Plan, row.Spec), r.BindingDigest}]
+		if !exists {
+			return errors.New("unknown historical provider binding")
 		}
 		if !found || r.BindingDigest != b.Digest || r.ReservedMicros != ManagedReservedAmount(s, b) || r.Attempt > row.Attempt {
 			return errors.New("reservation lineage or binding mismatch")

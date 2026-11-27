@@ -20,7 +20,7 @@ import (
 
 var ActiveSizingPath string
 
-const maxSizingTasks = 1024
+const maxSizingTasks = model.MaxGraphTasks
 
 type sizingEstimate struct {
 	ServiceS     float64 `json:"service_s,omitempty"`
@@ -123,8 +123,8 @@ func validateSizing(c *sizingConfig) error {
 	if c.Version != "sizing.v1" {
 		return errors.New("sizing: version must be sizing.v1")
 	}
-	if c.Capacity < 0 || c.Capacity > 128 || len(c.Tasks) > 4096 || len(c.ProviderBalanceUSD) > 256 {
-		return errors.New("sizing: capacity must be 0..128, tasks at most 4096, providers at most 256")
+	if c.Capacity < 0 || c.Capacity > 128 || len(c.Tasks) > model.MaxGraphTasks || len(c.ProviderBalanceUSD) > 256 {
+		return fmt.Errorf("sizing: capacity must be 0..128, tasks at most %d, providers at most 256", model.MaxGraphTasks)
 	}
 	if c.BudgetUSD != nil {
 		if err := szFinite("budget_usd", *c.BudgetUSD, 1e9); err != nil {
@@ -242,6 +242,9 @@ func reservationSlots(c *sizingConfig, spent map[string]float64, inflight map[st
 // plan order on ties. Tasks sharing a conflict key (conf) are mutually
 // exclusive instead of ordered, so conflicts cannot create cycles.
 func szSchedule(n int, d []float64, preds, succs, conf [][]int, prio []float64, slots int) float64 {
+	if makespan, ok := scheduleWithoutConflicts(n, d, preds, succs, conf, prio, slots); ok {
+		return makespan
+	}
 	indeg := make([]int, n)
 	for i := range preds {
 		indeg[i] = len(preds[i])

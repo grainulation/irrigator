@@ -18,7 +18,7 @@ const (
 	MaxProposals        = 64
 	MaxDecisions        = 256
 	MaxRevisions        = 256
-	MaxRevTasks         = 1024
+	MaxRevTasks         = model.MaxGraphTasks
 	MaxProposalReceipts = 4096
 )
 

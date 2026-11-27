@@ -178,7 +178,7 @@ func CompileComposition(path string) (model.Plan, compositionProvenance, error) 
 	if err != nil {
 		return fail(err)
 	}
-	if (c.Schema != "irrigator.composition/v1" && c.Schema != "irrigator.composition/v2") || strings.TrimSpace(c.Name) == "" || c.Execution == nil || c.MaxTasks < 1 || c.MaxTasks > 1024 || c.MaxInputBytes < 1 || c.MaxOutputBytes < 1 || len(c.Calls) < 1 || len(c.Calls) > c.MaxTasks {
+	if (c.Schema != "irrigator.composition/v1" && c.Schema != "irrigator.composition/v2") || strings.TrimSpace(c.Name) == "" || c.Execution == nil || c.MaxTasks < 1 || c.MaxTasks > model.MaxGraphTasks || c.MaxInputBytes < 1 || c.MaxOutputBytes < 1 || len(c.Calls) < 1 || len(c.Calls) > c.MaxTasks {
 		return fail(errors.New("composition requires explicit bounded parent authority"))
 	}
 	root, err := os.OpenRoot(filepath.Dir(path))

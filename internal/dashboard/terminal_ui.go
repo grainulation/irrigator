@@ -30,7 +30,8 @@ type TerminalUI struct {
 	statusReports bool
 	lastStatus    string
 	// cellStatus is the last OSC record sent per cell, so only changes are sent.
-	cellStatus map[string]string
+	cellStatus   map[string]string
+	lastSnapshot *model.State
 	// Companion signals: title (OSC 2), progress bar (OSC 9;4) and desktop
 	// notifications (OSC 9 or 777). run is the last root report.
 	run           terminalview.ProgramStatus
@@ -76,6 +77,7 @@ func (u *TerminalUI) Render(s *model.State, now time.Time) {
 	if !u.last.IsZero() && now.Sub(u.last) < 120*time.Millisecond && s.Control == "run" {
 		return
 	}
+	u.lastSnapshot = s
 	u.last = now
 	// Leave one column unused: writing the final column may trigger auto-wrap.
 	width, height := terminalDimensions(u.out)
@@ -124,6 +126,16 @@ func (u *TerminalUI) Render(s *model.State, now time.Time) {
 	}
 	u.lines = len(frame)
 	fmt.Fprint(u.out, b.String())
+}
+
+// RenderIdle refreshes elapsed time at most once per second while the controller
+// owns and reuses an unchanged snapshot. Render still captures every diagnostic
+// when a caller provides a changed state, even inside its frame throttle.
+func (u *TerminalUI) RenderIdle(s *model.State, now time.Time) {
+	if u == nil || (u.lastSnapshot == s && !u.last.IsZero() && now.Sub(u.last) < time.Second) {
+		return
+	}
+	u.Render(s, now)
 }
 
 // runSignals returns the title, progress bar and notification for a root

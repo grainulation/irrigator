@@ -3,7 +3,7 @@
 `observer_shape` is optional, read-only plan metadata in the canonical A x D x S notation. A is `roots`, D is `levels` (total levels including roots), and S is `max_children`. It never grants capability: it adds no spawn, depth, task, provider or context rights.
 
 - It is checked only at initial `loadPlan` and `initialize`, never in generic `validate()`, so graph revisions are not blocked by it.
-- A, D and S must be positive. D is at most 16. The ceiling is `shapeMaxNodes`, at most 1024. D=1 with any S>=1 is valid.
+- A, D and S must be positive. D is at most 16. The ceiling is `shapeMaxNodes`, at most 10000. D=1 with any S>=1 is valid.
 - `roots` must equal the plan's root task count. `levels-1` must not exceed the effective `max_depth` (default 4).
 - When D>1, every root needs a spawn policy. Its effective cap (0 means 8) must be `<=` S.
 - The read-only projection (`capacity`) compares the declared shape with the active graph: root count, max depth, direct child count, total task count and spawn caps.

@@ -14,7 +14,7 @@ func ObsSpawnLimit(sp *model.SpawnPolicy) int {
 	return sp.MaxChildren
 }
 
-// obsShapeCeiling reuses the canonical shapeMaxNodes bound (<= 1024).
+// ObsShapeCeiling reuses the canonical graph count bound.
 func ObsShapeCeiling(sh model.ObserverShape) (int, error) {
 	n, err := ShapeMaxNodes(Shape{Roots: sh.Roots, Levels: sh.Levels, MaxChildren: sh.MaxChildren})
 	if err != nil {
@@ -32,7 +32,7 @@ func ValidateObserverShape(p model.Plan) error {
 	if sh == nil {
 		return nil
 	}
-	if p.MaxTasks < 0 || p.MaxTasks > 1024 || p.MaxDepth < 0 || p.MaxDepth > 16 {
+	if p.MaxTasks < 0 || p.MaxTasks > model.MaxGraphTasks || p.MaxDepth < 0 || p.MaxDepth > 16 {
 		return errors.New("observer_shape: plan max_tasks/max_depth out of bounds")
 	}
 	if sh.Roots < 1 || sh.Levels < 1 || sh.MaxChildren < 1 {

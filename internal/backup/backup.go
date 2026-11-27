@@ -25,7 +25,8 @@ import (
 	"github.com/grainulation/irrigator/internal/model"
 )
 
-const backupLimit = 64 << 20
+const backupLimit = 512 << 20
+const backupFileCountLimit = 200000
 
 type backupEntry struct {
 	Path   string `json:"path"`
@@ -93,6 +94,10 @@ func BackupCLI(args []string) (int, error) {
 func BackupInventory(root string) ([]backupEntry, error) {
 	var entries []backupEntry
 	var total int64
+	storageFiles, storageErr := checkpoint.CheckpointStorageFiles(root)
+	if storageErr != nil {
+		return nil, storageErr
+	}
 	err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
@@ -107,7 +112,10 @@ func BackupInventory(root string) ([]backupEntry, error) {
 		if err != nil {
 			return err
 		}
-		if len(entries) >= 4096 {
+		if storageFiles != nil && strings.HasPrefix(filepath.ToSlash(rel), "checkpoint-data/") && !storageFiles[filepath.ToSlash(rel)] {
+			return nil
+		}
+		if len(entries) >= backupFileCountLimit {
 			return errors.New("backup file count exceeded")
 		}
 		data, err := checkpoint.BackupReadFile(path, checkpoint.BackupFileLimit)
@@ -179,8 +187,16 @@ func BackupCreate(root, out string) error {
 	if err != nil {
 		return err
 	}
+	inventory, err := BackupInventory(root)
+	if err != nil {
+		return err
+	}
+	logical, err := expandBackupCheckpoint(data, inventory)
+	if err != nil {
+		return err
+	}
 	var s model.State
-	if err = json.Unmarshal(data, &s); err != nil {
+	if err = json.Unmarshal(logical, &s); err != nil {
 		return err
 	}
 	if s.Version < 1 || s.Version > 5 || s.RunID == "" {
@@ -273,12 +289,13 @@ func BackupRead(path string) (backupManifest, error) {
 	if _, err = time.Parse(time.RFC3339Nano, m.Created); err != nil {
 		return m, err
 	}
-	if len(m.Files) == 0 || len(m.Files) > 4096 {
+	if len(m.Files) == 0 || len(m.Files) > backupFileCountLimit {
 		return m, errors.New("invalid backup inventory")
 	}
 	last := ""
 	var total int64
 	var state *model.State
+	var checkpointBytes []byte
 	for _, e := range m.Files {
 		if e.Path <= last || !fs.ValidPath(e.Path) || strings.Contains(e.Path, "\\") || e.Path == checkpoint.BackupQuarantine || strings.HasPrefix(e.Path, checkpoint.BackupQuarantine+"/") {
 			return m, errors.New("unsafe or duplicate inventory path")
@@ -296,10 +313,17 @@ func BackupRead(path string) (backupManifest, error) {
 			return m, errors.New("backup digest mismatch")
 		}
 		if e.Path == "state.json" {
-			state = &model.State{}
-			if err = json.Unmarshal(e.Data, state); err != nil {
-				return m, err
-			}
+			checkpointBytes = e.Data
+		}
+	}
+	if checkpointBytes != nil {
+		logical, expandErr := expandBackupCheckpoint(checkpointBytes, m.Files)
+		if expandErr != nil {
+			return m, expandErr
+		}
+		state = &model.State{}
+		if err = json.Unmarshal(logical, state); err != nil {
+			return m, err
 		}
 	}
 	if state == nil || state.RunID != m.RunID || state.Version != m.StateVersion || state.PlanHash != m.PlanHash {
@@ -312,4 +336,12 @@ func BackupRead(path string) (backupManifest, error) {
 		return m, err
 	}
 	return m, nil
+}
+
+func expandBackupCheckpoint(raw []byte, entries []backupEntry) ([]byte, error) {
+	files := make(map[string][]byte, len(entries))
+	for _, entry := range entries {
+		files[entry.Path] = entry.Data
+	}
+	return checkpoint.ExpandCheckpointFiles(raw, files)
 }
