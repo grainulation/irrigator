@@ -92,6 +92,13 @@ func DecodeState(root string, data []byte) (*model.State, error) {
 			return nil, err
 		}
 	}
+	return validateDecodedState(root, &s)
+}
+
+// validateDecodedState applies every typed validation and normalization of
+// DecodeState to a state whose JSON has already been parsed and checked. It
+// modifies and returns s.
+func validateDecodedState(root string, s *model.State) (*model.State, error) {
 	if s.Version != 1 && s.Version != 2 && s.Version != 3 && s.Version != 4 && s.Version != 5 {
 		return nil, fmt.Errorf("unsupported checkpoint version %d", s.Version)
 	}
@@ -102,7 +109,7 @@ func DecodeState(root string, data []byte) (*model.State, error) {
 	if len(s.Tasks) != len(s.AllTasks()) {
 		return nil, errors.New("checkpoint task set differs from plan")
 	}
-	if err := ValidateCellNames(HistoricalCellTasks(&s)); err != nil {
+	if err := ValidateCellNames(HistoricalCellTasks(s)); err != nil {
 		return nil, fmt.Errorf("unsafe checkpoint cell names: %w", err)
 	}
 	for _, spec := range s.AllTasks() {
@@ -185,25 +192,25 @@ func DecodeState(root string, data []byte) (*model.State, error) {
 	if err := validateUnbudgetedDecision(s.UnbudgetedDecision); err != nil {
 		return nil, err
 	}
-	if err := ValidateMailboxState(&s); err != nil {
+	if err := ValidateMailboxState(s); err != nil {
 		return nil, err
 	}
-	if err := validateRecoveryCheckpoint(root, &s); err != nil {
+	if err := validateRecoveryCheckpoint(root, s); err != nil {
 		return nil, err
 	}
-	if err := ValidateManagedState(&s); err != nil {
+	if err := ValidateManagedState(s); err != nil {
 		return nil, err
 	}
-	if err := ValidateOwnership(&s); err != nil {
+	if err := ValidateOwnership(s); err != nil {
 		return nil, err
 	}
-	if err := backfillProposalReceipts(&s); err != nil {
+	if err := backfillProposalReceipts(s); err != nil {
 		return nil, err
 	}
-	if err := ValidateRevisionState(&s); err != nil {
+	if err := ValidateRevisionState(s); err != nil {
 		return nil, err
 	}
-	return &s, nil
+	return s, nil
 }
 
 func Update(root string, fn func(*model.State) error) error {

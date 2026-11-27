@@ -268,7 +268,8 @@ func readJournalModelWithBase(root string, raw []byte) (*model.State, *model.Sta
 		prior.head.Storage.SnapshotSHA256 == h.Storage.SnapshotSHA256 && digestCheckpoint(log[:prior.head.Storage.Bytes]) == prior.prefixSHA256 {
 		cached = &prior
 	}
-	s, err := expandJournal(raw, func(name string) ([]byte, error) {
+	var tail replayTail
+	s, err := expandJournalInto(raw, func(name string) ([]byte, error) {
 		if name == h.Storage.Snapshot {
 			return snapshot, nil
 		}
@@ -276,23 +277,49 @@ func readJournalModelWithBase(root string, raw []byte) (*model.State, *model.Sta
 			return log, nil
 		}
 		return nil, errors.New("unknown journal file")
-	}, cached)
+	}, cached, &tail)
 	if err != nil {
 		return nil, nil, err
 	}
-	logical, err := json.Marshal(s)
-	if err != nil {
-		return nil, nil, err
+	// Every replayed transaction is hash-chained onto a base that was fully
+	// validated, so the whole-state marshal and re-parse is an identity round
+	// trip. Apply the same typed validation without it when the replay is of a
+	// supported shape; anything else, and every cold load, takes the full path.
+	if cached != nil && journalVerifyMode != journalVerifyFull {
+		var sFull *model.State
+		if journalVerifyMode == journalVerifyDual {
+			sFull = cloneCheckpoint(s)
+		}
+		if validated, handled, err := validateIncrementalReplay(root, s, &tail); handled {
+			if journalVerifyMode == journalVerifyDual {
+				full, _, fullErr := validateFullReplay(root, sFull)
+				if (err != nil) != (fullErr != nil) || (err == nil && !reflect.DeepEqual(validated, full)) {
+					return nil, nil, fmt.Errorf("incremental journal validation diverged from full validation (incremental error %v, full error %v)", err, fullErr)
+				}
+			}
+			if err != nil {
+				return nil, nil, err
+			}
+			var base *model.State
+			if h.Storage.LogicalBound <= 32<<20 {
+				if len(committedCache.entries) >= 2 && !ok {
+					for old := range committedCache.entries {
+						delete(committedCache.entries, old)
+						break
+					}
+				}
+				base = cloneCheckpoint(validated)
+				committedCache.entries[key] = journalCacheEntry{h, base, prefix}
+			}
+			return validated, base, nil
+		}
 	}
-	if int64(len(logical)) > StateReadLimit {
-		return nil, nil, errors.New("logical checkpoint exceeds byte limit")
-	}
-	validated, err := DecodeState(root, logical)
+	validated, logicalSize, err := validateFullReplay(root, s)
 	if err != nil {
 		return nil, nil, err
 	}
 	var base *model.State
-	if len(logical) <= 32<<20 {
+	if logicalSize <= 32<<20 {
 		if len(committedCache.entries) >= 2 && !ok {
 			for old := range committedCache.entries {
 				delete(committedCache.entries, old)
@@ -308,6 +335,12 @@ func readJournalModelWithBase(root string, raw []byte) (*model.State, *model.Sta
 // expandJournal reconstructs only committed transactions and checks the entire
 // hash chain. The caller holds state.lock, or supplies immutable backup bytes.
 func expandJournal(data []byte, read func(string) ([]byte, error), cached *journalCacheEntry) (*model.State, error) {
+	return expandJournalInto(data, read, cached, nil)
+}
+
+// expandJournalInto is expandJournal that also records, when tail is non-nil,
+// each patch it applies on top of the cached state.
+func expandJournalInto(data []byte, read func(string) ([]byte, error), cached *journalCacheEntry, tail *replayTail) (*model.State, error) {
 	h, err := parseJournalHead(data)
 	if err != nil {
 		return nil, err
@@ -370,8 +403,12 @@ func expandJournal(data []byte, read func(string) ([]byte, error), cached *journ
 			if len(patch.Path) == 0 || len(patch.Path) > 32 {
 				return nil, errors.New("invalid journal patch path")
 			}
+			eventsBefore := len(s.Events)
 			if err := applyStatePatch(reflect.ValueOf(s).Elem(), patch.Path, patch); err != nil {
 				return nil, err
+			}
+			if tail != nil {
+				tail.record(patch, eventsBefore, len(s.Events))
 			}
 		}
 		sequence, chain = rec.Transaction.Sequence, rec.SHA256

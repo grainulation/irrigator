@@ -17,10 +17,20 @@ import (
 // later ones. A same-process warm sequence, as in BenchmarkScaleStore, is the
 // best case and does not occur under load.
 func BenchmarkJournalWorkerPattern(b *testing.B) {
-	for _, tasks := range []int{1000, 2000, 5000, 10000} {
-		for _, mode := range []string{"warm", "stale", "cold"} {
-			b.Run(fmt.Sprintf("tasks=%d/%s", tasks, mode), func(b *testing.B) {
-				root := workerPatternRun(b, tasks)
+	for _, backend := range []string{"mock", "managed"} {
+		for _, tasks := range []int{1000, 2000, 5000, 10000} {
+			for _, mode := range []string{"warm", "stale", "cold"} {
+				benchmarkWorkerPattern(b, backend, tasks, mode)
+			}
+		}
+	}
+}
+
+func benchmarkWorkerPattern(b *testing.B, backend string, tasks int, mode string) {
+	{
+		{
+			b.Run(fmt.Sprintf("%s/tasks=%d/%s", backend, tasks, mode), func(b *testing.B) {
+				root := workerPatternRun(b, backend, tasks)
 				key, err := filepath.Abs(root)
 				if err != nil {
 					b.Fatal(err)
@@ -28,7 +38,7 @@ func BenchmarkJournalWorkerPattern(b *testing.B) {
 				store := FileCheckpointStore{Root: root}
 				commit := func(i int) {
 					if err := store.Update(context.Background(), CheckpointUpdateOptions{}, func(s *model.State) error {
-						s.Tasks["scale_00001"].Attempt = i
+						s.Tasks[workerPatternTask(s)].Attempt = i
 						return nil
 					}); err != nil {
 						b.Fatal(err)
@@ -62,8 +72,19 @@ func BenchmarkJournalWorkerPattern(b *testing.B) {
 	}
 }
 
-func workerPatternRun(b *testing.B, tasks int) string {
+func workerPatternRun(b *testing.B, backend string, tasks int) string {
 	b.Helper()
+	if backend == "managed" {
+		p := sharedProfileState(b, tasks, false).Plan
+		root := filepath.Join(b.TempDir(), "run")
+		if err := Initialize(p, root, "managed", model.Options{Workers: 6, Timeout: 30 * time.Second, Budget: .01}); err != nil {
+			b.Fatal(err)
+		}
+		if err := EnableJournal(root); err != nil {
+			b.Fatal(err)
+		}
+		return root
+	}
 	p := model.Plan{APIVersion: "swarm/v1", Name: "worker pattern", MaxTasks: tasks, Tasks: make([]model.Task, tasks)}
 	for i := range p.Tasks {
 		p.Tasks[i] = model.Task{ID: fmt.Sprintf("scale_%05d", i), Prompt: "x", Requires: []string{"answer"}, Equals: map[string]string{"answer": "ok"}, MockResult: map[string]string{"answer": "ok"}}
@@ -76,4 +97,13 @@ func workerPatternRun(b *testing.B, tasks int) string {
 		b.Fatal(err)
 	}
 	return root
+}
+
+// workerPatternTask returns a stable task id to touch: scale_00001 on the mock
+// plan, task_00001 on the managed one.
+func workerPatternTask(s *model.State) string {
+	if _, ok := s.Tasks["scale_00001"]; ok {
+		return "scale_00001"
+	}
+	return "task_00001"
 }
