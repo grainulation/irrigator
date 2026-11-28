@@ -147,13 +147,16 @@ func workerOperationWithExecutor(root, id string, opts model.Options, expectedOp
 	signal.Notify(signals, syscall.SIGTERM, syscall.SIGINT)
 	defer signal.Stop(signals)
 	watchDone := make(chan struct{})
+	// Down and cancel requests are checkpoint publications. The watch looks only
+	// at what was committed since this attempt was admitted, and asks for a full
+	// read only when a commit could concern the run, this task or something it
+	// does not recognize (see checkpoint.TaskWatch). It starts here, before the
+	// goroutine, so no commit after admission can fall between the two.
+	watch := checkpoint.NewTaskWatch(root, id, workerWatchRefresh, time.Now())
 	commandflags.GoLabeled(func() {
 		defer close(watchDone)
 		tick := time.NewTicker(50 * time.Millisecond)
 		defer tick.Stop()
-		// Down and cancel requests are checkpoint publications, so an unchanged
-		// state.json cannot carry one: skip re-decoding it between changes.
-		watch := checkpoint.StateWatch{Root: root, Refresh: workerWatchRefresh}
 		for {
 			select {
 			case <-ctx.Done():
