@@ -28,8 +28,8 @@ import (
 	"github.com/grainulation/irrigator/internal/store"
 )
 
-// StateReadLimit bounds allocation independently from graph and worker limits.
-const StateReadLimit int64 = 128 << 20
+// stateReadLimit bounds allocation independently from graph and worker limits.
+const stateReadLimit int64 = 128 << 20
 
 const journalDirectory = "checkpoint-data"
 const journalByteLimit int64 = 16 << 20
@@ -102,7 +102,7 @@ func parseJournalHead(data []byte) (journalHead, error) {
 		!storageName.MatchString(p.Snapshot) || !strings.HasSuffix(p.Snapshot, ".json") || !strings.Contains(p.Snapshot, "/snapshot-") ||
 		!storageName.MatchString(p.Journal) || !strings.HasSuffix(p.Journal, ".jsonl") || !strings.Contains(p.Journal, "/journal-") ||
 		p.Bytes < 0 || p.Bytes > journalByteLimit || p.Sequence < p.SnapshotSequence || p.Sequence-p.SnapshotSequence > journalTransactionLimit ||
-		len(p.SHA256) != 64 || len(p.SnapshotSHA256) != 64 || p.LogicalBound < 1 || p.LogicalBound > StateReadLimit {
+		len(p.SHA256) != 64 || len(p.SnapshotSHA256) != 64 || p.LogicalBound < 1 || p.LogicalBound > stateReadLimit {
 		return h, errors.New("invalid journal commit marker")
 	}
 	return h, nil
@@ -140,7 +140,7 @@ func boundedCheckpointJSON(s *model.State, limit int64) ([]byte, error) {
 }
 
 func publishPlainCheckpoint(root string, s *model.State) error {
-	b, err := boundedCheckpointJSON(s, StateReadLimit)
+	b, err := boundedCheckpointJSON(s, stateReadLimit)
 	if err != nil {
 		return err
 	}
@@ -160,7 +160,7 @@ func journalReadFile(root, name string) ([]byte, error) {
 	if err != nil || !i.IsDir() || i.Mode()&os.ModeSymlink != 0 {
 		return nil, errors.New("unsafe journal directory")
 	}
-	return readBoundedCheckpoint(filepath.Join(root, filepath.FromSlash(name)), StateReadLimit)
+	return readBoundedCheckpoint(filepath.Join(root, filepath.FromSlash(name)), stateReadLimit)
 }
 
 type journalCacheEntry struct {
@@ -527,7 +527,7 @@ func ExpandCheckpointFiles(data []byte, files map[string][]byte) ([]byte, error)
 		return nil, err
 	}
 	b, err := json.Marshal(s)
-	if err == nil && int64(len(b)) > StateReadLimit {
+	if err == nil && int64(len(b)) > stateReadLimit {
 		return nil, errors.New("logical checkpoint exceeds byte limit")
 	}
 	return b, err
@@ -536,7 +536,7 @@ func ExpandCheckpointFiles(data []byte, files map[string][]byte) ([]byte, error)
 // CheckpointStorageFiles returns the complete current recovery set. Old derived
 // generations are excluded from backups; their history is in the current state.
 func CheckpointStorageFiles(root string) (map[string]bool, error) {
-	b, err := readBoundedCheckpoint(filepath.Join(root, "state.json"), StateReadLimit)
+	b, err := readBoundedCheckpoint(filepath.Join(root, "state.json"), stateReadLimit)
 	if err != nil {
 		return nil, err
 	}
@@ -554,7 +554,7 @@ func CheckpointStorageFiles(root string) (map[string]bool, error) {
 // the raw commit marker and, for a journal checkpoint, a read-only base equal to
 // the state before the change (nil when none is retained).
 func readCheckpointForUpdate(root string) (*model.State, []byte, *model.State, error) {
-	b, err := readBoundedCheckpoint(filepath.Join(root, "state.json"), StateReadLimit)
+	b, err := readBoundedCheckpoint(filepath.Join(root, "state.json"), stateReadLimit)
 	if err != nil {
 		return nil, nil, nil, err
 	}
@@ -605,7 +605,7 @@ func loadCurrentCheckpoint(root string) (journalInputs, *model.State, error) {
 		_ = syscall.Flock(int(f.Fd()), syscall.LOCK_UN)
 		phasetrace.Emit("ckpt", "rd_unlocked", "")
 	}()
-	raw, err := readBoundedCheckpoint(filepath.Join(root, "state.json"), StateReadLimit)
+	raw, err := readBoundedCheckpoint(filepath.Join(root, "state.json"), stateReadLimit)
 	if err != nil {
 		return journalInputs{}, nil, err
 	}
@@ -636,7 +636,7 @@ func publishJournalSnapshot(root string, s *model.State, sequence uint64) error 
 	if err != nil {
 		return err
 	}
-	if int64(len(b)) > StateReadLimit {
+	if int64(len(b)) > stateReadLimit {
 		return errors.New("logical checkpoint exceeds byte limit")
 	}
 	if err = jsonio.AtomicBytes(filepath.Join(root, filepath.FromSlash(snapshot)), b); err != nil {
@@ -719,7 +719,7 @@ func publishJournalUpdate(root string, raw []byte, before, after *model.State) e
 		return err
 	}
 	line = append(line, '\n')
-	if h.Storage.Sequence-h.Storage.SnapshotSequence >= journalTransactionLimit || h.Storage.Bytes+int64(len(line)) > journalByteLimit || h.Storage.LogicalBound+int64(len(line)) > StateReadLimit {
+	if h.Storage.Sequence-h.Storage.SnapshotSequence >= journalTransactionLimit || h.Storage.Bytes+int64(len(line)) > journalByteLimit || h.Storage.LogicalBound+int64(len(line)) > stateReadLimit {
 		return publishJournalSnapshot(root, after, tx.Sequence)
 	}
 	path := filepath.Join(root, filepath.FromSlash(h.Storage.Journal))

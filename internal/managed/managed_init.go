@@ -101,7 +101,7 @@ func managedInitialPlanWithOptions(selector, effort, preferences string) (model.
 	return p, nil
 }
 
-func WriteManagedInitialPlan(out, selector string) error {
+func writeManagedInitialPlan(out, selector string) error {
 	return WriteManagedInitialPlanWithOptions(out, selector, "", "")
 }
 

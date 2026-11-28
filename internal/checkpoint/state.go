@@ -73,7 +73,7 @@ func ReadState(root string) (*model.State, error) {
 }
 
 func readFileCheckpoint(root string) (*model.State, error) {
-	data, err := readBoundedCheckpoint(filepath.Join(root, "state.json"), StateReadLimit)
+	data, err := readBoundedCheckpoint(filepath.Join(root, "state.json"), stateReadLimit)
 	if err != nil {
 		return nil, err
 	}
@@ -88,7 +88,7 @@ func readFileCheckpoint(root string) (*model.State, error) {
 // Callers that already hold a confined file handle can avoid reopening state.json.
 func DecodeState(root string, data []byte) (*model.State, error) {
 	checkpointDecodes.Add(1)
-	if int64(len(data)) > StateReadLimit {
+	if int64(len(data)) > stateReadLimit {
 		return nil, errors.New("checkpoint exceeds byte limit")
 	}
 	if isJournalCheckpoint(data) {
@@ -97,7 +97,7 @@ func DecodeState(root string, data []byte) (*model.State, error) {
 			return nil, err
 		}
 		data = logical
-		if int64(len(data)) > StateReadLimit {
+		if int64(len(data)) > stateReadLimit {
 			return nil, errors.New("logical checkpoint exceeds byte limit")
 		}
 	}

@@ -20,7 +20,7 @@ func TestExplicitMCPProfilesBoundInventoriesAndControlGate(t *testing.T) {
 		{"inspection", false, 10}, {"inspection", true, 10}, {"execution", true, 15}, {"delivery", false, 7}, {"delivery", true, 9}, {"legacy", true, 15},
 	} {
 		t.Run(tc.profile+map[bool]string{false: "-read", true: "-control"}[tc.control], func(t *testing.T) {
-			cs := connectDefinitionTest(t, McpConfig{Workspace: t.TempDir(), Profile: tc.profile, AllowControl: tc.control})
+			cs := connectDefinitionTest(t, McpConfig{Workspace: t.TempDir(), profile: tc.profile, AllowControl: tc.control})
 			result, err := cs.ListTools(context.Background(), nil)
 			if err != nil {
 				t.Fatal(err)
@@ -48,7 +48,7 @@ func TestExplicitMCPProfilesBoundInventoriesAndControlGate(t *testing.T) {
 func TestMCPCancelCellFencesRequestAndNeverRepeatsEvents(t *testing.T) {
 	root := runfixture.New(t, runfixture.Task("cell", 0))
 	s := runfixture.Read(t, root)
-	cs := connectDefinitionTest(t, McpConfig{Workspace: t.TempDir(), Profile: "execution", AllowControl: true})
+	cs := connectDefinitionTest(t, McpConfig{Workspace: t.TempDir(), profile: "execution", AllowControl: true})
 	args := map[string]any{"run": root, "request_id": "cancel-one", "expected_run_id": s.RunID, "expected_plan_sha256": s.PlanHash, "expected_graph_revision": 0, "cell": "cell", "expected_operation_id": s.Tasks["cell"].OperationID}
 	first := callParameterFixture(t, cs, "cancel_cell", args)
 	if first["changed"] != true || first["cleanup_confirmed"] != false || first["dispatched"] != false {
@@ -65,7 +65,7 @@ func TestMCPCancelCellFencesRequestAndNeverRepeatsEvents(t *testing.T) {
 	if err == nil && !result.IsError {
 		t.Fatal("reused request identity changed target")
 	}
-	readonly := connectDefinitionTest(t, McpConfig{Workspace: t.TempDir(), Profile: "inspection", AllowControl: true})
+	readonly := connectDefinitionTest(t, McpConfig{Workspace: t.TempDir(), profile: "inspection", AllowControl: true})
 	if _, err := readonly.CallTool(context.Background(), &mcp.CallToolParams{Name: "cancel_cell", Arguments: args}); err == nil {
 		t.Fatal("inspection exposed cancellation")
 	}

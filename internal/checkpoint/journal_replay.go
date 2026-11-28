@@ -50,7 +50,7 @@ func validateFullReplay(root string, s *model.State) (*model.State, int, error) 
 	if err != nil {
 		return nil, 0, err
 	}
-	if int64(len(logical)) > StateReadLimit {
+	if int64(len(logical)) > stateReadLimit {
 		return nil, 0, errLogicalTooLarge
 	}
 	validated, err := DecodeState(root, logical)

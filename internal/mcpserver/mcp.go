@@ -48,7 +48,7 @@ type McpConfig struct {
 	RunRoots       []string
 	Workspace      string
 	AllowControl   bool
-	Profile        string
+	profile        string
 	canonicalNames bool
 }
 
@@ -81,7 +81,7 @@ func McpCLI(args []string) (int, error) {
 	if *profile == "execution" && !*allowControl {
 		return 2, errors.New("--profile execution requires --allow-control")
 	}
-	cfg.Profile = *profile
+	cfg.profile = *profile
 	cfg.canonicalNames = *canonicalNames
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
@@ -129,10 +129,10 @@ func NewMCPServer(cfg McpConfig) *mcp.Server {
 	if cfg.AllowControl {
 		instructions = "Inspect saved Irrigator runs and explicitly control execution. Starting or resuming can contact providers and spend money; pause requests draining. Work classified uncertain is never replayed automatically. " + mcpToolName(cfg, "retry_cell") + " only prepares a retry and requires explicit uncertainty and cleanup arguments; " + mcpToolName(cfg, "resume") + " executes pending work. Approval decisions never merge changes."
 	}
-	if cfg.Profile == "inspection" {
+	if cfg.profile == "inspection" {
 		instructions = "Inspect saved Irrigator runs and accepted artifacts. This inventory is read-only, including when --allow-control was supplied."
 	}
-	if cfg.Profile == "delivery" {
+	if cfg.profile == "delivery" {
 		instructions = "Inspect completed Irrigator candidates and review evidence. With --allow-control, explicitly assemble file maps or run a fenced local checker. These tools never initialize or resume graph work, launch model providers or submit externally. A checker can have external effects; interrupted requests are never silently repeated."
 	}
 	s := mcp.NewServer(&mcp.Implementation{Name: "irrigator", Version: buildinfo.Version}, &mcp.ServerOptions{Instructions: instructions})

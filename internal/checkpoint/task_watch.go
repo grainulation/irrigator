@@ -25,9 +25,9 @@ import (
 // hint, never a substitute for the read that decides: the caller still validates
 // whatever it acts on.
 type TaskWatch struct {
-	Root    string
-	Task    string
-	Refresh time.Duration
+	root    string
+	task    string
+	refresh time.Duration
 
 	plain    StateWatch // used while the checkpoint is not a journal
 	seeded   bool
@@ -41,17 +41,17 @@ type TaskWatch struct {
 // committed after this call (not the state at this moment) are what it reports.
 // The caller has just validated the state it is watching from.
 func NewTaskWatch(root, task string, refresh time.Duration, now time.Time) *TaskWatch {
-	w := &TaskWatch{Root: root, Task: task, Refresh: refresh, plain: StateWatch{Root: root, Refresh: refresh}, read: now}
+	w := &TaskWatch{root: root, task: task, refresh: refresh, plain: StateWatch{Root: root, Refresh: refresh}, read: now}
 	w.seed()
 	return w
 }
 
 func (w *TaskWatch) head() (journalHead, bool) {
-	info, err := os.Stat(filepath.Join(w.Root, "state.json"))
+	info, err := os.Stat(filepath.Join(w.root, "state.json"))
 	if err != nil || info.Size() > maxJournalMarkerBytes {
 		return journalHead{}, false
 	}
-	raw, err := readBoundedCheckpoint(filepath.Join(w.Root, "state.json"), maxJournalMarkerBytes)
+	raw, err := readBoundedCheckpoint(filepath.Join(w.root, "state.json"), maxJournalMarkerBytes)
 	if err != nil || !isJournalCheckpoint(raw) {
 		return journalHead{}, false
 	}
@@ -78,7 +78,7 @@ func (w *TaskWatch) Due(now time.Time) bool {
 		}
 		return false
 	}
-	if now.Sub(w.read) >= w.Refresh {
+	if now.Sub(w.read) >= w.refresh {
 		w.read = now
 		w.seed()
 		return true
@@ -108,7 +108,7 @@ func (w *TaskWatch) Due(now time.Time) bool {
 // tailMatters reads the committed journal bytes between the last position and
 // the marker, and reports whether any patch could change what a worker watches.
 func (w *TaskWatch) tailMatters(h journalHead) bool {
-	f, err := os.OpenFile(filepath.Join(w.Root, filepath.FromSlash(h.Storage.Journal)), os.O_RDONLY|syscall.O_NOFOLLOW, 0)
+	f, err := os.OpenFile(filepath.Join(w.root, filepath.FromSlash(h.Storage.Journal)), os.O_RDONLY|syscall.O_NOFOLLOW, 0)
 	if err != nil {
 		return true
 	}
@@ -129,7 +129,7 @@ func (w *TaskWatch) tailMatters(h journalHead) bool {
 			return true
 		}
 		for _, p := range rec.Transaction.Patches {
-			if patchMatters(p.Path, w.Task) {
+			if patchMatters(p.Path, w.task) {
 				return true
 			}
 		}

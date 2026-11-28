@@ -104,7 +104,7 @@ func BenchmarkRealSnapshotPhases(b *testing.B) {
 	root := realRun(b)
 	ctx := context.Background()
 	store := FileCheckpointStore{Root: root}
-	raw, err := readBoundedCheckpoint(filepath.Join(root, "state.json"), StateReadLimit)
+	raw, err := readBoundedCheckpoint(filepath.Join(root, "state.json"), stateReadLimit)
 	if err != nil {
 		b.Fatal(err)
 	}

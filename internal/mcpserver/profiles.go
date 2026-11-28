@@ -14,7 +14,7 @@ func validMCPProfile(profile string) bool {
 // its existing 10/15 tools. New execution controls replace review inspection in
 // execution; delivery owns the optional review and assembly/check workflow.
 func registerMCPProfile(s *mcp.Server, cfg McpConfig, t *mcpTools) {
-	profile := cfg.Profile
+	profile := cfg.profile
 	if profile == "" {
 		profile = "legacy"
 	}

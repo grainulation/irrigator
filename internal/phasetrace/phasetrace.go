@@ -18,9 +18,6 @@ var (
 	file *os.File
 )
 
-// Enabled reports whether tracing is on.
-func Enabled() bool { return path != "" }
-
 // Emit appends "<unix nanoseconds> <pid> <role> <phase> <task>". Each line is a
 // single O_APPEND write, so concurrent processes interleave whole lines.
 func Emit(role, phase, task string) {

@@ -109,7 +109,7 @@ func canonicalRunPath(p string) string {
 
 func readCheckpointRunID(statePath string) (string, bool) {
 	info, err := os.Lstat(statePath)
-	if err != nil || !info.Mode().IsRegular() || info.Size() <= 0 || info.Size() > StateReadLimit {
+	if err != nil || !info.Mode().IsRegular() || info.Size() <= 0 || info.Size() > stateReadLimit {
 		return "", false
 	}
 	f, err := os.Open(statePath)
@@ -117,8 +117,8 @@ func readCheckpointRunID(statePath string) (string, bool) {
 		return "", false
 	}
 	defer f.Close()
-	data, err := io.ReadAll(io.LimitReader(f, StateReadLimit+1))
-	if err != nil || int64(len(data)) > StateReadLimit {
+	data, err := io.ReadAll(io.LimitReader(f, stateReadLimit+1))
+	if err != nil || int64(len(data)) > stateReadLimit {
 		return "", false
 	}
 	var head struct {
