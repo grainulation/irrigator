@@ -376,7 +376,13 @@ func CheckCompletedDelivery(ctx context.Context, root string, in CheckRequest) (
 			return result, errors.New("acceptance process cleanup unconfirmed; inspect its process marker before explicit recheck")
 		}
 	}
-	if _, err = exec.LookPath(in.Check[0]); err != nil {
+	// A checker with a path separator runs relative to the candidate directory, so
+	// look it up there; a bare name is looked up on PATH.
+	lookup := in.Check[0]
+	if strings.ContainsRune(lookup, filepath.Separator) && !filepath.IsAbs(lookup) {
+		lookup = filepath.Join(rec.Directory, lookup)
+	}
+	if _, err = exec.LookPath(lookup); err != nil {
 		return result, err
 	}
 	if err = ctx.Err(); err != nil {

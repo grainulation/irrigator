@@ -227,3 +227,22 @@ func TestCompletedCheckRetainsCleanupUncertaintyAndSourceFence(t *testing.T) {
 		t.Fatal("changed candidate accepted")
 	}
 }
+
+func TestCompletedCheckResolvesARelativeCheckerInsideTheCandidate(t *testing.T) {
+	root, in := completedFixture(t)
+	assembled, err := AssembleCompletedRun(context.Background(), root, in)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = os.WriteFile(filepath.Join(in.Directory, "check.sh"), []byte("#!/bin/sh\necho ok > ran\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	check := CheckRequest{CompletedRequest: in.CompletedRequest, ExpectedCandidateSHA256: assembled.CandidateSHA256, Check: []string{"./check.sh"}, Timeout: 5 * time.Second}
+	check.RequestID = "relative"
+	if _, err = CheckCompletedDelivery(context.Background(), root, check); err != nil {
+		t.Fatal("a checker present in the candidate directory was not found:", err)
+	}
+	if _, err = os.Stat(filepath.Join(in.Directory, "ran")); err != nil {
+		t.Fatal("checker did not run", err)
+	}
+}
