@@ -334,3 +334,23 @@ func TestMCPRawHintAssertionRejectsMissingNullAndNonBooleans(t *testing.T) {
 		}
 	}
 }
+
+// The lifecycle and delivery controls sit beside tools an agent could confuse
+// with them (pause, stop_run and cancel_cell all end work), so each must name
+// its siblings with the {{tool}} form, which follows the host's naming contract.
+func TestControlToolDescriptionsPointAtTheirSiblings(t *testing.T) {
+	for name, siblings := range map[string][]string{
+		"pause":             {"{{stop_run}}", "{{cancel_cell}}"},
+		"cancel_cell":       {"{{pause}}", "{{stop_run}}", "{{run_status}}", "{{inspect_cell}}"},
+		"stop_run":          {"{{pause}}", "{{cancel_cell}}", "{{run_status}}"},
+		"assemble_delivery": {"{{run_status}}", "{{delivery_summary}}", "{{check_delivery}}"},
+		"check_delivery":    {"{{assemble_delivery}}", "{{delivery_summary}}"},
+	} {
+		desc := mcpToolDescriptions[name]
+		for _, sibling := range siblings {
+			if !strings.Contains(desc, sibling) {
+				t.Errorf("%s does not reference %s: %q", name, sibling, desc)
+			}
+		}
+	}
+}
