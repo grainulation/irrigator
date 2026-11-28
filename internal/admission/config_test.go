@@ -74,6 +74,12 @@ func TestPhase3AndTierConfigValidation(t *testing.T) {
 			c.Breaker = &breakerConfig{Alpha: 2, Threshold: .5, MinOutcomes: 1, IntervalSeconds: 1, OpenSeconds: 1, HalfLifeSeconds: 1}
 		},
 		"rate cooldown": func(c *config) { c.RateLimit = &rateLimitConfig{DefaultCooldownSeconds: 100, MaxCooldownSeconds: 10} },
+		"rate cooldown overflows a duration": func(c *config) {
+			c.RateLimit = &rateLimitConfig{DefaultCooldownSeconds: 1e20, MaxCooldownSeconds: 1e20}
+		},
+		"breaker open overflows a duration": func(c *config) {
+			c.Breaker = &breakerConfig{Alpha: 0.2, Threshold: 0.5, MinOutcomes: 5, IntervalSeconds: 20, OpenSeconds: 1e20, HalfLifeSeconds: 120}
+		},
 		"profile tier":  func(c *config) { c.ProfileTiers = map[string]string{"p": "huge"} },
 		"battery tier":  func(c *config) { c.Power.OnBatteryMaxTier = "tiny" },
 		"empty profile": func(c *config) { c.ProfileTiers = map[string]string{"": "full"} },

@@ -211,13 +211,13 @@ func (c config) validate() error {
 		}
 	}
 	if r := c.RateLimit; r != nil {
-		if r.DefaultCooldownSeconds <= 0 || r.MaxCooldownSeconds < r.DefaultCooldownSeconds || r.Headroom < 0 || r.Headroom > 1024 {
-			return errors.New("rate_limit: default_cooldown_seconds must be > 0 and <= max_cooldown_seconds, headroom 0..1024")
+		if r.DefaultCooldownSeconds <= 0 || r.MaxCooldownSeconds < r.DefaultCooldownSeconds || r.Headroom < 0 || r.Headroom > 1024 || r.MaxCooldownSeconds > maxSeconds {
+			return errors.New("rate_limit: default_cooldown_seconds must be > 0 and <= max_cooldown_seconds, headroom 0..1024, durations at most one year")
 		}
 	}
 	if b := c.Breaker; b != nil {
-		if b.Alpha <= 0 || b.Alpha > 1 || b.Threshold <= 0 || b.Threshold >= 1 || b.MinOutcomes < 1 || b.IntervalSeconds <= 0 || b.OpenSeconds <= 0 || b.HalfLifeSeconds <= 0 {
-			return errors.New("failure_breaker: alpha in (0,1], threshold in (0,1), min_outcomes >= 1, interval_seconds, open_seconds and half_life_seconds > 0")
+		if b.Alpha <= 0 || b.Alpha > 1 || b.Threshold <= 0 || b.Threshold >= 1 || b.MinOutcomes < 1 || b.IntervalSeconds <= 0 || b.OpenSeconds <= 0 || b.HalfLifeSeconds <= 0 || b.IntervalSeconds > maxSeconds || b.OpenSeconds > maxSeconds || b.HalfLifeSeconds > maxSeconds {
+			return errors.New("failure_breaker: alpha in (0,1], threshold in (0,1), min_outcomes >= 1, interval_seconds, open_seconds and half_life_seconds > 0 and at most one year")
 		}
 	}
 	for profile, tier := range c.ProfileTiers {
@@ -280,6 +280,10 @@ func resolve(spec string) (config, error) {
 	}
 	return c, nil
 }
+
+// maxSeconds bounds every configured duration: well past any useful cooldown, and
+// far below the point where a float64 of seconds overflows time.Duration.
+const maxSeconds = 365 * 24 * 3600
 
 func seconds(v float64) time.Duration { return time.Duration(v * float64(time.Second)) }
 
