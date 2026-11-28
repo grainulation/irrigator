@@ -772,28 +772,45 @@ func cloneCheckpoint(s *model.State) *model.State {
 	return cloneValue(reflect.ValueOf(s)).Interface().(*model.State)
 }
 
-// cloneSharingPlan is cloneCheckpoint except that the copy shares the original's
-// Plan contents instead of duplicating them. The plan is immutable provenance
-// (see model.State), is about 13% of the work of a whole-state clone and equality
-// walk on a large run, and never changes between graph revisions, which are
-// recorded in ActiveTasks and Revisions rather than by editing the plan.
+// cloneSharingPlan is cloneCheckpoint except that the copy shares two kinds of
+// immutable data with the original instead of duplicating them:
 //
-// Sharing is only sound while nothing writes through State.Plan after a read.
-// Replacing the whole field is fine. Writing into its slices, maps or pointers
-// would silently change the cache. Update guards against that in the dual verify
-// mode used by the tests (checkPlanUnchanged).
+//   - the Plan, which is immutable provenance (see model.State) and never changes
+//     between graph revisions, which are recorded in ActiveTasks and Revisions;
+//   - the Detail value of every event. Events are append-only and a detail is
+//     built once, when the event is appended. The Event structs themselves are
+//     copied into a private array, so appending to or replacing an element of the
+//     copy's slice never reaches the original; only the maps and slices that a
+//     detail points to are shared.
+//
+// Together they are about half of the work of a whole-state clone and equality
+// walk on a large run, and identical shared pointers let the diff skip them.
+//
+// Sharing is only sound while nothing writes through State.Plan or into an
+// existing event's Detail after a read. Replacing a whole field is fine. Update
+// guards against such writes in the dual verify mode used by the tests
+// (guardSharedState).
 func cloneSharingPlan(s *model.State) *model.State {
 	without := *s
 	without.Plan = model.Plan{}
+	without.Events = nil
 	c := cloneCheckpoint(&without)
 	c.Plan = s.Plan
+	if s.Events != nil {
+		c.Events = make([]model.Event, len(s.Events))
+		copy(c.Events, s.Events)
+	}
 	return c
 }
 
-// planDigest identifies a plan's content independently of pointer identity, so
-// it can see a write that an equality check between aliased copies cannot.
-func planDigest(p model.Plan) (string, error) {
-	b, err := json.Marshal(p)
+// sharedDigest identifies the content of the data cloneSharingPlan shares,
+// independently of pointer identity, so it can see a write that an equality
+// check between aliased copies cannot.
+func sharedDigest(s *model.State) (string, error) {
+	b, err := json.Marshal(struct {
+		Plan   model.Plan    `json:"plan"`
+		Events []model.Event `json:"events"`
+	}{s.Plan, s.Events})
 	if err != nil {
 		return "", err
 	}

@@ -110,3 +110,99 @@ func TestACallbackThatWritesThroughThePlanIsRefused(t *testing.T) {
 		t.Fatalf("a commit after the refusals failed: %v", err)
 	}
 }
+
+func TestCloneSharingPlanCopiesEventStructsAndSharesTheirDetails(t *testing.T) {
+	root := workerPatternRun(t, "managed", 20)
+	store := FileCheckpointStore{Root: root}
+	if err := store.Update(context.Background(), CheckpointUpdateOptions{}, func(s *model.State) error {
+		s.Event("one", "task_00001", map[string]any{"k": "v"})
+		s.Event("two", "task_00002", map[string]any{"k": "w"})
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	s, err := store.Read(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	c := cloneSharingPlan(s)
+	if !reflect.DeepEqual(c, s) {
+		t.Fatal("the copy differs from the original")
+	}
+	last := len(s.Events) - 1
+	if &c.Events[0] == &s.Events[0] {
+		t.Fatal("event structs must be copied into a private array")
+	}
+	// Replacing or appending in the copy never reaches the original.
+	c.Events[last].Kind = "changed"
+	c.Events = append(c.Events, model.Event{Kind: "extra"})
+	if s.Events[last].Kind == "changed" || len(s.Events) == len(c.Events) {
+		t.Fatal("the copy's events alias the original's array")
+	}
+	// The detail values are the shared part.
+	d1, ok1 := s.Events[last-1].Detail.(map[string]any)
+	d2, ok2 := c.Events[last-1].Detail.(map[string]any)
+	if !ok1 || !ok2 || reflect.ValueOf(d1).Pointer() != reflect.ValueOf(d2).Pointer() {
+		t.Fatal("event details should be shared")
+	}
+	// A nil event list stays nil.
+	z := cloneSharingPlan(&model.State{})
+	if z.Events != nil {
+		t.Fatal("nil events became non-nil")
+	}
+}
+
+func TestACallbackThatEditsAnExistingEventDetailIsRefusedAndEvicted(t *testing.T) {
+	old := journalVerifyMode
+	journalVerifyMode = journalVerifyDual
+	t.Cleanup(func() { journalVerifyMode = old })
+	root := workerPatternRun(t, "managed", 20)
+	store := FileCheckpointStore{Root: root}
+	if err := store.Update(context.Background(), CheckpointUpdateOptions{}, func(s *model.State) error {
+		s.Event("one", "task_00001", map[string]any{"k": "v"})
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	// Warm the cache so the next update starts from shared details.
+	if err := store.Update(context.Background(), CheckpointUpdateOptions{}, func(s *model.State) error {
+		s.Tasks["task_00001"].Attempt = 1
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	err := store.Update(context.Background(), CheckpointUpdateOptions{}, func(s *model.State) error {
+		for i := range s.Events {
+			if d, ok := s.Events[i].Detail.(map[string]any); ok && d["k"] == "v" {
+				d["k"] = "tampered"
+			}
+		}
+		return nil
+	})
+	if err == nil || !strings.Contains(err.Error(), "event's detail") {
+		t.Fatalf("expected the refusal, got %v", err)
+	}
+	key, _ := filepath.Abs(root)
+	committedCache.Lock()
+	_, cached := committedCache.entries[key]
+	committedCache.Unlock()
+	if cached {
+		t.Fatal("the cache entry was kept after a refused write to an event detail")
+	}
+	fresh, err := store.Read(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, e := range fresh.Events {
+		if d, ok := e.Detail.(map[string]any); ok && d["k"] == "tampered" {
+			t.Fatal("a later read saw the refused write")
+		}
+	}
+	// New events appended with their own details commit normally.
+	if err := store.Update(context.Background(), CheckpointUpdateOptions{}, func(s *model.State) error {
+		s.Event("three", "task_00001", map[string]any{"k": "new"})
+		return nil
+	}); err != nil {
+		t.Fatalf("appending after a refusal failed: %v", err)
+	}
+}
