@@ -7,7 +7,7 @@
 //
 // # Allowed dependencies
 //
-// Layer 28. May import only lower layers; today it imports executor, graph, model, provider,
+// Layer 28. May import only lower layers; today it imports admission, executor, graph, model, provider,
 // session, terminalview, textsafe. Third-party: none. The compiler rejects import cycles; the
 // layer order is recorded in docs/architecture.md.
 //

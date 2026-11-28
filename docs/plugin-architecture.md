@@ -114,7 +114,7 @@ model quality and speed must be assessed separately.
 | `irrigator` not found | tell the user; do not invent output; offer `make build` from a checkout |
 | CLI found but not authenticated | `doctor` reports it; do not call paid backends; offer `--backend mock` |
 | Plan fails `plan PLAN` | fix the plan; do not launch |
-| Shape maximum exceeds 1024 nodes or D>16 | reject the shape; propose a smaller one |
+| Shape maximum exceeds 10000 nodes or D>16 | reject the shape; propose a smaller one |
 | Budget or authorization missing | stop before any paid call |
 | Node `uncertain` | inspect externally; `resolve` or user-approved `retry --allow-uncertain` |
 | Expansion stopped by `max_tasks` or spend | report the smaller realized graph; never call it a full tree |

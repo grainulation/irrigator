@@ -16,21 +16,11 @@ import (
 
 func CancelNode(root, id string) error {
 	return checkpoint.Update(root, func(s *model.State) error {
-		if s.Tasks[id] == nil {
-			return errors.New("unknown node")
+		changed, err := cancelNodes(s, id, nil)
+		if err == nil && !changed {
+			return checkpoint.ErrUnchanged
 		}
-		for _, node := range managed.Descendants(s, id) {
-			r := s.Tasks[node]
-			if r.Status == "verified" {
-				continue
-			}
-			r.CancelRequested = true
-			if r.Status != "running" && r.Status != "uncertain" {
-				r.Status = "cancelled"
-			}
-			s.Event("cancel_requested", node, nil)
-		}
-		return nil
+		return err
 	})
 }
 

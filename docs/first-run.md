@@ -57,6 +57,16 @@ The CLI requires an explicit backend for unmanaged plans. Omitting it fails befo
 is created. Managed plans instead select their explicitly configured execution
 profiles. There is no implicit paid backend.
 
+### Use your launcher model
+
+For a model-backed managed scaffold, pass the known provider and canonical
+selector with `init --managed --profile PROVIDER:MODEL --effort high --out NEWPLAN`,
+or supply the host's [execution preference file](provider-selection.md).
+This creates a plan without calling a model. It preserves the requested effort;
+it does not establish authentication, entitlement or cost authorization.
+Coding cells likewise use `--agent` or launcher preferences, rather than assuming
+Claude. Keep ordinary orchestration checks on the mock backend.
+
 ### Include local source context
 
 Create `runs/review-template.json` with a named context reference:
@@ -118,17 +128,22 @@ to [execution profiles](execution-profiles.md). Cost reports retain unknown
 charges separately from reported spend.
 
 `doctor.ready` and `local_ready` describe the credential-free local engine.
-`model_ready` describes the checked Claude login; it does not certify every
-named provider. Check the provider-specific diagnostics before model-backed work.
+`model_ready` describes passive preflight readiness for the selected route;
+`execution_health` separates authentication, inventory and generation evidence.
+Missing Claude does not disqualify a selected healthy Codex route. Check the
+provider-specific diagnostics before model-backed work.
 
 ### Scaffold a managed provider plan
 
 For explicit model selection and best-effort cost tracking, create a managed
-plan using the installed Claude executable:
+plan using your selected provider executable or launcher preferences:
+
+Prepare the preference file as described in [provider selection](provider-selection.md),
+or pass `--profile PROVIDER:MODEL --effort high` explicitly.
 
 ```sh
 mkdir -p runs
-./irrigator init --managed --profile claude:sonnet --out ./runs/first-managed.json
+./irrigator init --managed --preferences ./execution-preferences.json --out ./runs/first-managed.json
 ./irrigator plan ./runs/first-managed.json
 ```
 

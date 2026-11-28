@@ -51,7 +51,7 @@ func TestTurnShapeCanonicalOneHelperIsNotSentinel(t *testing.T) {
 	}
 }
 func TestTurnShapeRejectsInvalidAndOverflow(t *testing.T) {
-	for _, input := range []string{"", "2x2", "222", "2x2x2x2", "0x1x0", "1x0x0", "1x17x0", "-1x2x2", "+1x2x2", "1x2x-1", "1x 2x2", "1x2x2.5", "1x2x", "999999999999999999999999x1x0", "1025x1x0", "1x1x1024", "2x16x32"} {
+	for _, input := range []string{"", "2x2", "222", "2x2x2x2", "0x1x0", "1x0x0", "1x17x0", "-1x2x2", "+1x2x2", "1x2x-1", "1x 2x2", "1x2x2.5", "1x2x", "999999999999999999999999x1x0", "10001x1x0", "1x1x10000", "2x16x512"} {
 		if r, e := model.ParseTurnShape(input); e == nil {
 			t.Errorf("accepted %q: %+v", input, r)
 		}
@@ -63,6 +63,12 @@ func TestTurnShapeRejectsInvalidAndOverflow(t *testing.T) {
 	}
 }
 func TestTurnShapeBoundariesAndLegacyIsolation(t *testing.T) {
+	for _, shape := range []model.TurnShape{{Roots: model.MaxGraphTasks, MainTurns: 1}, {Roots: 625, MainTurns: 16}, {Roots: 1, MainTurns: 1, HelpersPerTurn: model.MaxGraphTasks - 1}} {
+		r, err := model.ReportTurnShape(shape)
+		if err != nil || r.MaxExecutions != model.MaxGraphTasks {
+			t.Fatalf("expanded boundary %+v: %+v %v", shape, r, err)
+		}
+	}
 	for _, shape := range []model.TurnShape{{Roots: 1024, MainTurns: 1, HelpersPerTurn: 0}, {Roots: 64, MainTurns: 16, HelpersPerTurn: 0}, {Roots: 1, MainTurns: 1, HelpersPerTurn: 1023}, {Roots: 2, MainTurns: 16, HelpersPerTurn: 31}} {
 		r, e := model.ReportTurnShape(shape)
 		if e != nil || r.MaxExecutions != 1024 || r.MaxAgents > 1024 {

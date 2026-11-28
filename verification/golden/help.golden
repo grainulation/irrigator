@@ -19,6 +19,7 @@ Commands:
   contracts plan FILE|receipt RUN         Inspect runtime guarantees or export redacted run evidence
   recover --run RUN --in FILE --out NEW_DIRECTORY  Exclusive resumable transfer
   backup create|verify|restore             Private quiescent evidence snapshots
+  storage migrate --run DIR --format journal  Opt a saved run into journal checkpoint storage
   compose CONFIG --out PLAN                Compile pinned reusable workflows offline
   init --out plan.json                    Create a starter plan
   update-check --manifest FILE --signature FILE --artifact FILE --public-key FILE --installed-sequence N  Verify an update offline

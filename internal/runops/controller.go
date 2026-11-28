@@ -12,6 +12,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/grainulation/irrigator/internal/admission"
 	"github.com/grainulation/irrigator/internal/approvals"
 	"github.com/grainulation/irrigator/internal/checkpoint"
 	"github.com/grainulation/irrigator/internal/clock"
@@ -23,6 +24,7 @@ import (
 	"github.com/grainulation/irrigator/internal/managed"
 	"github.com/grainulation/irrigator/internal/messaging"
 	"github.com/grainulation/irrigator/internal/model"
+	"github.com/grainulation/irrigator/internal/phasetrace"
 	"github.com/grainulation/irrigator/internal/provider"
 	"github.com/grainulation/irrigator/internal/session"
 	"github.com/grainulation/irrigator/internal/sizing"
@@ -146,6 +148,14 @@ func Run(root string, opts model.Options) (code int, runErr error) {
 	if serr != nil {
 		return 1, serr
 	}
+	// nil unless the run opted into admission control, so the default costs nothing.
+	governor, gerr := admission.LoadRun(root, admission.ActiveSpec, opts.Workers, admission.Deps{DiagnoseLimit: diagnoseLimit})
+	if gerr != nil {
+		return 1, gerr
+	}
+	if governor != nil {
+		defer governor.Close()
+	}
 	previous, err := checkpoint.ReadState(root)
 	if err != nil {
 		return 1, err
@@ -242,6 +252,7 @@ func Run(root string, opts model.Options) (code int, runErr error) {
 			}
 		default:
 		}
+		phasetrace.Emit("ctl", "pass_start", "")
 		// Stamp the checkpoint before this pass reads it: a publication that
 		// races the pass then still ends the next wait.
 		watch.Due(clock.ActiveClock.Now())
@@ -263,6 +274,7 @@ func Run(root string, opts model.Options) (code int, runErr error) {
 			return 1, err
 		}
 		notifier.Observe(s)
+		phasetrace.Emit("ctl", "pass_reads_done", "")
 		var snapshot strings.Builder
 		snapshot.WriteString(s.Control)
 		for _, spec := range s.AllTasks() {
@@ -289,17 +301,10 @@ func Run(root string, opts model.Options) (code int, runErr error) {
 		for id := range children {
 			busy[id] = true
 		}
-		for _, spec := range s.AllTasks() {
-			lease, e := checkpoint.FileLock(filepath.Join(root, "cells", spec.ID, "lease"), true)
-			if errors.Is(e, syscall.EWOULDBLOCK) {
-				busy[spec.ID] = true
-				continue
-			}
-			if e != nil {
-				return 1, e
-			}
-			checkpoint.Unlock(lease)
+		if e := markHeldLeases(root, s.AllTasks(), busy); e != nil {
+			return 1, e
 		}
+		phasetrace.Emit("ctl", "pass_probe_done", "")
 		// A worker can commit and release its lease between reconcile and this
 		// scan. Reconcile that response before declaring the run drained/blocked.
 		needsReconcile := false
@@ -311,12 +316,15 @@ func Run(root string, opts model.Options) (code int, runErr error) {
 		if needsReconcile {
 			continue
 		}
+		var admissionHold admission.HoldKind
+		var minPoll time.Duration
 		if s.Control != "run" {
 			if len(busy) == 0 {
 				return 0, nil
 			}
 		} else {
 			var ready []string
+			canBegin := managed.SnapshotAdmissionCheck(s)
 			for _, spec := range s.AllTasks() {
 				if s.Tasks[spec.ID].Status != "pending" || s.Tasks[spec.ID].CancelRequested || busy[spec.ID] {
 					continue
@@ -325,14 +333,31 @@ func Run(root string, opts model.Options) (code int, runErr error) {
 				for _, d := range spec.DependsOn {
 					ok = ok && s.Tasks[d].Status == "verified"
 				}
-				if ok && managed.ManagedCanBegin(s, s.Tasks[spec.ID]) == nil {
+				if ok && canBegin(s.Tasks[spec.ID]) == nil {
 					ready = append(ready, spec.ID)
 				}
 			}
 			orderReady(s, ready)
 			slots := opts.Workers - len(busy)
+			slotsBeforeSizing := slots
 			if sizing != nil {
 				ready, slots = sizing.Admit(s, ready, busy, slots, opts.Budget)
+			}
+			if governor != nil {
+				if slots < slotsBeforeSizing {
+					governor.NoteSizing(len(busy)+slots, "plan sizing caps concurrency")
+				} else {
+					governor.NoteSizing(admission.Unlimited, "")
+				}
+			}
+			// dispatchable is everything the dependency, budget and sizing gates
+			// allow; ready is what the environment lets start right now. Without
+			// admission control they are the same list.
+			dispatchable := ready
+			if governor != nil {
+				var env admission.Envelope
+				ready, env = governor.Admit(s, dispatchable, busy, slots)
+				admissionHold, minPoll = env.Hold, env.MinPoll
 			}
 			for _, id := range ready {
 				if slots <= 0 {
@@ -345,15 +370,18 @@ func Run(root string, opts model.Options) (code int, runErr error) {
 				}
 				attempt := s.Tasks[id].Attempt + 1
 				workerArgs := []string{"_worker", root, id, "--operation", s.Tasks[id].OperationID, "--timeout", opts.Timeout.String(), "--budget", strconv.FormatFloat(opts.Budget, 'f', -1, 64)}
+				phasetrace.Emit("ctl", "dispatch", id)
 				cmd, process, release, e := executor.Start(binary, root, s.RunID, id, attempt, workerArgs)
 				if e != nil {
 					return 1, e
 				}
+				phasetrace.Emit("ctl", "spawned", id)
 				child := &controllerChild{process: process, done: make(chan struct{}), attempt: attempt}
 				children[id] = child
 				ownedChildren[id] = child
 				commandflags.GoLabeled(func() {
 					child.err = cmd.Wait()
+					phasetrace.Emit("ctl", "reaped", id)
 					release()
 					close(child.done)
 					select {
@@ -362,7 +390,12 @@ func Run(root string, opts model.Options) (code int, runErr error) {
 					}
 				}, "irrigator.role", "worker-wait", "run.id", s.RunID, "task.id", id, "attempt", strconv.Itoa(attempt))
 			}
-			if len(busy) == 0 && len(ready) == 0 {
+			// Nothing running and nothing startable is "blocked", unless work is
+			// waiting only because the environment is holding admission: that is
+			// transient, so the run stays alive and resumes when the signal clears.
+			// A permanent hold is not.
+			held := len(dispatchable) > 0 && len(ready) == 0 && admissionHold != admission.HoldPermanent
+			if len(busy) == 0 && len(dispatchable) == 0 || len(busy) == 0 && len(ready) == 0 && !held {
 				complete := true
 				for _, row := range s.Tasks {
 					complete = complete && row.Status == "verified"
@@ -375,9 +408,10 @@ func Run(root string, opts model.Options) (code int, runErr error) {
 					s.Control = control
 					s.Event(control, "", nil)
 					if checkpoint.ManagedRun(s) && control == "blocked" {
+						canBegin := managed.SnapshotAdmissionCheck(s)
 						for id, row := range s.Tasks {
 							if row.Status == "pending" {
-								if err := managed.ManagedCanBegin(s, row); err != nil {
+								if err := canBegin(row); err != nil {
 									s.Event("budget_blocked", id, err.Error())
 								}
 							}
@@ -403,21 +437,64 @@ func Run(root string, opts model.Options) (code int, runErr error) {
 		}
 		// Local completions wake the scheduler immediately. Polling remains a
 		// recovery fallback for adopted workers and external control requests.
+		phasetrace.Emit("ctl", "wait_start", "")
+		watch.Refresh = controllerIdleRefresh
+		if minPoll > watch.Refresh {
+			// A sensor asked for slower polling, but polling is also how an external
+			// pause or cancel is noticed, and the control plane is never gated, so
+			// the request is honored only up to a bound.
+			watch.Refresh = min(minPoll, maxAdmissionPoll)
+		}
 		if waitForWork(clock.ActiveClock, &watch, wakeup, signals, func(now time.Time) {
 			if ui != nil {
-				ui.Render(s, now)
+				ui.RenderIdle(s, now)
 			}
 		}) {
 			if err := checkpoint.SetControl(root, "pause"); err != nil {
 				return 1, err
 			}
 		}
+		phasetrace.Emit("ctl", "wait_end", "")
 	}
+}
+
+// diagnoseLimit adapts provider.DiagnoseLimit for the admission rate-limit
+// sensor, which must not import the provider package.
+func diagnoseLimit(root, task string, attempt int, now time.Time) (admission.LimitEvidence, error) {
+	advisory, err := provider.DiagnoseLimit(root, task, attempt, now)
+	if err != nil {
+		return admission.LimitEvidence{}, err
+	}
+	return admission.LimitEvidence{Limited: advisory.Status != "no_limit_evidence", ResetAt: advisory.ResetAt}, nil
+}
+
+// markHeldLeases marks in busy every task whose cell lease is held by any
+// process, including workers this controller did not start. The recovery-
+// authority check is one walk for the whole run: repeating it inside every lease
+// probe cost about a second per pass at 10,000 tasks. Workers still make their
+// own full check when they take their lease.
+func markHeldLeases(root string, tasks []model.Task, busy map[string]bool) error {
+	if err := checkpoint.RejectRecoveryRun(root); err != nil {
+		return err
+	}
+	for _, spec := range tasks {
+		held, err := checkpoint.ProbeLease(filepath.Join(root, "cells", spec.ID, "lease"))
+		if err != nil {
+			return err
+		}
+		if held {
+			busy[spec.ID] = true
+		}
+	}
+	return nil
 }
 
 // controllerIdleRefresh bounds how long an idle controller goes without a full
 // scheduling pass when nothing wakes it.
 const controllerIdleRefresh = time.Second
+
+// maxAdmissionPoll is the longest an admission sensor can stretch the idle poll.
+const maxAdmissionPoll = 5 * time.Second
 
 // waitForWork blocks between scheduling passes and reports whether a signal
 // ended the wait. A local child exit or a signal ends it at once. Otherwise it
@@ -457,7 +534,7 @@ type controllerChild struct {
 func controllerFailureDown(root string) error {
 	return (checkpoint.FileCheckpointStore{Root: root}).Update(context.Background(), checkpoint.CheckpointUpdateOptions{Nonblocking: true}, func(s *model.State) error {
 		if s.Control == "down" {
-			return nil
+			return checkpoint.ErrUnchanged
 		}
 		s.Control = "down"
 		s.Event("controller_failed", "", map[string]string{"action": "drain_owned_workers"})

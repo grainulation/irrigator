@@ -98,7 +98,19 @@ func RecoveryTransfer(source, bundle, target string, version int, hook func(stri
 			return e
 		}
 	}
-	state, e := checkpoint.ReadState(source)
+	sourceFiles, e := BackupInventory(source)
+	if e != nil {
+		return e
+	}
+	sourceRaw, e := checkpoint.BackupReadFile(filepath.Join(source, "state.json"), checkpoint.BackupFileLimit)
+	if e != nil {
+		return e
+	}
+	sourceLogical, e := expandBackupCheckpoint(sourceRaw, sourceFiles)
+	if e != nil {
+		return e
+	}
+	state, e := checkpoint.DecodeState(source, sourceLogical)
 	if e != nil {
 		return e
 	}
@@ -282,11 +294,15 @@ func RecoveryTransfer(source, bundle, target string, version int, hook func(stri
 		}
 		b := entry.Data
 		if entry.Path == "state.json" {
+			logical, expandErr := expandBackupCheckpoint(b, m.Files)
+			if expandErr != nil {
+				return expandErr
+			}
 			var migrated model.State
-			if e = json.Unmarshal(b, &migrated); e != nil {
+			if e = json.Unmarshal(logical, &migrated); e != nil {
 				return e
 			}
-			changed := version != migrated.Version
+			changed := version != migrated.Version || !bytes.Equal(logical, b)
 			migrated.Version = version
 			if version != m.StateVersion {
 				if migrated.Plan.APIVersion != model.GovernedPlanVersion {

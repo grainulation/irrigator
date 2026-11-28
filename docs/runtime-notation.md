@@ -1,6 +1,6 @@
 # Irrigator runtime notation
 
-This page is the plugin-facing reference for the notation the Irrigator CLI actually understands. It describes runtime behavior of the local Go executable (`irrigator`, version 1.0.0). The executable also provides a stdio MCP server (`irrigator mcp`, read-only unless started with `--allow-control`; see [mcp.md](mcp.md)). This page does not describe a hosted service or pricing; none exists for this plugin.
+This page is the plugin-facing reference for the notation the Irrigator CLI actually understands. It describes runtime behavior of the local Go executable (`irrigator`). The executable also provides a stdio MCP server (`irrigator mcp`, read-only unless started with `--allow-control`; see [mcp.md](mcp.md)). This page does not describe a hosted service or pricing; none exists for this plugin.
 
 The wire/compatibility names `swarm/v1`, `swarm.worker/v1`, `SWARM_*` and the saved-run filenames (for example `state.json`) are stable contracts, not stale product names. The product and executable are Irrigator.
 
@@ -20,7 +20,7 @@ Related references cover: swarm shapes, shape sizing, measured sizing, observer 
 - A, D and S are positive integers.
 - Two-dimensional `W×D` is shorthand for `W×D×1`: `2x5` is two chains of five, ten agents.
 - The maximum node count is `A × (1 + S + S² + … + S^(D−1))`. When S=1 this is `A×D`.
-- The runtime shape bound is 1024 nodes, checked at each step so it cannot overflow.
+- The runtime shape bound is 10000 nodes, checked at each step so it cannot overflow.
 - The maximum is an upper bound, not a promise. A limit of S permits fewer children. Always say whether the run targets the fully populated tree or a smaller realized graph.
 
 | Shape | Roots | Levels | Max children | Maximum agents |
@@ -33,7 +33,7 @@ Related references cover: swarm shapes, shape sizing, measured sizing, observer 
 | 3x3x3 | 3 | 3 | 3 | 39 |
 | **25x5x2** | 25 | 5 | 2 | **775** |
 
-A 25x5x2 tree has 25, 50, 100, 200 and 400 agents at successive levels: **775 total, not 125**. A shape whose maximum exceeds 1024 (for example 2x10x2 = 2046) is outside the runtime bound.
+A 25x5x2 tree has 25, 50, 100, 200 and 400 agents at successive levels: **775 total, not 125**. A shape whose maximum exceeds 10000 (for example 2x14x2 = 32766) is outside the runtime bound.
 
 ## 2. Shape is not concurrency
 
@@ -52,7 +52,7 @@ A shape is shorthand. `apply` still needs an explicit plan (`api_version: "swarm
 | A roots | A root tasks with no parent |
 | S | `spawn: {"field":"children","max_children":S}` on every task allowed to spawn |
 | D levels | plan `max_depth` = D−1 (plan roots have depth 0; default 4, maximum 16) |
-| Maximum nodes | plan `max_tasks` large enough for the intended tree (default 128, maximum 1024) |
+| Maximum nodes | plan `max_tasks` large enough for the intended tree (default 128, maximum 10000) |
 | Leaves | tasks at the last level carry no `spawn` and must not spawn |
 
 For a full 25x5x2 tree: 25 roots, `max_children` 2, `max_depth` 4, `max_tasks` 775. The default `max_tasks` of 128 is far too small, so set it explicitly.

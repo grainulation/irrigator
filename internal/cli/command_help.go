@@ -64,6 +64,7 @@ func commands() map[string]commandEntry {
 	commands["otel"] = commandEntry{run: telemetry.OtelCLI, probe: []string{"export"}, subcommands: []string{"export"}}
 	commands["recover"] = commandEntry{run: backup.RecoveryCLI}
 	commands["backup"] = commandEntry{run: backup.BackupCLI, probe: []string{"create"}, subcommands: []string{"create", "verify", "restore"}}
+	commands["storage"] = commandEntry{run: checkpoint.StorageCLI, probe: []string{"migrate"}, subcommands: []string{"migrate"}}
 	commands["compose"] = commandEntry{run: composition.CompositionCLI}
 	commands["update-check"] = commandEntry{run: selfupdate.UpdateCheckCLI}
 	commands["profiles"] = commandEntry{run: executionProfilesCLI, probe: []string{"inspect"}, additionalProbes: [][]string{{"route"}, {"migrate-prepare"}, {"migrate-apply"}}, subcommands: []string{"inspect", "resolve", "route", "migrate-prepare", "migrate-apply"}}

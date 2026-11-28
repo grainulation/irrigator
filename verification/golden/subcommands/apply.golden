@@ -1,4 +1,6 @@
 Usage of apply:
+  -admission string
+    	opt-in environment-aware admission: unbounded (default), balanced, quiet, offpeak, or a config JSON file; saved as RUN/admission.json
   -backend string
     	required for legacy plans: mock, haiku (paid), or named provider
   -budget float

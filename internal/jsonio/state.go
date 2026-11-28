@@ -11,6 +11,11 @@ func AtomicJSON(path string, value any) error {
 	if err != nil {
 		return err
 	}
+	return AtomicBytes(path, data)
+}
+
+// AtomicBytes publishes exactly these bytes with file and directory durability.
+func AtomicBytes(path string, data []byte) error {
 	f, err := os.CreateTemp(filepath.Dir(path), ".checkpoint-*")
 	if err != nil {
 		return err

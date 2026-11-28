@@ -2,11 +2,14 @@ package checkpoint
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"path/filepath"
+	"reflect"
+	"time"
 
-	"github.com/grainulation/irrigator/internal/jsonio"
 	"github.com/grainulation/irrigator/internal/model"
+	"github.com/grainulation/irrigator/internal/phasetrace"
 	"github.com/grainulation/irrigator/internal/store"
 )
 
@@ -36,6 +39,10 @@ type CheckpointUpdateOptions struct {
 
 type FileCheckpointStore struct{ Root string }
 
+// ErrUnchanged aborts a reducer successfully without publishing, migrating or
+// recording an event. Reducers must decide this before mutating their snapshot.
+var ErrUnchanged = errors.New("checkpoint unchanged")
+
 func (f FileCheckpointStore) Read(ctx context.Context) (*model.State, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
@@ -57,21 +64,33 @@ func (f FileCheckpointStore) Update(ctx context.Context, options CheckpointUpdat
 	if err := RejectQuarantinedRun(f.Root); err != nil {
 		return err
 	}
+	phasetrace.Emit("ckpt", "upd_enter", "")
+	prewarmJournal(f.Root)
+	phasetrace.Emit("ckpt", "upd_prewarmed", "")
+	waitStart := time.Now()
 	lock, err := FileLock(filepath.Join(f.Root, "state.lock"), options.Nonblocking)
 	if err != nil {
 		return err
 	}
-	defer Unlock(lock)
+	acquired := time.Now()
+	phasetrace.Emit("ckpt", "upd_locked", "")
+	checkpointLockWaitNanos.Add(uint64(acquired.Sub(waitStart)))
+	defer func() {
+		checkpointLockHeldNanos.Add(uint64(time.Since(acquired)))
+		Unlock(lock)
+		phasetrace.Emit("ckpt", "upd_unlocked", "")
+	}()
 	if err := ctx.Err(); err != nil {
 		return err
 	}
 	if err := RejectQuarantinedRun(f.Root); err != nil {
 		return err
 	}
-	s, err := f.Read(ctx)
+	s, raw, base, err := readCheckpointForUpdate(f.Root)
 	if err != nil {
 		return err
 	}
+	phasetrace.Emit("ckpt", "upd_read", "")
 	if err := ValidateCampaignAuthority(f.Root, s.Plan, options.Nonblocking); err != nil {
 		return err
 	}
@@ -81,11 +100,40 @@ func (f FileCheckpointStore) Update(ctx context.Context, options CheckpointUpdat
 	if err := ctx.Err(); err != nil {
 		return err
 	}
+	// A journal read hands back its cache entry as an immutable base equal to s,
+	// so the before-image costs nothing; otherwise take a private copy.
+	before := base
+	if before == nil {
+		before = cloneCheckpoint(s)
+	}
+	sharedGuard := guardSharedState(f.Root, base)
 	if err := fn(s); err != nil {
+		if gerr := sharedGuard(); gerr != nil {
+			return gerr
+		}
+		if errors.Is(err, ErrUnchanged) {
+			checkpointNoops.Add(1)
+			return nil
+		}
+		return err
+	}
+	// The guard runs before anything that can return early: a callback that wrote
+	// through shared data has already changed the cache.
+	if err := sharedGuard(); err != nil {
 		return err
 	}
 	if err := ctx.Err(); err != nil {
 		return err
+	}
+	phasetrace.Emit("ckpt", "upd_callback_done", "")
+	// The journal diff reports an unchanged state as no patches and counts it as
+	// a no-op itself, so it needs no separate whole-state comparison first.
+	if isJournalCheckpoint(raw) {
+		return publishJournalUpdate(f.Root, raw, before, s)
+	}
+	if s.SchemaVersion >= model.CurrentSchemaVersion && reflect.DeepEqual(before, s) {
+		checkpointNoops.Add(1)
+		return nil
 	}
 	if s.SchemaVersion < model.CurrentSchemaVersion {
 		if err := store.EnsureBackup(filepath.Join(f.Root, "state.json")); err != nil {
@@ -93,5 +141,5 @@ func (f FileCheckpointStore) Update(ctx context.Context, options CheckpointUpdat
 		}
 		s.SchemaVersion = model.CurrentSchemaVersion
 	}
-	return jsonio.AtomicJSON(filepath.Join(f.Root, "state.json"), s)
+	return publishPlainCheckpoint(f.Root, s)
 }

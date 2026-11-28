@@ -45,11 +45,11 @@ func TestManagedInitPinsSymlinkWithoutExecuting(t *testing.T) {
 		t.Fatal("scaffold executed provider")
 	}
 	out := filepath.Join(dir, "plan.json")
-	if err := WriteManagedInitialPlan(out, "claude:sonnet"); err != nil {
+	if err := writeManagedInitialPlan(out, "claude:sonnet"); err != nil {
 		t.Fatal(err)
 	}
 	before, _ := os.ReadFile(out)
-	if err := WriteManagedInitialPlan(out, "claude:sonnet"); err == nil {
+	if err := writeManagedInitialPlan(out, "claude:sonnet"); err == nil {
 		t.Fatal("overwrote existing plan")
 	}
 	after, _ := os.ReadFile(out)

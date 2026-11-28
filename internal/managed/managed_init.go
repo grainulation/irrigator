@@ -21,11 +21,37 @@ import (
 // managedInitialPlan inspects a local executable but never launches it, probes
 // authentication, copies credentials, or grants a new executable to an old run.
 func managedInitialPlan(selector string) (model.Plan, error) {
+	return managedInitialPlanWithOptions(selector, "", "")
+}
+
+func managedInitialPlanWithOptions(selector, effort, preferences string) (model.Plan, error) {
 	var empty model.Plan
-	provider, modelName, ok := strings.Cut(selector, ":")
-	if !ok || (provider != "claude" && provider != "codex" && provider != "agy") || !launch.ExecutionModel.MatchString(modelName) {
-		return empty, errors.New("--profile must be claude:MODEL, codex:MODEL or agy:MODEL")
+	override, err := launch.ParseExecutionSelector(selector)
+	if err != nil {
+		return empty, fmt.Errorf("--profile must be claude:MODEL, codex:MODEL or agy:MODEL: %w", err)
 	}
+	override.Effort = effort
+	selection, err := launch.ResolveExecutionPreference(override, preferences, true)
+	if err != nil {
+		return empty, err
+	}
+	prefs, err := launch.ReadExecutionPreferences(preferences)
+	if err != nil {
+		return empty, err
+	}
+	if _, err := launch.FilterAllowedProfiles([]string{"default"}, prefs.IncludeProfiles, prefs.ExcludeProfiles); err != nil {
+		return empty, fmt.Errorf("single-profile scaffold: %w", err)
+	}
+	provider, modelName := selection.Preference.Provider, selection.Preference.Model
+	if provider == "ollama" {
+		return empty, errors.New("Ollama requires an explicit swarm/v6 catalog with endpoint and pinned model digest; see docs/managed-ollama.md")
+	}
+	effort = selection.Preference.Effort
+	if effort == "" {
+		effort = "low" // Preserve explicit CLI scaffolds when no effort was requested.
+	}
+	selection.Preference.Effort = effort
+	selectionJSON, _ := json.Marshal(selection)
 	found, err := exec.LookPath(provider)
 	if err != nil {
 		return empty, fmt.Errorf("%s executable not found on PATH; install and authenticate that CLI first: %w", provider, err)
@@ -58,12 +84,12 @@ func managedInitialPlan(selector string) (model.Plan, error) {
 	if n > launch.ExecutionExecutableLimit {
 		return empty, errors.New("provider executable exceeds 512 MiB limit")
 	}
-	profile := model.ExecutionProfile{Instance: "local", Model: modelName, Effort: "low", RequiredCapabilities: []string{"structured_strings", "outcome_certainty"}, Limits: model.ExecutionLimits{InputBytes: 65536, OutputBytes: 65536}, Tools: []string{}, OperationBudgetUSD: "0.25"}
+	profile := model.ExecutionProfile{Instance: "local", Model: modelName, Effort: effort, RequiredCapabilities: []string{"structured_strings", "outcome_certainty"}, Limits: model.ExecutionLimits{InputBytes: 65536, OutputBytes: 65536}, Tools: []string{}, OperationBudgetUSD: "0.25"}
 	if provider == "claude" && (strings.Contains(modelName, "sonnet") || strings.Contains(modelName, "opus")) {
 		profile.TimeoutSeconds = 600
 	}
 	catalog := model.ExecutionCatalog{Schema: launch.ExecutionCatalogSchema, Adapters: map[string]model.ExecutionAdapter{provider: {Kind: provider + "_cli", Protocol: model.ProtocolVersion, Command: []string{executable}, ExecutableSHA256: hex.EncodeToString(hash.Sum(nil))}}, Instances: map[string]model.ExecutionInstance{"local": {Adapter: provider, CredentialRefs: []model.ExecutionCredentialRef{{Kind: "host_session", Name: provider}}}}, Profiles: map[string]model.ExecutionProfile{"default": profile}, DefaultProfile: "default"}
-	p := model.Plan{APIVersion: launch.UnknownCostPlanVersion, Name: "First managed Irrigator run", MaxTasks: 1, TurnShape: &model.TurnShape{Roots: 1, MainTurns: 1, HelpersPerTurn: 0}, Execution: &model.ManagedExecutionPlan{Catalog: catalog, AllowedProfiles: []string{"default"}, CostPolicy: "track", RunBudgetUSD: "0.25"}, Tasks: []model.Task{{ID: "ready", Profile: "default", Prompt: "Return the word ready in answer.", Requires: []string{"answer"}, Equals: map[string]string{"answer": "ready"}, Turn: &model.TurnIdentity{AgentID: "ready", Role: "main", Index: 1}}}}
+	p := model.Plan{APIVersion: launch.UnknownCostPlanVersion, Name: "First managed Irrigator run", Context: map[string]string{"execution_selection": string(selectionJSON)}, MaxTasks: 1, TurnShape: &model.TurnShape{Roots: 1, MainTurns: 1, HelpersPerTurn: 0}, Execution: &model.ManagedExecutionPlan{Catalog: catalog, AllowedProfiles: []string{"default"}, CostPolicy: "track", RunBudgetUSD: "0.25"}, Tasks: []model.Task{{ID: "ready", Profile: "default", Prompt: "Return the word ready in answer.", Requires: []string{"answer"}, Equals: map[string]string{"answer": "ready"}, Turn: &model.TurnIdentity{AgentID: "ready", Role: "main", Index: 1}}}}
 	if err := checkpoint.Validate(p); err != nil {
 		return empty, err
 	}
@@ -75,8 +101,14 @@ func managedInitialPlan(selector string) (model.Plan, error) {
 	return p, nil
 }
 
-func WriteManagedInitialPlan(out, selector string) error {
-	p, err := managedInitialPlan(selector)
+func writeManagedInitialPlan(out, selector string) error {
+	return WriteManagedInitialPlanWithOptions(out, selector, "", "")
+}
+
+// WriteManagedInitialPlanWithOptions resolves explicit or launcher preferences
+// into a new pinned plan; it never probes authentication or executes a provider.
+func WriteManagedInitialPlanWithOptions(out, selector, effort, preferences string) error {
+	p, err := managedInitialPlanWithOptions(selector, effort, preferences)
 	if err != nil {
 		return err
 	}
@@ -87,6 +119,7 @@ func WriteManagedInitialPlan(out, selector string) error {
 	if err := localfs.WriteNew(out, append(data, '\n')); err != nil {
 		return err
 	}
-	fmt.Printf("Created %s for %s. Cost tracking only; warning threshold USD %s; provider per-operation limit USD %s where supported. No provider call or authentication check performed. Review the plan before apply.\n", out, selector, p.Execution.RunBudgetUSD, p.Execution.Catalog.Profiles["default"].OperationBudgetUSD)
+	selected := p.Execution.Catalog.Profiles["default"]
+	fmt.Printf("Created %s for %s, effort %s. Cost tracking only; warning threshold USD %s; provider per-operation limit USD %s where supported. No provider call or authentication check performed. Review the plan before apply.\n", out, p.Execution.Catalog.Instances[selected.Instance].Adapter+":"+selected.Model, selected.Effort, p.Execution.RunBudgetUSD, selected.OperationBudgetUSD)
 	return nil
 }

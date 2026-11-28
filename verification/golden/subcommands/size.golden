@@ -1,10 +1,12 @@
 Usage of size:
   -backend string
-    	backend assumed for tasks without a provider (reservation estimate) (default "haiku")
+    	explicit backend for tasks without a provider; no Claude assumption (reservation estimate)
   -budget float
     	per-call budget USD used for the reservation estimate (default 0.25)
   -json
     	JSON report
+  -preferences string
+    	execution preference JSON for an explicit reservation route
   -shape string
     	AxDxS ownership shape (or WxD) to size without a PLAN
   -sizing string

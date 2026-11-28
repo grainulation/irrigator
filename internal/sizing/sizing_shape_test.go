@@ -21,15 +21,15 @@ func TestShapeNodeCounts(t *testing.T) {
 }
 
 func TestShapeRejections(t *testing.T) {
-	for _, in := range []string{"", "5", "0x1x1", "1x0x1", "1x1x0", "-1x2x2", "2x-3", "1x17x1", "1x2x1025", "1025x1x1", "2x10x2", "9223372036854775808x1x1", "99999999999x99999999999x99999999", "1x2x3x4", "axbxc", "+2x2", "2.5x2"} {
+	for _, in := range []string{"", "5", "0x1x1", "1x0x1", "1x1x0", "-1x2x2", "2x-3", "1x17x1", "1x2x10000", "10001x1x1", "2x14x2", "9223372036854775808x1x1", "99999999999x99999999999x99999999", "1x2x3x4", "axbxc", "+2x2", "2.5x2"} {
 		if _, err := ParseShape(in); err == nil {
 			t.Fatalf("%q accepted", in)
 		}
 	}
-	if _, err := ParseShape("1x11x2"); err == nil { // 2047 nodes
+	if _, err := ParseShape("1x14x2"); err == nil { // 16383 nodes
 		t.Fatal("excess nodes accepted")
 	}
-	if _, err := ParseShape("1x10x2"); err != nil { // 1023 nodes
+	if _, err := ParseShape("1x13x2"); err != nil { // 8191 nodes
 		t.Fatal(err)
 	}
 }

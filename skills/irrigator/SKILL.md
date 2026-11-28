@@ -67,11 +67,11 @@ Command names in this workflow are the real CLI: `init`, `demo`, `review`, `sess
 
 Use **A×D×S** (or `AxDxS`): A root agents, D total levels **including** roots, at most S children per node. The coordinator is excluded. `W×D` means `W×D×1`.
 
-- Maximum nodes = A × (1 + S + … + S^(D−1)); with S=1 this is A×D. `2x5` = 10, `10x2x9` = 100, `25x5x2` = **775**, not 125. The runtime bound is 1024 nodes and D ≤ 16.
+- Maximum nodes = A × (1 + S + … + S^(D−1)); with S=1 this is A×D. `2x5` = 10, `10x2x9` = 100, `25x5x2` = **775**, not 125. The runtime bound is 10000 nodes and D ≤ 16.
 - A shape is a ceiling, not a promise of expansion and not an instruction to fill every slot.
 - `--workers` is separate (1..128). Roots do not set it. Waiting ancestors do not occupy worker capacity. Never infer a speedup from worker count.
 - Preview a shape with no provider calls: `irrigator size --shape AxDxS --sizing FILE --budget USD --backend NAME [--json]`. `PLAN` and `--shape` are mutually exclusive. Depth is ownership depth, not the dependency critical path. Read `feasible`, `full_expansion_within_budget` and `full_expansion_meets_reliability_floor` separately.
-- Expand a shape into an explicit plan: A root tasks, `spawn.max_children` = S on eligible nodes, `max_depth` = D−1 (roots are depth 0), `max_tasks` sized to the intended graph (defaults 128/4, maximums 1024/16). Leaves must not spawn. A static task list does not demonstrate agent spawning; recursive tests need real child manifests from the agents.
+- Expand a shape into an explicit plan: A root tasks, `spawn.max_children` = S on eligible nodes, `max_depth` = D−1 (roots are depth 0), `max_tasks` sized to the intended graph (defaults 128/4, maximums 10000/16). Leaves must not spawn. A static task list does not demonstrate agent spawning; recursive tests need real child manifests from the agents.
 - Declare `observer_shape` (`roots`, `levels`, `max_children`) when the structure is known. It is read-only provenance and grants no rights. Validation rejects an initially invalid shape at plan load (non-positive or oversized values, `roots` not equal to the root task count, `levels`-1 above the effective `max_depth`, a root without `spawn` when levels > 1, or a root spawn cap above `max_children`). Only a persisted or revised actual topology that later diverges from a valid shape makes the observer report capacity unknown. Unknown capacity is allowed only with a stated reason.
 
 ## 3. Public run and task metadata is part of the plan
@@ -89,7 +89,7 @@ Before any paid launch, verify and record:
 1. **Exact source identity.** The plan file path and content you will pass, and any input files it relies on, read from their exact absolute paths. Confirm they exist, are non-empty and readable. Do not substitute a similar file, a summary, or memory. If an input cannot be read from its authorized path, report that and stop.
 2. **Plan validity:** `irrigator plan PLAN` (add `--json` to see structure). Plan validation rejects cycles, missing dependencies, unsafe IDs and invalid limits.
 3. **Unique new run directory.** `apply` and `prepare` do not overwrite. Check for duplicate running operations on the same run. A matching `--run` for `deliver` resumes.
-4. **Provider availability:** `doctor` for Haiku. Absolute executable paths for named providers. Never claim a login was verified.
+4. **Provider selection and availability:** follow `docs/provider-selection.md`. Retain a supplied launcher provider/model/effort; do not guess the model or silently use Claude/Haiku/low effort. `agents` reports discovery; `doctor` reports selected-route passive readiness separately from model entitlement and generation evidence. Named providers need their own preflight. Discovery never opts a provider into multi-model routing.
 5. **Output paths** are unique and inside the intended directory.
 6. **Free dry run first** where possible: `--backend mock`, `prepare`, `size`.
 7. **Concurrency and budget statement** (next section).

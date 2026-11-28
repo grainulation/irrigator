@@ -18,7 +18,7 @@ const (
 
 func obsEffMaxTasks(p model.Plan) int {
 	if p.MaxTasks == 0 {
-		return 128
+		return model.DefaultGraphTasks
 	}
 	return p.MaxTasks
 }

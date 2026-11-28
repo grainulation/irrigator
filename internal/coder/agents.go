@@ -76,10 +76,10 @@ func agySettings() string {
 
 // launch holds what one agent run needs.
 type launch struct {
-	agent, model, prompt, worktree, gitCommonDir string
-	addDirs                                      []string
-	budgetUSD                                    float64
-	seconds                                      int
+	agent, model, effort, prompt, worktree, gitCommonDir string
+	addDirs                                              []string
+	budgetUSD                                            float64
+	seconds                                              int
 }
 
 // agentArgs returns the executable and arguments for one agent run in the
@@ -89,6 +89,9 @@ func agentArgs(l launch) (string, []string, error) {
 	case "claude":
 		args := []string{"-p", l.prompt, "--model", l.model, "--output-format", "stream-json", "--verbose",
 			"--max-budget-usd", fmt.Sprintf("%.2f", l.budgetUSD), "--permission-mode", "acceptEdits", "--setting-sources", ""}
+		if l.effort != "" {
+			args = append(args, "--effort", l.effort)
+		}
 		for _, d := range l.addDirs {
 			args = append(args, "--add-dir", d)
 		}
@@ -98,6 +101,9 @@ func agentArgs(l launch) (string, []string, error) {
 			"-c", `approval_policy="never"`}
 		if l.model != "" {
 			args = append(args, "--model", l.model)
+		}
+		if l.effort != "" {
+			args = append(args, "-c", "model_reasoning_effort="+strconv.Quote(l.effort))
 		}
 		// A worktree's git data lives in the main repository; the sandbox must
 		// allow writing it or the agent cannot commit.

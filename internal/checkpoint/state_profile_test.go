@@ -8,7 +8,7 @@ import (
 	"github.com/grainulation/irrigator/internal/model"
 )
 
-func TestProfileWriteStateNoopWorkers(t *testing.T) {
+func TestProfileCheckpointEventUpdates(t *testing.T) {
 	root := fixture(t, task("a", 0), task("b", 0), task("c", 0), task("d", 0), task("e", 0))
 
 	const iterations = 50
@@ -37,8 +37,7 @@ func TestProfileWriteStateNoopWorkers(t *testing.T) {
 	t.Logf("  p90: %v", p90)
 	t.Logf("  p99: %v", p99)
 
-	// Decision gate verification: On local NVMe/SSD, p99 is well within safe interactive bounds (<50ms).
-	// If p99 were >200ms or event storming was observed, event-sourcing (append-only log + periodic compaction)
-	// would be mandatory. Current writeState latency demonstrates rewriting state.json with 2x fsync is NOT
-	// a blocker for agentic workflows when calls take seconds, but append-friendly designs are kept in mind.
+	// This small-fixture diagnostic does not establish large-plan performance.
+	// Deterministic no-op assertions and the bounded scale harness cover that
+	// separate scope; elapsed-time budgets belong to declared benchmark hardware.
 }

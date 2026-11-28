@@ -10,7 +10,7 @@ import (
 	"github.com/grainulation/irrigator/internal/launch"
 )
 
-const BackupFileLimit = 16 << 20
+const BackupFileLimit = stateReadLimit
 const BackupQuarantine = "RESTORE_QUARANTINE.json"
 
 func BackupReadFile(path string, limit int64) ([]byte, error) {

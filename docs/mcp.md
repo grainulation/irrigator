@@ -7,7 +7,7 @@ same internal functions as the CLI; it does not shell out to `irrigator` for
 status, logs, review, validation, retry or approvals.
 
 ```
-irrigator mcp [--runs DIR]... [--workspace DIR] [--allow-control] [--canonical-names]
+irrigator mcp [--runs DIR]... [--workspace DIR] [--allow-control] [--canonical-names] [--profile PROFILE]
 ```
 
 | Flag | Meaning |
@@ -16,6 +16,28 @@ irrigator mcp [--runs DIR]... [--workspace DIR] [--allow-control] [--canonical-n
 | `--workspace DIR` | Git repository used by review tools, and the base for relative run, workspace and plan paths. Default: the current directory. |
 | `--allow-control` | Also register the tools that change a run. Off by default. |
 | `--canonical-names` | Select the verb/object naming preview. Legacy names remain the default; this flag changes names, not permissions. |
+| `--profile` | Select `legacy` (default), `inspection`, `execution` or `delivery`. Inventories are fixed at startup; profiles do not implicitly grant control. |
+
+### Focused profiles and lifecycle controls
+
+The default `legacy` inventory preserves the existing ten inspection tools and
+fifteen tools with `--allow-control`. Explicit `inspection` exposes those ten
+read-only tools even if `--allow-control` was supplied. Explicit `execution`
+requires `--allow-control` and exposes fifteen tools: the eight core inspection
+tools, the five existing controls, plus fenced `cancel_cell` and `stop_run`.
+The two branch/document review tools move to the optional `delivery` profile.
+
+`delivery` exposes seven inspection tools, or nine with `--allow-control`:
+`list_runs`, `run_status`, `run_logs`, `inspect_cell`, `delivery_summary`,
+`review_list`, `inspect_review`, `assemble_delivery` and `check_delivery`.
+The last two require control. They only operate on an already completed,
+fully verified graph. Assembly never starts workers or an acceptance command;
+checking only runs the explicitly supplied local checker. Neither submits
+anything externally. A checker command may itself have external effects.
+
+`--canonical-names` applies independently to each inventory; it never adds aliases.
+For request identities, candidate fences and interruption behavior, see
+[MCP lifecycle](mcp-lifecycle.md).
 
 Every tool that takes a `run` also accepts an explicit run directory path, so
 `--runs` is optional. stdout carries the protocol; the server writes nothing else

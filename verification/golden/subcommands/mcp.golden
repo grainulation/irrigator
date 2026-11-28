@@ -1,8 +1,10 @@
 Usage of mcp:
   -allow-control
-    	also register tools that change runs: apply, pause, resume, retry_cell, decide_approval
+    	register the selected profile's explicit run or delivery mutations
   -canonical-names
     	advertise the versioned verb_object naming preview instead of legacy names
+  -profile string
+    	tool inventory: legacy, inspection, execution or delivery (default "legacy")
   -runs value
     	directory whose subdirectories are runs (repeatable)
   -workspace string

@@ -29,6 +29,7 @@ Start with [your first run](first-run.md): mock workers, your own plan, an optio
 - [Workflow composition](workflow-composition.md): pinned reusable graphs and typed artifacts.
 - [Execution profiles](execution-profiles.md): providers, models, authority, and budgets.
 - [Plan sizing](sizing.md): task graph sizing, estimation, and validation before launch.
+- [Environment-aware admission](admission.md): power, thermal and network aware admission, with hold, ramp and operator override.
 - [Swarm entrypoint](swarm-entrypoint.md): execution entrypoints and graph admission.
 - [Scheduling order](scheduling-order.md): deterministic graph topological sorting and dependencies.
 - [Child normalization](child-normalization.md): canonical checkpoint representation for spawned tasks.

@@ -2,11 +2,12 @@
 
 `irrigator code` runs coding agents on your repository, one task per cell, each
 in its own git worktree. Each cell lands as a branch you review with
-[`irrigator review`](local-review.md). The agent can be Claude Code (`claude`,
-the default), Codex (`codex`) or Antigravity (`agy`).
+[`irrigator review`](local-review.md). The agent can be Claude Code (`claude`), Codex (`codex`) or Antigravity (`agy`).
+It comes from an explicit `--agent` or [launcher preferences](provider-selection.md);
+Irrigator does not select Claude merely because no agent was supplied.
 
 ```sh
-irrigator code --repo /path/to/repo --task 'docs=Fix the typos in README.md' \
+irrigator code --agent codex --repo /path/to/repo --task 'docs=Fix the typos in README.md' \
   --task 'tests=Add a unit test for parse()' --verify 'tests=go test ./...'
 irrigator review list --workspace /path/to/repo --base main
 ```
@@ -54,11 +55,18 @@ same machine. The repository must contain the base branch.
 | Codex | `codex` | `codex` CLI | Codex's configured default |
 | Antigravity | `agy` | `agy` CLI | agy's configured default |
 
+The default-model column applies after explicitly choosing that agent without
+model metadata. A supplied matching launcher model and effort are retained.
+For example, a launcher-selected Codex model with high effort stays high in
+both the saved plan and child arguments. An explicit provider change never
+carries another provider's model or effort into it.
+
 ## Options
 
 ```sh
 irrigator code --repo DIR --task ID=PROMPT [--task ID=PROMPT ...]
-  [--agent claude|codex|agy] [--model M] [--base main]
+  [--agent claude|codex|agy] [--model M] [--effort low|medium|high]
+  [--preferences FILE] [--base main]
   [--verify ID=COMMAND] [--sandbox-verify] [--depends ID=DEP[,DEP]]
   [--add-dir DIR] [--seed-ignored RELPATH[,RELPATH]] [--continue-from RUNID]
   [--worktrees DIR] [--name NAME] [--run DIR] [--workers 2]

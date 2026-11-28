@@ -1,4 +1,6 @@
 Usage of resume:
+  -admission string
+    	opt-in environment-aware admission: unbounded (default), balanced, quiet, offpeak, or a config JSON file; saved as RUN/admission.json
   -budget float
     	alias for --call-budget (per call, not graph-wide) (default 0.25)
   -call-budget float

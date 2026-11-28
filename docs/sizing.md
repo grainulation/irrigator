@@ -47,7 +47,7 @@ Budget and reliability are checked before any fallback.
 | Expected cost > budget estimate | `feasible=false`, `chosen_n=0`, shortfall reported |
 | Reliability < floor even at N=1 | `feasible=false`, `chosen_n=0` |
 | No service-time data, safety passes | N=1, no speed claim |
-| More than 1024 remaining tasks | refused (`chosen_n=0`); unmodelled |
+| More than 10000 remaining tasks | refused (`chosen_n=0`); unmodelled |
 | Dependency cycle | N=1 conservative (safety already passed) |
 | Reservation capacity 0 | no task admitted |
 
@@ -72,7 +72,7 @@ No PLAN is needed; `size PLAN` still works. PLAN and `--shape` are mutually excl
 - `A` = root agents, `D` = TOTAL ownership levels including roots (at most 16), `S` = maximum children per node. ASCII `x` or `×`. `W×D` means `W×D×1`.
 - The coordinator is excluded. Workers/concurrency are separate from nodes.
 - `max_nodes = A * sum(S^k, k=0..D-1)`; with S=1 this is `A*D`. Examples: 1x1x1 = 1, 2x5 = 10, 25x5x2 = 775.
-- Components must be positive integers. The bound is 1024 nodes, checked at every step so it cannot overflow. A single component above 1024 (for example `1x1x1025`, reported as max children exceeding 1024) is also rejected.
+- Components must be positive integers. The bound is 10000 nodes, checked at every step so it cannot overflow. A single component above 10000 (for example `1x1x10001`, reported as max children exceeding 10000) is also rejected.
 - The maximum is an upper bound, not a promised expansion.
 
 Output: shape, max_nodes, levels, roots, max_children, a cost range from roots-only to full expansion (from calibrated `defaults`, retry applied), predicted workers (modelled, unconstrained), recommended workers (limited by reservation slots for `--backend`, with `--budget` as the per-call cap), and uncertainty.

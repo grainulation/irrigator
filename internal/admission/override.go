@@ -1,0 +1,87 @@
+package admission
+
+import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"fmt"
+	"os"
+)
+
+// override lets an operator throttle or hold a run by hand: it reads
+// RUN/admission-override.json on each sample. A missing file means no opinion;
+// a file that exists but cannot be read or parsed fails closed, so a typo in a
+// hold request is visible instead of silently ignored. Fields that are absent
+// are no opinion.
+type override struct{ name, path string }
+
+// newOverride returns the override sensor for the file at path.
+func newOverride(path string) *override { return &override{name: "override", path: path} }
+
+// newOverrideNamed returns a sensor with the same file format under another name,
+// for an external hook such as an off-peak or carbon signal.
+func newOverrideNamed(name, path string) *override { return &override{name: name, path: path} }
+
+func (o *override) sensorName() string { return o.name }
+
+type overrideFile struct {
+	Hold           *string `json:"hold"` // none, transient or permanent
+	MaxLocalSlots  *int    `json:"max_local_slots"`
+	MaxRemoteSlots *int    `json:"max_remote_slots"`
+	AllowRemote    *bool   `json:"allow_remote"`
+	MaxTier        *string `json:"max_tier"` // minimal, reduced or full: the largest model tier that may start
+	Reason         string  `json:"reason"`
+}
+
+func (o *override) sample(_ context.Context, _ runSnapshot) Reading {
+	r := OpenReading(o.sensorName())
+	raw, err := os.ReadFile(o.path)
+	if os.IsNotExist(err) {
+		return r
+	}
+	if err != nil {
+		r.probe, r.probeErr = probeFailed, err.Error()
+		return r
+	}
+	var f overrideFile
+	dec := json.NewDecoder(bytes.NewReader(raw))
+	dec.DisallowUnknownFields()
+	if err = dec.Decode(&f); err != nil {
+		r.probe, r.probeErr = probeFailed, "invalid override file: "+err.Error()
+		return r
+	}
+	r.severity, r.Reason = hard, f.Reason
+	if r.Reason == "" {
+		r.Reason = "operator override"
+	}
+	if f.Hold != nil {
+		switch *f.Hold {
+		case "none":
+		case "transient":
+			r.hold = HoldTransient
+		case "permanent":
+			r.hold = HoldPermanent
+		default:
+			r.probe, r.probeErr = probeFailed, fmt.Sprintf("override hold %q must be none, transient or permanent", *f.Hold)
+			return r
+		}
+	}
+	if f.MaxLocalSlots != nil && *f.MaxLocalSlots >= 0 {
+		r.MaxLocalSlots = *f.MaxLocalSlots
+	}
+	if f.MaxRemoteSlots != nil && *f.MaxRemoteSlots >= 0 {
+		r.maxRemoteSlots = *f.MaxRemoteSlots
+	}
+	if f.AllowRemote != nil {
+		r.allowRemote = *f.AllowRemote
+	}
+	if f.MaxTier != nil {
+		t, err := parseTier(*f.MaxTier)
+		if err != nil {
+			r.probe, r.probeErr = probeFailed, err.Error()
+			return r
+		}
+		r.modelTier = t
+	}
+	return r
+}

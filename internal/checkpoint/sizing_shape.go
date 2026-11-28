@@ -3,13 +3,15 @@ package checkpoint
 import (
 	"errors"
 	"fmt"
+
+	"github.com/grainulation/irrigator/internal/model"
 )
 
 // MaxShapeNodes bounds a swarm shape. Shape is the repo's A×D×S swarm shorthand: A root agents, D TOTAL ownership
 // levels including roots, S maximum children per node. The coordinator is not
 // counted; workers/concurrency are a separate quantity. The maximum is an
 // upper bound, never a promised expansion.
-const MaxShapeNodes = 1024
+const MaxShapeNodes = model.MaxGraphTasks
 const MaxShapeDepth = 16
 
 type Shape struct{ Roots, Levels, MaxChildren int }

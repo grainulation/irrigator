@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"github.com/grainulation/irrigator/internal/commandflags"
+	executionlaunch "github.com/grainulation/irrigator/internal/launch"
 	"github.com/grainulation/irrigator/internal/model"
 )
 
@@ -37,9 +38,9 @@ func (m *multi) String() string     { return strings.Join(*m, ",") }
 func (m *multi) Set(v string) error { *m = append(*m, v); return nil }
 
 type workerOptions struct {
-	agent, repo, base, model, worktrees, continueFrom string
-	addDirs, seedIgnored                              multi
-	noTTY                                             bool
+	agent, repo, base, model, effort, worktrees, continueFrom string
+	addDirs, seedIgnored                                      multi
+	noTTY                                                     bool
 }
 
 // WorkerCLI is the hidden `_code-worker` command: one swarm.worker/v1 request on
@@ -52,10 +53,13 @@ func runWorker(args []string, stdin io.Reader, stdout, stderr io.Writer) (int, e
 	var o workerOptions
 	fs := flag.NewFlagSet("_code-worker", flag.ContinueOnError)
 	fs.SetOutput(stderr)
-	fs.StringVar(&o.agent, "agent", "claude", "coding agent: claude, codex or agy")
+	// Retain the hidden worker default for already admitted legacy commands.
+	// New CodeCLI plans always record an explicitly resolved --agent.
+	fs.StringVar(&o.agent, "agent", "claude", "coding agent recorded by the plan; legacy default claude")
 	fs.StringVar(&o.repo, "repo", "", "path of the git repository")
 	fs.StringVar(&o.base, "base", "main", "branch or commit new cell branches start from")
 	fs.StringVar(&o.model, "model", "", "agent model (default: sonnet for claude, the agent's own default otherwise)")
+	fs.StringVar(&o.effort, "effort", "", "explicit validated reasoning effort")
 	fs.StringVar(&o.worktrees, "worktrees", "", "worktree root (default: irrigator-worktrees beside the repo)")
 	fs.Var(&o.addDirs, "add-dir", "extra directory the agent may read, outside the worktree (repeatable)")
 	fs.Var(&o.seedIgnored, "seed-ignored", "comma-separated gitignored relative paths to seed into the worktree")
@@ -148,6 +152,9 @@ func work(o workerOptions, req model.WorkRequest, p *progress) map[string]any {
 	if _, _, err := agentArgs(launch{agent: o.agent}); err != nil {
 		return outcome("not_started", map[string]any{"error": err.Error()})
 	}
+	if o.effort != "" && !executionlaunch.ExecutionEffortSupported(o.agent, o.effort) {
+		return outcome("not_started", map[string]any{"error": "unsupported coding worker effort; no fallback applied"})
+	}
 	run8 := req.RunID
 	if run8 == "" {
 		run8 = "run"
@@ -198,7 +205,7 @@ func work(o workerOptions, req model.WorkRequest, p *progress) map[string]any {
 		timeoutMS = 1800000
 	}
 	seconds := math.Max(1, float64(timeoutMS)/1000-30)
-	bin, args, _ := agentArgs(launch{agent: o.agent, model: o.model, prompt: promptFor(req, worktree, branch, o.base, previous),
+	bin, args, _ := agentArgs(launch{agent: o.agent, model: o.model, effort: o.effort, prompt: promptFor(req, worktree, branch, o.base, previous),
 		worktree: worktree, gitCommonDir: commonDir, addDirs: o.addDirs, budgetUSD: budget, seconds: int(seconds)})
 
 	modelNote := o.model

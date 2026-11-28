@@ -178,8 +178,9 @@ attempts also save their exact `.input.json` request.
 `codex_cli` uses the installed Codex executable and its existing host login.
 Pin the real executable file and its SHA256, not a shell wrapper or a symlink.
 The instance credential reference is `{"kind":"host_session","name":"codex"}`;
-no API key is required or copied. The current adapter accepts `low` effort and
-empty tools only. A model such as `gpt-6-luna` remains a requested selector;
+no API key is required or copied. The adapter accepts `low`, `medium` or `high` effort and empty tools. The selected
+effort is passed explicitly; the adapter never silently lowers it. Model-specific
+support still requires provider preflight. A model such as `gpt-6-luna` remains a requested selector;
 account availability and actual model identity are not inferred from the name.
 
 Codex plans must use `api_version: "swarm/v4"` and
@@ -372,3 +373,20 @@ Do not put account logins or real project prompts into public CI. Authenticated
 vendor canaries require a separately configured runner and spending authority.
 
 Command providers can optionally run in a container; see [Container sandbox](sandbox.md).
+
+## Launcher preferences and profile opt-ins
+
+New managed scaffolds can use [execution preferences](provider-selection.md):
+`init --managed --preferences FILE --out NEWPLAN` inherits the supplied launcher
+provider, canonical model and supported effort. An explicit `--profile` or
+`--effort` takes precedence. Missing metadata requires a selection; the runtime
+does not infer the active conversation model from an MCP client name.
+
+`profiles route PLAN --policy FILE --include-profiles primary,reviewer
+--exclude-profiles disabled --multimodel --out NEWPLAN` narrows the existing
+`allowed_profiles` set. These flags never add executable bindings or change an
+active run. New launcher-selected single-model plans need explicit `--multimodel`
+(or saved multi-model opt-in) before routing tasks to several profiles. Existing
+explicit role-policy workflows remain valid. Every routed task must remain in
+the narrowed allowed set; excluding its profile fails instead of silently
+rerouting it. Newly discovered providers never become opted in automatically.

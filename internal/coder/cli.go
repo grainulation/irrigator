@@ -14,16 +14,18 @@ import (
 	"time"
 
 	"github.com/grainulation/irrigator/internal/commandflags"
+	executionlaunch "github.com/grainulation/irrigator/internal/launch"
 )
 
 var cellID = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$`)
 
 // planOptions describes a plan of coding cells.
 type planOptions struct {
-	agent, repo, base, model, worktrees, name, continueFrom, run string
-	tasks, verify, depends, addDirs, seedIgnored                 []string
-	executable                                                   string // absolute path of the irrigator binary that runs the cells
-	sandboxVerify                                                bool
+	agent, repo, base, model, effort, worktrees, name, continueFrom, run string
+	selectionJSON                                                        string
+	tasks, verify, depends, addDirs, seedIgnored                         []string
+	executable                                                           string // absolute path of the irrigator binary that runs the cells
+	sandboxVerify                                                        bool
 }
 
 // buildPlan returns a swarm/v1 plan whose cells each run Options.Agent in its
@@ -69,6 +71,9 @@ func buildPlan(o planOptions) (map[string]any, error) {
 		tasks[id]["depends_on"], tasks[id]["input_fields"] = deps, fields
 	}
 	context := map[string]string{}
+	if o.selectionJSON != "" {
+		context["execution_selection"] = o.selectionJSON
+	}
 	for _, spec := range o.verify {
 		id, command, ok := strings.Cut(spec, "=")
 		if !ok || tasks[id] == nil || strings.TrimSpace(command) == "" {
@@ -103,6 +108,9 @@ func buildPlan(o planOptions) (map[string]any, error) {
 	command := []string{o.executable, "_code-worker", "--agent", o.agent, "--repo", repo, "--base", o.base}
 	if o.model != "" {
 		command = append(command, "--model", o.model)
+	}
+	if o.effort != "" {
+		command = append(command, "--effort", o.effort)
 	}
 	if o.worktrees != "" {
 		w, err := filepath.Abs(o.worktrees)
@@ -157,15 +165,17 @@ func CodeCLI(args []string, apply applyFunc) (int, error) {
 	}
 	var o planOptions
 	var tasks, verify, depends, addDirs, seedIgnored multi
-	var run, timeout, out string
+	var run, timeout, out, preferences string
 	var workers int
 	var budget float64
 	var planOnly bool
 	fs := flag.NewFlagSet("code", flag.ContinueOnError)
-	fs.StringVar(&o.agent, "agent", "claude", "coding agent: claude, codex or agy")
+	fs.StringVar(&o.agent, "agent", "", "coding agent: claude, codex or agy; otherwise use launcher preferences")
 	fs.StringVar(&o.repo, "repo", ".", "git repository the agents change")
 	fs.StringVar(&o.base, "base", "main", "branch or commit each cell branch starts from")
-	fs.StringVar(&o.model, "model", "", "agent model (default: sonnet for claude, the agent's own default otherwise)")
+	fs.StringVar(&o.model, "model", "", "agent model; inherits matching launcher preference, otherwise explicit agent default")
+	fs.StringVar(&o.effort, "effort", "", "validated reasoning effort; inherits matching launcher preference")
+	fs.StringVar(&preferences, "preferences", "", "execution preference JSON; otherwise IRRIGATOR_EXECUTION_PREFERENCES")
 	fs.Var(&tasks, "task", "one coding cell as ID=PROMPT; repeat for more")
 	fs.Var(&verify, "verify", "ID=COMMAND run in ID's worktree after the agent finishes; non-zero fails the cell")
 	fs.Var(&depends, "depends", "ID=DEP[,DEP]: run ID after DEP and show it DEP's summary")
@@ -187,6 +197,17 @@ func CodeCLI(args []string, apply applyFunc) (int, error) {
 	if fs.NArg() > 0 {
 		return 2, fmt.Errorf("unexpected argument %q; give tasks with --task ID=PROMPT", fs.Arg(0))
 	}
+	selection, err := executionlaunch.ResolveExecutionPreference(executionlaunch.ExecutionPreference{Provider: o.agent, Model: o.model, Effort: o.effort}, preferences, false)
+	if err != nil {
+		return 2, err
+	}
+	o.agent, o.model, o.effort = selection.Preference.Provider, selection.Preference.Model, selection.Preference.Effort
+	if !slices.Contains(agents, o.agent) {
+		return 2, errors.New("coding cells require claude, codex or agy; use a managed catalog for local completion models")
+	}
+	selectionBytes, _ := json.Marshal(selection)
+	o.selectionJSON = string(selectionBytes)
+	fmt.Fprintf(os.Stderr, "execution: %s model=%s effort=%s source=%s (requested identity; authentication and model access not verified)\n", o.agent, o.model, o.effort, selection.Source)
 	if !planOnly && run == "" {
 		run = filepath.Join("runs", "code-"+time.Now().UTC().Format("20060102-150405"))
 	}

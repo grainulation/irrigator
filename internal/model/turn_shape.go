@@ -2,12 +2,13 @@ package model
 
 import (
 	"errors"
+	"fmt"
 	"strconv"
 	"strings"
 )
 
 const TurnShapeVersion = "irrigator.turn-shape/v1"
-const maxTurnExecutions = 1024
+const maxTurnExecutions = MaxGraphTasks
 const MaxMainTurns = 16
 
 // TurnShape is distinct from the recursive Shape. Helpers are one-shot
@@ -82,11 +83,11 @@ func ReportTurnShape(shape TurnShape) (turnShapeReport, error) {
 		return bad("turn shape requires positive roots, 1..16 main turns and nonnegative helpers")
 	}
 	if shape.Roots > maxTurnExecutions/shape.MainTurns {
-		return bad("turn shape exceeds 1024 executions")
+		return bad(fmt.Sprintf("turn shape exceeds %d executions", maxTurnExecutions))
 	}
 	main := shape.Roots * shape.MainTurns
 	if shape.HelpersPerTurn > (maxTurnExecutions-main)/main {
-		return bad("turn shape exceeds 1024 executions")
+		return bad(fmt.Sprintf("turn shape exceeds %d executions", maxTurnExecutions))
 	}
 	helper := main * shape.HelpersPerTurn
 	return turnShapeReport{

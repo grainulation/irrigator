@@ -22,3 +22,10 @@ internal/clitest.Hooks.Fixtures      # extra fake subcommands (e.g. _protocol_fi
 
 # --- clock: interface satisfaction the checker does not see through the atomic delegate
 internal/clock.RealClock.After       # implements clock.Clock.After; callers reach it through the Clock interface (clockSource delegate), never by name
+
+# --- result types of deliberately exported functions: callers hold and use the value without naming its type
+internal/admission.Evaluator         # returned by LoadRun; the controller calls Admit, NoteSizing and Close on it without naming the type
+internal/checkpoint.TaskWatch        # returned by NewTaskWatch; the worker calls its methods without naming the type
+internal/delivery.CompletedResult    # result of AssembleCompletedRun and CheckCompletedDelivery; the MCP tools read its fields without naming the type
+internal/launch.ExecutionPreferences # result of ReadExecutionPreferences; managed init reads its fields without naming the type
+

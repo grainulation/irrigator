@@ -12,6 +12,7 @@ import (
 	"time"
 	"unsafe"
 
+	"github.com/grainulation/irrigator/internal/admission"
 	"github.com/grainulation/irrigator/internal/model"
 	"github.com/grainulation/irrigator/internal/provider"
 	"github.com/grainulation/irrigator/internal/terminalview"
@@ -30,7 +31,8 @@ type TerminalUI struct {
 	statusReports bool
 	lastStatus    string
 	// cellStatus is the last OSC record sent per cell, so only changes are sent.
-	cellStatus map[string]string
+	cellStatus   map[string]string
+	lastSnapshot *model.State
 	// Companion signals: title (OSC 2), progress bar (OSC 9;4) and desktop
 	// notifications (OSC 9 or 777). run is the last root report.
 	run           terminalview.ProgramStatus
@@ -39,6 +41,10 @@ type TerminalUI struct {
 	titlePushed   bool
 	notifyFlavor  string
 	notifications bool
+	// admissionLine is the admission badge, re-read at most once a second and
+	// only while the run's controller is alive.
+	admissionLine string
+	admissionAt   time.Time
 }
 
 func NewTerminalUI(out *os.File, root string) *TerminalUI {
@@ -76,10 +82,16 @@ func (u *TerminalUI) Render(s *model.State, now time.Time) {
 	if !u.last.IsZero() && now.Sub(u.last) < 120*time.Millisecond && s.Control == "run" {
 		return
 	}
+	u.lastSnapshot = s
 	u.last = now
 	// Leave one column unused: writing the final column may trigger auto-wrap.
 	width, height := terminalDimensions(u.out)
 	frame := terminalFrame(s, u.root, now.Sub(u.started), width, height)
+	if line := u.admissionBadge(now); line != "" && len(frame) > 0 {
+		// Directly under the header, so a throttled run is obvious at a glance.
+		badge := terminalClip(terminalSafe(line), width)
+		frame = append(frame[:1:1], append([]string{badge}, frame[1:]...)...)
+	}
 	if u.WatchOnly && len(frame) > 0 {
 		frame[len(frame)-1] = terminalClip("Ctrl-C stops watching; running work continues", width)
 	}
@@ -124,6 +136,25 @@ func (u *TerminalUI) Render(s *model.State, now time.Time) {
 	}
 	u.lines = len(frame)
 	fmt.Fprint(u.out, b.String())
+}
+
+// admissionBadge returns what limits admission, or "" when nothing does or the
+// controller is gone (a dead run must never look throttled).
+func (u *TerminalUI) admissionBadge(now time.Time) string {
+	if u.admissionAt.IsZero() || now.Sub(u.admissionAt) >= time.Second {
+		u.admissionLine, u.admissionAt = admission.LiveLine(u.root), now
+	}
+	return u.admissionLine
+}
+
+// RenderIdle refreshes elapsed time at most once per second while the controller
+// owns and reuses an unchanged snapshot. Render still captures every diagnostic
+// when a caller provides a changed state, even inside its frame throttle.
+func (u *TerminalUI) RenderIdle(s *model.State, now time.Time) {
+	if u == nil || (u.lastSnapshot == s && !u.last.IsZero() && now.Sub(u.last) < time.Second) {
+		return
+	}
+	u.Render(s, now)
 }
 
 // runSignals returns the title, progress bar and notification for a root
