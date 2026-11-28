@@ -1,8 +1,11 @@
 package checkpoint
 
 import (
+	"bytes"
+	"context"
 	"os"
 	"path/filepath"
+	"regexp"
 	"testing"
 
 	"github.com/grainulation/irrigator/internal/model"
@@ -95,5 +98,35 @@ func TestReviewJournalWarmCacheDoesNotConcealSnapshotCorruption(t *testing.T) {
 	}
 	if _, err := ReadState(root); err == nil {
 		t.Fatal("warm cache concealed snapshot corruption")
+	}
+}
+
+// A warm cache reuses a prefix only when it still describes the same snapshot. A
+// marker whose snapshot_sequence changed must go through the cold path, which
+// rejects it, instead of being accepted because the cached chain matches.
+func TestReviewJournalWarmCacheComparesSnapshotSequence(t *testing.T) {
+	root := journalFixture(t)
+	if err := (FileCheckpointStore{Root: root}).Update(context.Background(), CheckpointUpdateOptions{}, func(s *model.State) error {
+		s.Event("note", "", map[string]string{"k": "v"})
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := ReadState(root); err != nil {
+		t.Fatal(err)
+	}
+	h, raw := journalMarker(t, root)
+	if h.Storage.Sequence != 1 || h.Storage.SnapshotSequence != 0 {
+		t.Fatalf("unexpected fixture sequences %d/%d", h.Storage.Sequence, h.Storage.SnapshotSequence)
+	}
+	edited := regexp.MustCompile(`"snapshot_sequence":\s*0`).ReplaceAll(raw, []byte(`"snapshot_sequence": 1`))
+	if bytes.Equal(edited, raw) {
+		t.Fatal("marker has no snapshot_sequence to edit", string(raw))
+	}
+	if err := os.WriteFile(filepath.Join(root, "state.json"), edited, 0600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := ReadState(root); err == nil {
+		t.Fatal("warm cache accepted a marker whose snapshot_sequence changed")
 	}
 }

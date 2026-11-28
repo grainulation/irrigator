@@ -312,7 +312,7 @@ func decodeJournalInputs(root string, in journalInputs, sharePlan bool) (*model.
 		return s, prior.state, nil
 	}
 	var cached *journalCacheEntry
-	if ok && prior.head.Storage.Snapshot == h.Storage.Snapshot && prior.head.Storage.Journal == h.Storage.Journal && prior.head.Storage.Bytes <= h.Storage.Bytes &&
+	if ok && prior.head.Storage.Snapshot == h.Storage.Snapshot && prior.head.Storage.Journal == h.Storage.Journal && prior.head.Storage.Bytes <= h.Storage.Bytes && prior.head.Storage.SnapshotSequence == h.Storage.SnapshotSequence &&
 		prior.head.Storage.SnapshotSHA256 == h.Storage.SnapshotSHA256 && digestCheckpoint(log[:prior.head.Storage.Bytes]) == prior.prefixSHA256 {
 		cached = &prior
 	}
