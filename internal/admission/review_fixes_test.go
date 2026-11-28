@@ -290,3 +290,24 @@ func TestAnEvaluatorStartsNothingAfterClose(t *testing.T) {
 		t.Fatalf("a closed evaluator sampled its sensor %d times", n)
 	}
 }
+
+// A refresh stores its reading and ends its flight in one step. With two steps, a
+// watcher of the reading could see it while the entry still counted as in flight,
+// so the next due refresh was skipped and the old reading kept standing.
+func TestARefreshEndsItsFlightWhenItStoresTheReading(t *testing.T) {
+	clk := newFakeClock()
+	s := newFake("net")
+	e := NewEvaluator(Options{Clock: clk, Workers: 4, ExitDwell: time.Second, RampThrottle: time.Second}, Registration{Sensor: s, Policy: FailOpen, TTL: 10 * time.Second})
+	defer e.Close()
+	en := e.entries[0]
+	e.mu.Lock()
+	en.inflight, en.started = true, clk.Now()
+	e.mu.Unlock()
+	e.refresh(context.Background(), en, RunSnapshot{})
+	e.mu.Lock()
+	have, inflight := en.have, en.inflight
+	e.mu.Unlock()
+	if !have || inflight {
+		t.Fatalf("after a refresh: have=%v inflight=%v, want a stored reading and no flight", have, inflight)
+	}
+}

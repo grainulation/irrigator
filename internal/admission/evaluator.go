@@ -151,9 +151,6 @@ func (e *Evaluator) Evaluate(ctx context.Context, snap RunSnapshot) Envelope {
 			go func(en *entry) {
 				defer e.wg.Done()
 				e.refresh(e.life, en, snap)
-				e.mu.Lock()
-				en.inflight = false
-				e.mu.Unlock()
 			}(en)
 		}
 	}
@@ -205,9 +202,6 @@ func (e *Evaluator) warmUp(ctx context.Context, snap RunSnapshot) {
 				defer wg.Done()
 				defer e.wg.Done()
 				e.refresh(e.life, en, snap)
-				e.mu.Lock()
-				en.inflight = false
-				e.mu.Unlock()
 			}(en)
 		}
 		done := make(chan struct{})
@@ -225,7 +219,10 @@ func (e *Evaluator) refresh(ctx context.Context, en *entry, snap RunSnapshot) {
 	defer cancel()
 	r := sampleSafely(sctx, en.reg.Sensor, snap)
 	e.mu.Lock()
-	en.reading, en.at, en.have = r, e.opts.Clock.Now(), true
+	// The reading lands and the flight ends in one critical section: a reader that
+	// sees the new reading never also sees the entry still in flight, which would
+	// stop the next due refresh from starting.
+	en.reading, en.at, en.have, en.inflight = r, e.opts.Clock.Now(), true, false
 	e.mu.Unlock()
 }
 
