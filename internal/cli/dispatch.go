@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/grainulation/irrigator/internal/admission"
 	"github.com/grainulation/irrigator/internal/approvals"
 	"github.com/grainulation/irrigator/internal/checkpoint"
 	"github.com/grainulation/irrigator/internal/commandflags"
@@ -118,7 +119,7 @@ func runCommand(args []string) (int, error) {
 func builtinCLI(args []string) (int, error) {
 	command := args[0]
 	fs := flag.NewFlagSet(command, flag.ContinueOnError)
-	var root, out, dir, resultPath, backend, taskFilter, sizingPath, legacyUnbudgeted string
+	var root, out, dir, resultPath, backend, taskFilter, sizingPath, admissionSpec, legacyUnbudgeted string
 	var contextFiles checkpoint.ContextImportFlags
 	var managedInit bool
 	var initProfile, initEffort, preferences string
@@ -226,6 +227,7 @@ func builtinCLI(args []string) (int, error) {
 	if command == "apply" || command == "resume" {
 		fs.StringVar(&schedule, "schedule", "", "opt-in ready order: breadth (roots before descendants) or depth (default); omitted keeps the run's saved order")
 		fs.StringVar(&sizingPath, "sizing", "", "opt-in sizing.v1 JSON enforced at admission; saved as RUN/sizing.json")
+		fs.StringVar(&admissionSpec, "admission", "", "opt-in environment-aware admission: unbounded (default), balanced, quiet, offpeak, or a config JSON file; saved as RUN/admission.json")
 		fs.StringVar(&sessionRegistry, "session-registry", "", "absolute shared session registry v2 path (v1 migrates on next actual start; default ./.irrigator/current-session.json)")
 	}
 	if command == "retire" {
@@ -304,6 +306,7 @@ func builtinCLI(args []string) (int, error) {
 		return 2, schedErr
 	}
 	sizing.ActiveSizingPath = sizingPath
+	admission.ActiveSpec = admissionSpec
 	executor.ActiveExecutor = executorFlag
 	approvals.ActiveNotify = notifyFlags
 	if notifyFlags.Via != "" {

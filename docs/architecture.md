@@ -49,6 +49,7 @@ first, `cli` on top (it imports nearly every other package; nothing imports it e
 | 15 | [composition](../internal/composition/doc.go) | typed compositions compiled to plans | artifactstore, checkpoint, commandflags, jsonio, launch, model |
 | 16 | [observer](../internal/observer/doc.go) | shape, lifecycle and budget projections | checkpoint, jsonio, model |
 | 17 | [sizing](../internal/sizing/doc.go) | plan sizing and the admission gate | checkpoint, cost, jsonio, model |
+| 17a | [admission](../internal/admission/doc.go) | environment-aware admission envelopes: power, thermal, network, memory, disk, presence, off-peak, rate-limit and failure-rate sensors, operator override | checkpoint, clock, jsonio, model |
 | 18 | [backup](../internal/backup/doc.go) | run backup and recovery transfer | checkpoint, commandflags, jsonio, launch, managed, model |
 | 19 | [provider](../internal/provider/doc.go) | provider pool, migration, billing and cost statements | artifactstore, checkpoint, commandflags, cost, graph, jsonio, launch, localfs, managed, model, observer, providerenv |
 | 20 | [executor](../internal/executor/doc.go) | running one task attempt: executors, cleanup, cell transitions | artifactstore, checkpoint, clock, coder, commandflags, cost, graph, jsonio, launch, managed, messaging, model, provider, providerenv, terminalview |
@@ -59,11 +60,11 @@ first, `cli` on top (it imports nearly every other package; nothing imports it e
 | 25 | [branchreview](../internal/branchreview/doc.go) | branch and change review workflow | checkpoint, commandflags, jsonio, launch, localfs, messaging, review, reviewtui, session, terminalview, textsafe |
 | 26 | [gitcontract](../internal/gitcontract/doc.go) | git capture, quarantine and settle contracts | checkpoint, commandflags, jsonio, launch, localfs, session |
 | 27 | [selfupdate](../internal/selfupdate/doc.go) | signed update-manifest verification | commandflags, jsonio, launch |
-| 28 | [dashboard](../internal/dashboard/doc.go) | terminal dashboard and status presentation | executor, graph, model, provider, session, terminalview, textsafe |
-| 29 | [runops](../internal/runops/doc.go) | controller loop, scheduling, cancel/retry/resolve, inspect | approvals, artifactstore, checkpoint, clock, commandflags, dashboard, executor, graph, jsonio, launch, localfs, managed, messaging, model, provider, session, sizing |
+| 28 | [dashboard](../internal/dashboard/doc.go) | terminal dashboard and status presentation | admission, executor, graph, model, provider, session, terminalview, textsafe |
+| 29 | [runops](../internal/runops/doc.go) | controller loop, scheduling, cancel/retry/resolve, inspect | admission, approvals, artifactstore, checkpoint, clock, commandflags, dashboard, executor, graph, jsonio, launch, localfs, managed, messaging, model, provider, session, sizing |
 | 30 | [delivery](../internal/delivery/doc.go) | journaled delivery assembly and acceptance | artifactstore, checkpoint, graph, jsonio, launch, localfs, model, runops, textsafe |
 | 31 | [mcpserver](../internal/mcpserver/doc.go) | `irrigator mcp` over run state | approvals, branchreview, buildinfo, checkpoint, commandflags, dashboard, delivery, executor, jsonio, launch, localfs, model, provider, runops, session, textsafe |
-| 32 | [cli](../internal/cli/doc.go) | dispatch, help table, built-in commands, Main | approvals, backup, branchreview, buildinfo, campaign, checkpoint, coder, commandflags, composition, dashboard, debug, delivery, executor, gitcontract, graph, jsonio, launch, localfs, managed, mcpserver, messaging, model, provider, runops, selfupdate, session, sizing, telemetry, triage |
+| 32 | [cli](../internal/cli/doc.go) | dispatch, help table, built-in commands, Main | admission, approvals, backup, branchreview, buildinfo, campaign, checkpoint, coder, commandflags, composition, dashboard, debug, delivery, executor, gitcontract, graph, jsonio, launch, localfs, managed, mcpserver, messaging, model, provider, runops, selfupdate, session, sizing, telemetry, triage |
 | n/a | [coder](../internal/coder/doc.go) | `irrigator code` worktree coding cells and `_code-worker` | commandflags, jsonio, model |
 | n/a | [providerenv](../internal/providerenv/doc.go) | provider process environment policy | none |
 | n/a | [review](../internal/review/doc.go) | review snapshot primitives | localfs, textsafe |

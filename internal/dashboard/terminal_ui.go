@@ -12,6 +12,7 @@ import (
 	"time"
 	"unsafe"
 
+	"github.com/grainulation/irrigator/internal/admission"
 	"github.com/grainulation/irrigator/internal/model"
 	"github.com/grainulation/irrigator/internal/provider"
 	"github.com/grainulation/irrigator/internal/terminalview"
@@ -40,6 +41,10 @@ type TerminalUI struct {
 	titlePushed   bool
 	notifyFlavor  string
 	notifications bool
+	// admissionLine is the admission badge, re-read at most once a second and
+	// only while the run's controller is alive.
+	admissionLine string
+	admissionAt   time.Time
 }
 
 func NewTerminalUI(out *os.File, root string) *TerminalUI {
@@ -82,6 +87,11 @@ func (u *TerminalUI) Render(s *model.State, now time.Time) {
 	// Leave one column unused: writing the final column may trigger auto-wrap.
 	width, height := terminalDimensions(u.out)
 	frame := terminalFrame(s, u.root, now.Sub(u.started), width, height)
+	if line := u.admissionBadge(now); line != "" && len(frame) > 0 {
+		// Directly under the header, so a throttled run is obvious at a glance.
+		badge := terminalClip(terminalSafe(line), width)
+		frame = append(frame[:1:1], append([]string{badge}, frame[1:]...)...)
+	}
 	if u.WatchOnly && len(frame) > 0 {
 		frame[len(frame)-1] = terminalClip("Ctrl-C stops watching; running work continues", width)
 	}
@@ -126,6 +136,15 @@ func (u *TerminalUI) Render(s *model.State, now time.Time) {
 	}
 	u.lines = len(frame)
 	fmt.Fprint(u.out, b.String())
+}
+
+// admissionBadge returns what limits admission, or "" when nothing does or the
+// controller is gone (a dead run must never look throttled).
+func (u *TerminalUI) admissionBadge(now time.Time) string {
+	if u.admissionAt.IsZero() || now.Sub(u.admissionAt) >= time.Second {
+		u.admissionLine, u.admissionAt = admission.LiveLine(u.root), now
+	}
+	return u.admissionLine
 }
 
 // RenderIdle refreshes elapsed time at most once per second while the controller

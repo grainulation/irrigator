@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/grainulation/irrigator/internal/admission"
 	"github.com/grainulation/irrigator/internal/graph"
 	"github.com/grainulation/irrigator/internal/model"
 	"github.com/grainulation/irrigator/internal/provider"
@@ -26,6 +27,9 @@ func displayTo(out io.Writer, s *model.State, root string, limit int) {
 		}
 	}
 	fmt.Fprintf(out, "%s | %s | %s | revision %d | %d/%d verified | %s\n", filepath.Base(root), s.Backend, s.Control, s.GraphRevision, count, len(s.Tasks), provider.CostStatusText(s))
+	if line := admission.LiveLine(root); line != "" {
+		fmt.Fprintf(out, "  %s\n", textsafe.Terminal(line))
+	}
 	for _, p := range s.Proposals {
 		if graph.TerminalDecision(s, p.ID) == nil {
 			fmt.Fprintf(out, "  proposal %-22s queued; inspect with irrigator decisions\n", p.ID)

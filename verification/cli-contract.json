@@ -17,6 +17,12 @@
       "name": "apply",
       "flags": [
         {
+          "name": "admission",
+          "default": "",
+          "usage": "opt-in environment-aware admission: unbounded (default), balanced, quiet, offpeak, or a config JSON file; saved as RUN/admission.json",
+          "boolean": false
+        },
+        {
           "name": "backend",
           "default": "",
           "usage": "required for legacy plans: mock, haiku (paid), or named provider",
@@ -1245,6 +1251,12 @@
     {
       "name": "resume",
       "flags": [
+        {
+          "name": "admission",
+          "default": "",
+          "usage": "opt-in environment-aware admission: unbounded (default), balanced, quiet, offpeak, or a config JSON file; saved as RUN/admission.json",
+          "boolean": false
+        },
         {
           "name": "budget",
           "default": "0.25",

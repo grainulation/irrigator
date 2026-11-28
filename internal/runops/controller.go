@@ -12,6 +12,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/grainulation/irrigator/internal/admission"
 	"github.com/grainulation/irrigator/internal/approvals"
 	"github.com/grainulation/irrigator/internal/checkpoint"
 	"github.com/grainulation/irrigator/internal/clock"
@@ -146,6 +147,14 @@ func Run(root string, opts model.Options) (code int, runErr error) {
 	sizing, serr := sizing.LoadRunSizing(root, sizing.ActiveSizingPath)
 	if serr != nil {
 		return 1, serr
+	}
+	// nil unless the run opted into admission control, so the default costs nothing.
+	governor, gerr := admission.LoadRun(root, admission.ActiveSpec, opts.Workers, admission.Deps{DiagnoseLimit: diagnoseLimit})
+	if gerr != nil {
+		return 1, gerr
+	}
+	if governor != nil {
+		defer governor.Close()
 	}
 	previous, err := checkpoint.ReadState(root)
 	if err != nil {
@@ -307,6 +316,8 @@ func Run(root string, opts model.Options) (code int, runErr error) {
 		if needsReconcile {
 			continue
 		}
+		var admissionHold admission.HoldKind
+		var minPoll time.Duration
 		if s.Control != "run" {
 			if len(busy) == 0 {
 				return 0, nil
@@ -328,8 +339,25 @@ func Run(root string, opts model.Options) (code int, runErr error) {
 			}
 			orderReady(s, ready)
 			slots := opts.Workers - len(busy)
+			slotsBeforeSizing := slots
 			if sizing != nil {
 				ready, slots = sizing.Admit(s, ready, busy, slots, opts.Budget)
+			}
+			if governor != nil {
+				if slots < slotsBeforeSizing {
+					governor.NoteSizing(len(busy)+slots, "plan sizing caps concurrency")
+				} else {
+					governor.NoteSizing(admission.Unlimited, "")
+				}
+			}
+			// dispatchable is everything the dependency, budget and sizing gates
+			// allow; ready is what the environment lets start right now. Without
+			// admission control they are the same list.
+			dispatchable := ready
+			if governor != nil {
+				var env admission.Envelope
+				ready, env = governor.Admit(s, dispatchable, busy, slots)
+				admissionHold, minPoll = env.Hold, env.MinPoll
 			}
 			for _, id := range ready {
 				if slots <= 0 {
@@ -362,7 +390,12 @@ func Run(root string, opts model.Options) (code int, runErr error) {
 					}
 				}, "irrigator.role", "worker-wait", "run.id", s.RunID, "task.id", id, "attempt", strconv.Itoa(attempt))
 			}
-			if len(busy) == 0 && len(ready) == 0 {
+			// Nothing running and nothing startable is "blocked", unless work is
+			// waiting only because the environment is holding admission: that is
+			// transient, so the run stays alive and resumes when the signal clears.
+			// A permanent hold is not.
+			held := len(dispatchable) > 0 && len(ready) == 0 && admissionHold != admission.HoldPermanent
+			if len(busy) == 0 && len(dispatchable) == 0 || len(busy) == 0 && len(ready) == 0 && !held {
 				complete := true
 				for _, row := range s.Tasks {
 					complete = complete && row.Status == "verified"
@@ -405,6 +438,10 @@ func Run(root string, opts model.Options) (code int, runErr error) {
 		// Local completions wake the scheduler immediately. Polling remains a
 		// recovery fallback for adopted workers and external control requests.
 		phasetrace.Emit("ctl", "wait_start", "")
+		watch.Refresh = controllerIdleRefresh
+		if minPoll > watch.Refresh {
+			watch.Refresh = minPoll // a sensor asked for slower polling
+		}
 		if waitForWork(clock.ActiveClock, &watch, wakeup, signals, func(now time.Time) {
 			if ui != nil {
 				ui.RenderIdle(s, now)
@@ -416,6 +453,16 @@ func Run(root string, opts model.Options) (code int, runErr error) {
 		}
 		phasetrace.Emit("ctl", "wait_end", "")
 	}
+}
+
+// diagnoseLimit adapts provider.DiagnoseLimit for the admission rate-limit
+// sensor, which must not import the provider package.
+func diagnoseLimit(root, task string, attempt int, now time.Time) (admission.LimitEvidence, error) {
+	advisory, err := provider.DiagnoseLimit(root, task, attempt, now)
+	if err != nil {
+		return admission.LimitEvidence{}, err
+	}
+	return admission.LimitEvidence{Limited: advisory.Status != "no_limit_evidence", ResetAt: advisory.ResetAt}, nil
 }
 
 // markHeldLeases marks in busy every task whose cell lease is held by any
