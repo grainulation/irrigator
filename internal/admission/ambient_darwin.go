@@ -16,23 +16,23 @@ func runCmd(ctx context.Context, name string, args ...string) (string, error) {
 }
 
 // hostMemoryProbe reads the kernel memory pressure level and swap use.
-func hostMemoryProbe(ctx context.Context) (MemoryInfo, error) {
+func hostMemoryProbe(ctx context.Context) (memoryInfo, error) {
 	out, err := runCmd(ctx, "sysctl", "-n", "kern.memorystatus_vm_pressure_level")
 	if err != nil {
-		return MemoryInfo{}, err
+		return memoryInfo{}, err
 	}
-	info := MemoryInfo{PressureLevel: ParsePressureLevel(out), SwapUsedPct: -1}
+	info := memoryInfo{pressureLevel: parsePressureLevel(out), swapUsedPct: -1}
 	if swap, err := runCmd(ctx, "sysctl", "-n", "vm.swapusage"); err == nil {
-		info.SwapUsedPct = ParseSwapUsage(swap)
+		info.swapUsedPct = parseSwapUsage(swap)
 	}
 	return info, nil
 }
 
 // hostPresenceProbe reads the HID idle time with ioreg.
-func hostPresenceProbe(ctx context.Context) (PresenceInfo, error) {
+func hostPresenceProbe(ctx context.Context) (presenceInfo, error) {
 	out, err := runCmd(ctx, "ioreg", "-c", "IOHIDSystem")
 	if err != nil {
-		return PresenceInfo{}, err
+		return presenceInfo{}, err
 	}
-	return PresenceInfo{IdleSeconds: ParseHIDIdle(out)}, nil
+	return presenceInfo{idleSeconds: parseHIDIdle(out)}, nil
 }

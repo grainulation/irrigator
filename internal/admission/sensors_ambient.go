@@ -8,72 +8,74 @@ import (
 	"strings"
 	"syscall"
 	"time"
+
+	"github.com/grainulation/irrigator/internal/clock"
 )
 
-// MemoryInfo is what a memory probe learned. Unknown values are -1.
-type MemoryInfo struct {
-	// PressureLevel is the kernel's memory pressure: 1 normal, 2 warning, 4 critical.
-	PressureLevel int
-	SwapUsedPct   int
+// memoryInfo is what a memory probe learned. Unknown values are -1.
+type memoryInfo struct {
+	// pressureLevel is the kernel's memory pressure: 1 normal, 2 warning, 4 critical.
+	pressureLevel int
+	swapUsedPct   int
 }
 
-// MemoryProbe reads memory pressure and swap use.
-type MemoryProbe func(ctx context.Context) (MemoryInfo, error)
+// memoryProbe reads memory pressure and swap use.
+type memoryProbe func(ctx context.Context) (memoryInfo, error)
 
-// MemoryConfig sets what the memory sensor does. It reads a saturation signal,
+// memoryConfig sets what the memory sensor does. It reads a saturation signal,
 // the kernel's pressure level and swap use, and not CPU percentage: a busy CPU is
 // healthy, while a machine that is paging is not.
-type MemoryConfig struct {
+type memoryConfig struct {
 	WarnLocalSlots       int  `json:"warn_local_slots"`
 	CriticalHold         bool `json:"critical_hold"`
 	SwapUsedPercentLimit int  `json:"swap_used_percent_limit"` // 0 turns the swap rule off
 	SwapLocalSlots       int  `json:"swap_local_slots"`
 }
 
-// Memory limits local admission under memory pressure. Local models are what use
+// memory limits local admission under memory pressure. Local models are what use
 // the memory, so remote work is not limited unless pressure is critical.
-type Memory struct {
-	cfg   MemoryConfig
-	probe MemoryProbe
+type memory struct {
+	cfg   memoryConfig
+	probe memoryProbe
 }
 
-// NewMemory returns the sensor over probe.
-func NewMemory(cfg MemoryConfig, probe MemoryProbe) *Memory { return &Memory{cfg: cfg, probe: probe} }
+// newMemory returns the sensor over probe.
+func newMemory(cfg memoryConfig, probe memoryProbe) *memory { return &memory{cfg: cfg, probe: probe} }
 
-func (m *Memory) Name() string { return "memory" }
+func (m *memory) sensorName() string { return "memory" }
 
-func (m *Memory) Sample(ctx context.Context, _ RunSnapshot) Reading {
-	r := OpenReading(m.Name())
+func (m *memory) sample(ctx context.Context, _ runSnapshot) Reading {
+	r := OpenReading(m.sensorName())
 	info, err := m.probe(ctx)
 	if err != nil {
-		r.Probe, r.ProbeErr = ProbeFailed, err.Error()
+		r.probe, r.probeErr = probeFailed, err.Error()
 		return r
 	}
-	capLocal := func(slots int, why string, sev Severity) {
+	capLocal := func(slots int, why string, sev severity) {
 		if s := limit(slots); s < r.MaxLocalSlots {
-			r.MaxLocalSlots, r.Reason, r.Severity = s, why, sev
+			r.MaxLocalSlots, r.Reason, r.severity = s, why, sev
 		}
 	}
 	switch {
-	case info.PressureLevel >= 4 && m.cfg.CriticalHold:
-		r.Hold, r.Severity, r.Reason = HoldTransient, Hard, "memory pressure is critical"
+	case info.pressureLevel >= 4 && m.cfg.CriticalHold:
+		r.hold, r.severity, r.Reason = HoldTransient, hard, "memory pressure is critical"
 		return r
-	case info.PressureLevel >= 4:
-		capLocal(0, "memory pressure is critical", Hard)
-	case info.PressureLevel >= 2:
-		capLocal(m.cfg.WarnLocalSlots, "memory pressure is high", Soft)
+	case info.pressureLevel >= 4:
+		capLocal(0, "memory pressure is critical", hard)
+	case info.pressureLevel >= 2:
+		capLocal(m.cfg.WarnLocalSlots, "memory pressure is high", soft)
 	}
-	if m.cfg.SwapUsedPercentLimit > 0 && info.SwapUsedPct >= m.cfg.SwapUsedPercentLimit {
-		capLocal(m.cfg.SwapLocalSlots, fmt.Sprintf("swap is %d%% used", info.SwapUsedPct), Soft)
+	if m.cfg.SwapUsedPercentLimit > 0 && info.swapUsedPct >= m.cfg.SwapUsedPercentLimit {
+		capLocal(m.cfg.SwapLocalSlots, fmt.Sprintf("swap is %d%% used", info.swapUsedPct), soft)
 	}
 	return r
 }
 
 var swapUsage = regexp.MustCompile(`total = ([\d.]+)M\s+used = ([\d.]+)M`)
 
-// ParseSwapUsage reads `sysctl -n vm.swapusage` as a percentage, -1 when unknown
+// parseSwapUsage reads `sysctl -n vm.swapusage` as a percentage, -1 when unknown
 // and 0 when no swap is configured.
-func ParseSwapUsage(out string) int {
+func parseSwapUsage(out string) int {
 	m := swapUsage.FindStringSubmatch(out)
 	if m == nil {
 		return -1
@@ -89,8 +91,8 @@ func ParseSwapUsage(out string) int {
 	return int(used / total * 100)
 }
 
-// ParsePressureLevel reads `sysctl -n kern.memorystatus_vm_pressure_level`.
-func ParsePressureLevel(out string) int {
+// parsePressureLevel reads `sysctl -n kern.memorystatus_vm_pressure_level`.
+func parsePressureLevel(out string) int {
 	v, err := strconv.Atoi(strings.TrimSpace(out))
 	if err != nil {
 		return -1
@@ -98,14 +100,14 @@ func ParsePressureLevel(out string) int {
 	return v
 }
 
-// DiskInfo is the free space of the run's filesystem.
-type DiskInfo struct{ FreeBytes uint64 }
+// diskInfo is the free space of the run's filesystem.
+type diskInfo struct{ freeBytes uint64 }
 
-// DiskProbe reads free space.
-type DiskProbe func(ctx context.Context) (DiskInfo, error)
+// diskProbe reads free space.
+type diskProbe func(ctx context.Context) (diskInfo, error)
 
-// DiskConfig sets what the disk sensors do.
-type DiskConfig struct {
+// diskConfig sets what the disk sensors do.
+type diskConfig struct {
 	LowFreeMB          int `json:"low_free_mb"`
 	CriticalFreeMB     int `json:"critical_free_mb"`
 	LowLocalSlots      int `json:"low_local_slots"`
@@ -113,130 +115,130 @@ type DiskConfig struct {
 	LockWaitLocalSlots int `json:"lock_wait_local_slots"`
 }
 
-// Disk holds all new admission when the run's filesystem is nearly full, because
+// disk holds all new admission when the run's filesystem is nearly full, because
 // checkpoint commits and attempt logs would start failing, and limits local work
 // when it is getting low. It fails closed: if free space cannot be read, nothing
 // new is started.
-type Disk struct {
-	cfg   DiskConfig
-	probe DiskProbe
+type disk struct {
+	cfg   diskConfig
+	probe diskProbe
 }
 
-// NewDisk returns the sensor over probe.
-func NewDisk(cfg DiskConfig, probe DiskProbe) *Disk { return &Disk{cfg: cfg, probe: probe} }
+// newDisk returns the sensor over probe.
+func newDisk(cfg diskConfig, probe diskProbe) *disk { return &disk{cfg: cfg, probe: probe} }
 
-func (d *Disk) Name() string { return "disk" }
+func (d *disk) sensorName() string { return "disk" }
 
-func (d *Disk) Sample(ctx context.Context, _ RunSnapshot) Reading {
-	r := OpenReading(d.Name())
+func (d *disk) sample(ctx context.Context, _ runSnapshot) Reading {
+	r := OpenReading(d.sensorName())
 	info, err := d.probe(ctx)
 	if err != nil {
-		r.Probe, r.ProbeErr = ProbeFailed, err.Error()
+		r.probe, r.probeErr = probeFailed, err.Error()
 		return r
 	}
-	freeMB := int(info.FreeBytes >> 20)
+	freeMB := int(info.freeBytes >> 20)
 	switch {
 	case freeMB < d.cfg.CriticalFreeMB:
-		r.Hold, r.Severity = HoldTransient, Hard
+		r.hold, r.severity = HoldTransient, hard
 		r.Reason = fmt.Sprintf("%d MB free is below the %d MB critical floor", freeMB, d.cfg.CriticalFreeMB)
 	case freeMB < d.cfg.LowFreeMB:
-		r.MaxLocalSlots, r.Severity = limit(d.cfg.LowLocalSlots), Soft
+		r.MaxLocalSlots, r.severity = limit(d.cfg.LowLocalSlots), soft
 		r.Reason = fmt.Sprintf("%d MB free is below the %d MB low mark", freeMB, d.cfg.LowFreeMB)
 	}
 	return r
 }
 
-// DiskStatfs reads the free space available to unprivileged writers on the
+// diskStatfs reads the free space available to unprivileged writers on the
 // filesystem holding path.
-func DiskStatfs(path string) DiskProbe {
-	return func(context.Context) (DiskInfo, error) {
+func diskStatfs(path string) diskProbe {
+	return func(context.Context) (diskInfo, error) {
 		var st syscall.Statfs_t
 		if err := syscall.Statfs(path, &st); err != nil {
-			return DiskInfo{}, err
+			return diskInfo{}, err
 		}
-		return DiskInfo{FreeBytes: uint64(st.Bavail) * uint64(st.Bsize)}, nil //nolint:unconvert // field widths differ by platform
+		return diskInfo{freeBytes: uint64(st.Bavail) * uint64(st.Bsize)}, nil //nolint:unconvert // field widths differ by platform
 	}
 }
 
-// LockWaitProbe measures how long the checkpoint lock takes to become available
+// lockWaitFn measures how long the checkpoint lock takes to become available
 // to a reader, which is how long a committing writer is holding it.
-type LockWaitProbe func(ctx context.Context) (time.Duration, error)
+type lockWaitFn func(ctx context.Context) (time.Duration, error)
 
-// LockWait limits admission when the checkpoint lock is persistently contended:
+// lockWait limits admission when the checkpoint lock is persistently contended:
 // adding workers to a lock that is already the bottleneck only lengthens the
 // queue. It is off unless the config sets lock_wait_ms.
-type LockWait struct {
-	cfg   DiskConfig
-	probe LockWaitProbe
+type lockWait struct {
+	cfg   diskConfig
+	probe lockWaitFn
 }
 
-// NewLockWait returns the sensor over probe.
-func NewLockWait(cfg DiskConfig, probe LockWaitProbe) *LockWait {
-	return &LockWait{cfg: cfg, probe: probe}
+// newLockWait returns the sensor over probe.
+func newLockWait(cfg diskConfig, probe lockWaitFn) *lockWait {
+	return &lockWait{cfg: cfg, probe: probe}
 }
 
-func (l *LockWait) Name() string { return "lock-wait" }
+func (l *lockWait) sensorName() string { return "lock-wait" }
 
-func (l *LockWait) Sample(ctx context.Context, _ RunSnapshot) Reading {
-	r := OpenReading(l.Name())
+func (l *lockWait) sample(ctx context.Context, _ runSnapshot) Reading {
+	r := OpenReading(l.sensorName())
 	wait, err := l.probe(ctx)
 	if err != nil {
-		r.Probe, r.ProbeErr = ProbeFailed, err.Error()
+		r.probe, r.probeErr = probeFailed, err.Error()
 		return r
 	}
 	if int(wait/time.Millisecond) >= l.cfg.LockWaitMS {
 		s := limit(l.cfg.LockWaitLocalSlots)
-		r.MaxLocalSlots, r.MaxRemoteSlots, r.Severity = s, s, Soft
+		r.MaxLocalSlots, r.maxRemoteSlots, r.severity = s, s, soft
 		r.Reason = fmt.Sprintf("the checkpoint lock took %s to acquire", wait.Round(time.Millisecond))
 	}
 	return r
 }
 
-// PresenceInfo is how long the user has been idle. Unknown is -1.
-type PresenceInfo struct{ IdleSeconds float64 }
+// presenceInfo is how long the user has been idle. Unknown is -1.
+type presenceInfo struct{ idleSeconds float64 }
 
-// PresenceProbe reads the idle time.
-type PresenceProbe func(ctx context.Context) (PresenceInfo, error)
+// presenceProbe reads the idle time.
+type presenceProbe func(ctx context.Context) (presenceInfo, error)
 
-// PresenceConfig sets what the presence sensor does.
-type PresenceConfig struct {
+// presenceConfig sets what the presence sensor does.
+type presenceConfig struct {
 	ActiveWithinSeconds float64 `json:"active_within_seconds"`
 	ActiveLocalSlots    int     `json:"active_local_slots"`
 }
 
-// Presence yields softly while a person is using the machine, by limiting local
+// presence yields softly while a person is using the machine, by limiting local
 // work (the work that competes for the machine) for as long as there was input
 // within the active window. It fails open.
-type Presence struct {
-	cfg   PresenceConfig
-	probe PresenceProbe
+type presence struct {
+	cfg   presenceConfig
+	probe presenceProbe
 }
 
-// NewPresence returns the sensor over probe.
-func NewPresence(cfg PresenceConfig, probe PresenceProbe) *Presence {
-	return &Presence{cfg: cfg, probe: probe}
+// newPresence returns the sensor over probe.
+func newPresence(cfg presenceConfig, probe presenceProbe) *presence {
+	return &presence{cfg: cfg, probe: probe}
 }
 
-func (p *Presence) Name() string { return "presence" }
+func (p *presence) sensorName() string { return "presence" }
 
-func (p *Presence) Sample(ctx context.Context, _ RunSnapshot) Reading {
-	r := OpenReading(p.Name())
+func (p *presence) sample(ctx context.Context, _ runSnapshot) Reading {
+	r := OpenReading(p.sensorName())
 	info, err := p.probe(ctx)
 	if err != nil {
-		r.Probe, r.ProbeErr = ProbeFailed, err.Error()
+		r.probe, r.probeErr = probeFailed, err.Error()
 		return r
 	}
-	if info.IdleSeconds >= 0 && info.IdleSeconds < p.cfg.ActiveWithinSeconds {
-		r.MaxLocalSlots, r.Severity = limit(p.cfg.ActiveLocalSlots), Soft
-		r.Reason = fmt.Sprintf("the machine is in use (idle %.0fs)", info.IdleSeconds)
+	if info.idleSeconds >= 0 && info.idleSeconds < p.cfg.ActiveWithinSeconds {
+		r.MaxLocalSlots, r.severity = limit(p.cfg.ActiveLocalSlots), soft
+		r.Reason = fmt.Sprintf("the machine is in use (idle %.0fs)", info.idleSeconds)
 	}
 	return r
 }
 
 var hidIdle = regexp.MustCompile(`"HIDIdleTime"\s*=\s*(\d+)`)
 
-// ParseHIDIdle reads `ioreg -c IOHIDSystem` as seconds idle, -1 when absent.
-func ParseHIDIdle(out string) float64 {
+// parseHIDIdle reads `ioreg -c IOHIDSystem` as seconds idle, -1 when absent.
+func parseHIDIdle(out string) float64 {
 	m := hidIdle.FindStringSubmatch(out)
 	if m == nil {
 		return -1
@@ -245,9 +247,9 @@ func ParseHIDIdle(out string) float64 {
 	return ns / 1e9
 }
 
-// OffPeakConfig sets the off-peak window. Outside it, admission is limited: the
+// offPeakConfig sets the off-peak window. Outside it, admission is limited: the
 // run still makes progress, slowly, and speeds up inside the window.
-type OffPeakConfig struct {
+type offPeakConfig struct {
 	// Window is "HH:MM-HH:MM" in local time; it may wrap midnight ("22:00-07:00").
 	Window             string `json:"window"`
 	OutsideLocalSlots  int    `json:"outside_local_slots"`
@@ -260,8 +262,8 @@ type OffPeakConfig struct {
 
 var windowRe = regexp.MustCompile(`^(\d{2}):(\d{2})-(\d{2}):(\d{2})$`)
 
-// ParseWindow reads "HH:MM-HH:MM" into minutes since midnight.
-func ParseWindow(w string) (start, end int, err error) {
+// parseWindow reads "HH:MM-HH:MM" into minutes since midnight.
+func parseWindow(w string) (start, end int, err error) {
 	m := windowRe.FindStringSubmatch(w)
 	if m == nil {
 		return 0, 0, fmt.Errorf("window %q must look like 22:00-07:00", w)
@@ -286,8 +288,8 @@ func ParseWindow(w string) (start, end int, err error) {
 	return start, end, nil
 }
 
-// InWindow reports whether t falls inside the window, handling a wrap past midnight.
-func InWindow(t time.Time, start, end int) bool {
+// inWindow reports whether t falls inside the window, handling a wrap past midnight.
+func inWindow(t time.Time, start, end int) bool {
 	m := t.Hour()*60 + t.Minute()
 	if start < end {
 		return m >= start && m < end
@@ -295,31 +297,31 @@ func InWindow(t time.Time, start, end int) bool {
 	return m >= start || m < end
 }
 
-// OffPeak limits admission outside its time window. Time comes from the injected
+// offPeak limits admission outside its time window. Time comes from the injected
 // clock, so tests are deterministic.
-type OffPeak struct {
-	cfg        OffPeakConfig
+type offPeak struct {
+	cfg        offPeakConfig
 	start, end int
-	clk        interface{ Now() time.Time }
+	clk        clock.Clock
 }
 
-// NewOffPeak returns the sensor; the window must already be valid.
-func NewOffPeak(cfg OffPeakConfig, clk interface{ Now() time.Time }) (*OffPeak, error) {
-	start, end, err := ParseWindow(cfg.Window)
+// newOffPeak returns the sensor; the window must already be valid.
+func newOffPeak(cfg offPeakConfig, clk clock.Clock) (*offPeak, error) {
+	start, end, err := parseWindow(cfg.Window)
 	if err != nil {
 		return nil, err
 	}
-	return &OffPeak{cfg: cfg, start: start, end: end, clk: clk}, nil
+	return &offPeak{cfg: cfg, start: start, end: end, clk: clk}, nil
 }
 
-func (o *OffPeak) Name() string { return "offpeak" }
+func (o *offPeak) sensorName() string { return "offpeak" }
 
-func (o *OffPeak) Sample(context.Context, RunSnapshot) Reading {
-	r := OpenReading(o.Name())
-	if InWindow(o.clk.Now(), o.start, o.end) {
+func (o *offPeak) sample(context.Context, runSnapshot) Reading {
+	r := OpenReading(o.sensorName())
+	if inWindow(o.clk.Now(), o.start, o.end) {
 		return r
 	}
-	r.MaxLocalSlots, r.MaxRemoteSlots, r.Severity = limit(o.cfg.OutsideLocalSlots), limit(o.cfg.OutsideRemoteSlots), Soft
+	r.MaxLocalSlots, r.maxRemoteSlots, r.severity = limit(o.cfg.OutsideLocalSlots), limit(o.cfg.OutsideRemoteSlots), soft
 	r.Reason = "outside the off-peak window " + o.cfg.Window
 	return r
 }

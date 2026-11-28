@@ -7,31 +7,31 @@ import (
 	"github.com/grainulation/irrigator/internal/model"
 )
 
-// Classifier says whether a task's already-bound execution is local or remote.
+// classifier says whether a task's already-bound execution is local or remote.
 // It reads the binding and never writes it. The answer is memoized per binding,
 // because a large run has thousands of tasks but only a few distinct bindings.
-type Classifier struct {
+type classifier struct {
 	mu   sync.Mutex
-	memo map[string]Locality
+	memo map[string]locality
 }
 
-// NewClassifier returns an empty classifier.
-func NewClassifier() *Classifier { return &Classifier{memo: map[string]Locality{}} }
+// newClassifier returns an empty classifier.
+func newClassifier() *classifier { return &classifier{memo: map[string]locality{}} }
 
-// Locality classifies task id. mock and ollama_http bindings run on this
+// locality classifies task id. mock and ollama_http bindings run on this
 // machine; every other managed adapter (the hosted CLIs) is remote, and so is a
 // binding that cannot be resolved. A legacy run is remote only on the paid haiku
 // backend.
-func (c *Classifier) Locality(s *model.State, id string) Locality {
+func (c *classifier) locality(s *model.State, id string) locality {
 	row := s.Tasks[id]
 	if row == nil {
-		return Remote
+		return remote
 	}
 	if !checkpoint.ManagedRun(s) {
 		if s.Backend == "haiku" {
-			return Remote
+			return remote
 		}
-		return Local
+		return local
 	}
 	key := model.ManagedProfile(s.Plan, row.Spec) + "\x00" + row.BindingDigest
 	c.mu.Lock()
@@ -39,11 +39,11 @@ func (c *Classifier) Locality(s *model.State, id string) Locality {
 	if loc, ok := c.memo[key]; ok {
 		return loc
 	}
-	loc := Remote
+	loc := remote
 	if b, err := checkpoint.ManagedBinding(s, row); err == nil {
 		switch b.Adapter.Kind {
 		case "mock", "ollama_http":
-			loc = Local
+			loc = local
 		}
 	}
 	c.memo[key] = loc

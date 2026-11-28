@@ -7,115 +7,115 @@ import (
 	"strconv"
 )
 
-// PowerInfo is what a power probe learned. Unknown values are -1.
-type PowerInfo struct {
-	OnAC         bool
-	BatteryPct   int  // -1 when there is no battery or it is unknown
-	LowPowerMode bool // macOS Low Power Mode
-	// ThermalLimitPct is the share of full speed the CPU is allowed, 100 when
+// powerInfo is what a power probe learned. Unknown values are -1.
+type powerInfo struct {
+	onAC         bool
+	batteryPct   int  // -1 when there is no battery or it is unknown
+	lowPowerMode bool // macOS Low Power Mode
+	// thermalLimitPct is the share of full speed the CPU is allowed, 100 when
 	// not throttled, -1 when unknown.
-	ThermalLimitPct int
+	thermalLimitPct int
 }
 
-// PowerProbe reads the current power and thermal state.
-type PowerProbe func(ctx context.Context) (PowerInfo, error)
+// powerProbe reads the current power and thermal state.
+type powerProbe func(ctx context.Context) (powerInfo, error)
 
-// PowerThermal limits local admission on battery, low battery, Low Power Mode and
+// powerThermal limits local admission on battery, low battery, Low Power Mode and
 // thermal pressure. Everything it limits is local work except a battery that has
 // fallen below its floor, which holds all new admission until power returns.
-type PowerThermal struct {
-	cfg   PowerConfig
-	probe PowerProbe
+type powerThermal struct {
+	cfg   powerConfig
+	probe powerProbe
 }
 
-// NewPowerThermal returns the sensor over probe.
-func NewPowerThermal(cfg PowerConfig, probe PowerProbe) *PowerThermal {
-	return &PowerThermal{cfg: cfg, probe: probe}
+// newPowerThermal returns the sensor over probe.
+func newPowerThermal(cfg powerConfig, probe powerProbe) *powerThermal {
+	return &powerThermal{cfg: cfg, probe: probe}
 }
 
-func (p *PowerThermal) Name() string { return "power" }
+func (p *powerThermal) sensorName() string { return "power" }
 
-func (p *PowerThermal) Sample(ctx context.Context, _ RunSnapshot) Reading {
-	r := OpenReading(p.Name())
+func (p *powerThermal) sample(ctx context.Context, _ runSnapshot) Reading {
+	r := OpenReading(p.sensorName())
 	info, err := p.probe(ctx)
 	if err != nil {
-		r.Probe, r.ProbeErr = ProbeFailed, err.Error()
+		r.probe, r.probeErr = probeFailed, err.Error()
 		return r
 	}
-	capLocal := func(slots int, why string, sev Severity) {
+	capLocal := func(slots int, why string, sev severity) {
 		if s := limit(slots); s < r.MaxLocalSlots {
-			r.MaxLocalSlots, r.Reason, r.Severity = s, why, sev
+			r.MaxLocalSlots, r.Reason, r.severity = s, why, sev
 		}
 	}
-	if !info.OnAC && info.BatteryPct >= 0 && info.BatteryPct < p.cfg.BatteryFloorPercent {
-		r.Hold, r.Severity = HoldTransient, Hard
-		r.Reason = fmt.Sprintf("battery %d%% is below the %d%% floor", info.BatteryPct, p.cfg.BatteryFloorPercent)
+	if !info.onAC && info.batteryPct >= 0 && info.batteryPct < p.cfg.BatteryFloorPercent {
+		r.hold, r.severity = HoldTransient, hard
+		r.Reason = fmt.Sprintf("battery %d%% is below the %d%% floor", info.batteryPct, p.cfg.BatteryFloorPercent)
 		return r
 	}
 	switch {
-	case info.ThermalLimitPct >= 0 && info.ThermalLimitPct < 50:
+	case info.thermalLimitPct >= 0 && info.thermalLimitPct < 50:
 		if p.cfg.ThermalCriticalHold {
-			r.Hold, r.Severity = HoldTransient, Hard
-			r.Reason = fmt.Sprintf("thermal critical (CPU limited to %d%%)", info.ThermalLimitPct)
+			r.hold, r.severity = HoldTransient, hard
+			r.Reason = fmt.Sprintf("thermal critical (CPU limited to %d%%)", info.thermalLimitPct)
 			return r
 		}
-		capLocal(0, fmt.Sprintf("thermal critical (CPU limited to %d%%)", info.ThermalLimitPct), Hard)
+		capLocal(0, fmt.Sprintf("thermal critical (CPU limited to %d%%)", info.thermalLimitPct), hard)
 		capTier(&r, p.cfg.ThermalSeriousMaxTier) // at least as strict as serious
-	case info.ThermalLimitPct >= 0 && info.ThermalLimitPct < 80:
-		capLocal(p.cfg.ThermalSeriousLocalSlots, fmt.Sprintf("thermal serious (CPU limited to %d%%)", info.ThermalLimitPct), Soft)
+	case info.thermalLimitPct >= 0 && info.thermalLimitPct < 80:
+		capLocal(p.cfg.ThermalSeriousLocalSlots, fmt.Sprintf("thermal serious (CPU limited to %d%%)", info.thermalLimitPct), soft)
 		capTier(&r, p.cfg.ThermalSeriousMaxTier)
-	case info.ThermalLimitPct >= 0 && info.ThermalLimitPct < 100:
-		capLocal(p.cfg.ThermalFairLocalSlots, fmt.Sprintf("thermal fair (CPU limited to %d%%)", info.ThermalLimitPct), Soft)
+	case info.thermalLimitPct >= 0 && info.thermalLimitPct < 100:
+		capLocal(p.cfg.ThermalFairLocalSlots, fmt.Sprintf("thermal fair (CPU limited to %d%%)", info.thermalLimitPct), soft)
 	}
-	if info.LowPowerMode {
-		capLocal(p.cfg.LowPowerLocalSlots, "Low Power Mode is on", Soft)
+	if info.lowPowerMode {
+		capLocal(p.cfg.LowPowerLocalSlots, "Low Power Mode is on", soft)
 	}
-	if !info.OnAC {
-		capLocal(p.cfg.OnBatteryLocalSlots, "running on battery", Soft)
+	if !info.onAC {
+		capLocal(p.cfg.OnBatteryLocalSlots, "running on battery", soft)
 		capTier(&r, p.cfg.OnBatteryMaxTier)
 	}
 	return r
 }
 
-// NetworkInfo is what a network probe learned.
-type NetworkInfo struct {
-	Online  bool
-	Metered bool // a phone hotspot or similar
-	Detail  string
+// networkInfo is what a network probe learned.
+type networkInfo struct {
+	online  bool
+	metered bool // a phone hotspot or similar
+	detail  string
 }
 
-// NetworkProbe reads the current connectivity.
-type NetworkProbe func(ctx context.Context) (NetworkInfo, error)
+// networkProbe reads the current connectivity.
+type networkProbe func(ctx context.Context) (networkInfo, error)
 
-// Network stops remote admission when there is no route, and limits it on a
+// network stops remote admission when there is no route, and limits it on a
 // metered link. It never limits local work: an Ollama task needs no network.
-type Network struct {
-	cfg   NetworkConfig
-	probe NetworkProbe
+type network struct {
+	cfg   networkConfig
+	probe networkProbe
 }
 
-// NewNetwork returns the sensor over probe.
-func NewNetwork(cfg NetworkConfig, probe NetworkProbe) *Network {
-	return &Network{cfg: cfg, probe: probe}
+// newNetwork returns the sensor over probe.
+func newNetwork(cfg networkConfig, probe networkProbe) *network {
+	return &network{cfg: cfg, probe: probe}
 }
 
-func (n *Network) Name() string { return "network" }
+func (n *network) sensorName() string { return "network" }
 
-func (n *Network) Sample(ctx context.Context, _ RunSnapshot) Reading {
-	r := OpenReading(n.Name())
+func (n *network) sample(ctx context.Context, _ runSnapshot) Reading {
+	r := OpenReading(n.sensorName())
 	info, err := n.probe(ctx)
 	if err != nil {
-		r.Probe, r.ProbeErr = ProbeFailed, err.Error()
+		r.probe, r.probeErr = probeFailed, err.Error()
 		return r
 	}
 	switch {
-	case !info.Online:
-		r.AllowRemote, r.Severity, r.Reason = false, Hard, "offline"
-	case info.Metered:
+	case !info.online:
+		r.allowRemote, r.severity, r.Reason = false, hard, "offline"
+	case info.metered:
 		if s := limit(n.cfg.MeteredRemoteSlots); s == 0 {
-			r.AllowRemote, r.Severity, r.Reason = false, Soft, "metered link: "+info.Detail
-		} else if s < r.MaxRemoteSlots {
-			r.MaxRemoteSlots, r.Severity, r.Reason = s, Soft, "metered link: "+info.Detail
+			r.allowRemote, r.severity, r.Reason = false, soft, "metered link: "+info.detail
+		} else if s < r.maxRemoteSlots {
+			r.maxRemoteSlots, r.severity, r.Reason = s, soft, "metered link: "+info.detail
 		}
 	}
 	return r
@@ -130,8 +130,8 @@ var (
 	routeIface  = regexp.MustCompile(`interface:[ \t]*(\S+)`)
 )
 
-// ParsePmsetBatt reads `pmset -g batt`.
-func ParsePmsetBatt(out string) (onAC bool, pct int) {
+// parsePmsetBatt reads `pmset -g batt`.
+func parsePmsetBatt(out string) (onAC bool, pct int) {
 	pct = -1
 	if m := battSource.FindStringSubmatch(out); m != nil {
 		onAC = m[1] == "AC Power"
@@ -144,9 +144,9 @@ func ParsePmsetBatt(out string) (onAC bool, pct int) {
 	return onAC, pct
 }
 
-// ParsePmsetTherm reads `pmset -g therm`: the CPU speed limit in percent, 100 when
+// parsePmsetTherm reads `pmset -g therm`: the CPU speed limit in percent, 100 when
 // the system reports none.
-func ParsePmsetTherm(out string) int {
+func parsePmsetTherm(out string) int {
 	if m := thermLimit.FindStringSubmatch(out); m != nil {
 		v, _ := strconv.Atoi(m[1])
 		return v
@@ -154,14 +154,14 @@ func ParsePmsetTherm(out string) int {
 	return 100
 }
 
-// ParseLowPowerMode reads `pmset -g` for the Low Power Mode setting.
-func ParseLowPowerMode(out string) bool {
+// parseLowPowerMode reads `pmset -g` for the Low Power Mode setting.
+func parseLowPowerMode(out string) bool {
 	m := lowPower.FindStringSubmatch(out)
 	return m != nil && m[1] == "1"
 }
 
-// ParseDefaultRoute reads `route -n get default`: the interface and gateway.
-func ParseDefaultRoute(out string) (iface, gateway string) {
+// parseDefaultRoute reads `route -n get default`: the interface and gateway.
+func parseDefaultRoute(out string) (iface, gateway string) {
 	if m := routeIface.FindStringSubmatch(out); m != nil {
 		iface = m[1]
 	}
@@ -174,5 +174,5 @@ func ParseDefaultRoute(out string) (iface, gateway string) {
 // hotspotGateways are the default gateways of phone tethering, which is metered.
 var hotspotGateways = map[string]bool{"172.20.10.1": true, "192.168.43.1": true}
 
-// IsHotspotGateway reports whether gateway is a known tethering gateway.
-func IsHotspotGateway(gateway string) bool { return hotspotGateways[gateway] }
+// isHotspotGateway reports whether gateway is a known tethering gateway.
+func isHotspotGateway(gateway string) bool { return hotspotGateways[gateway] }

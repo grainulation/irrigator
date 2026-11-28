@@ -13,7 +13,7 @@ import (
 func writeStatus(t *testing.T, root string, env Envelope) {
 	t.Helper()
 	w := statusWriter{path: filepath.Join(root, StatusFile), debounce: time.Second, preset: "balanced"}
-	w.observe(time.Now(), env, RunSnapshot{}, 6)
+	w.observe(time.Now(), env, runSnapshot{}, 6)
 	if w.Err != nil {
 		t.Fatal(w.Err)
 	}
@@ -35,7 +35,7 @@ func throttled() Envelope {
 	r := OpenReading("power")
 	r.MaxLocalSlots, r.Reason = 2, "thermal serious"
 	d := OpenReading("network")
-	d.Probe, d.ProbeErr = ProbeFailed, "route failed"
+	d.probe, d.probeErr = probeFailed, "route failed"
 	return Compose([]Reading{r, d})
 }
 
@@ -44,7 +44,7 @@ func throttled() Envelope {
 func TestAStaleStatusFileOfADeadRunIsNeverShown(t *testing.T) {
 	root := t.TempDir()
 	writeStatus(t, root, throttled())
-	if _, ok := ReadLive(root); ok {
+	if _, ok := readLive(root); ok {
 		t.Fatal("a status file with no live controller was reported")
 	}
 	if LiveLine(root) != "" {
@@ -63,11 +63,11 @@ func TestALiveControllersStatusIsShownWithItsBindingAndDegradedProbes(t *testing
 	root := t.TempDir()
 	writeStatus(t, root, throttled())
 	release := holdController(t, root)
-	st, ok := ReadLive(root)
+	st, ok := readLive(root)
 	if !ok {
 		t.Fatal("a live controller's status was hidden")
 	}
-	line := st.Line()
+	line := st.line()
 	for _, part := range []string{"admission:", "local 2/6", "power: thermal serious", "degraded probes: network"} {
 		if !strings.Contains(line, part) {
 			t.Errorf("badge %q lacks %q", line, part)
@@ -81,7 +81,7 @@ func TestALiveControllersStatusIsShownWithItsBindingAndDegradedProbes(t *testing
 
 func TestAnUnrestrictedHealthyRunShowsNothing(t *testing.T) {
 	root := t.TempDir()
-	writeStatus(t, root, Open())
+	writeStatus(t, root, open())
 	release := holdController(t, root)
 	defer release()
 	if line := LiveLine(root); line != "" {
@@ -92,7 +92,7 @@ func TestAnUnrestrictedHealthyRunShowsNothing(t *testing.T) {
 func TestADegradedProbeAloneIsShownEvenWhenNothingIsLimited(t *testing.T) {
 	root := t.TempDir()
 	d := OpenReading("power")
-	d.Probe, d.ProbeErr = ProbeFailed, "pmset missing"
+	d.probe, d.probeErr = probeFailed, "pmset missing"
 	writeStatus(t, root, Compose([]Reading{d}))
 	release := holdController(t, root)
 	defer release()
@@ -109,7 +109,7 @@ func TestACorruptOrForeignStatusFileIsIgnored(t *testing.T) {
 		if err := os.WriteFile(filepath.Join(root, StatusFile), []byte(body), 0600); err != nil {
 			t.Fatal(err)
 		}
-		if _, ok := ReadLive(root); ok {
+		if _, ok := readLive(root); ok {
 			t.Errorf("%s status file was accepted", name)
 		}
 	}
@@ -120,15 +120,15 @@ func TestEvaluatorStatusRoundTripsThroughReadLive(t *testing.T) {
 	clk := newFakeClock()
 	s := newFake("power")
 	r := OpenReading("power")
-	r.Hold, r.Reason = HoldTransient, "battery 9% is below the 15% floor"
+	r.hold, r.Reason = HoldTransient, "battery 9% is below the 15% floor"
 	s.set(r)
-	e := NewEvaluator(Options{Clock: clk, Workers: 6, ExitDwell: time.Second, RampThrottle: time.Second, Sync: true, StatusPath: filepath.Join(root, StatusFile), Preset: "balanced"},
-		Registration{Sensor: s, Policy: FailOpen, TTL: time.Hour})
-	e.Evaluate(context.Background(), RunSnapshot{})
+	e := newEvaluator(options{clock: clk, workers: 6, exitDwell: time.Second, rampThrottle: time.Second, sync: true, statusPath: filepath.Join(root, StatusFile), preset: "balanced"},
+		registration{sensor: s, policy: failOpen, ttl: time.Hour})
+	e.evaluate(context.Background(), runSnapshot{})
 	release := holdController(t, root)
 	defer release()
-	st, ok := ReadLive(root)
-	if !ok || st.Workers != 6 || st.Envelope.Hold != HoldTransient || !strings.Contains(st.Line(), "battery 9%") {
+	st, ok := readLive(root)
+	if !ok || st.Workers != 6 || st.Envelope.Hold != HoldTransient || !strings.Contains(st.line(), "battery 9%") {
 		t.Fatalf("round trip: %+v %v", st, ok)
 	}
 }

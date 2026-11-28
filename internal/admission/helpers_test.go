@@ -42,8 +42,8 @@ type fakeSensor struct {
 
 func newFake(name string) *fakeSensor { return &fakeSensor{name: name, reading: OpenReading(name)} }
 
-func (f *fakeSensor) Name() string { return f.name }
-func (f *fakeSensor) Sample(ctx context.Context, _ RunSnapshot) Reading {
+func (f *fakeSensor) sensorName() string { return f.name }
+func (f *fakeSensor) sample(ctx context.Context, _ runSnapshot) Reading {
 	f.mu.Lock()
 	f.calls++
 	r, block := f.reading, f.block
@@ -56,14 +56,14 @@ func (f *fakeSensor) Sample(ctx context.Context, _ RunSnapshot) Reading {
 	}
 	return r
 }
-func (f *fakeSensor) ObserveEffective(e Envelope) {
+func (f *fakeSensor) observeEffective(e Envelope) {
 	f.mu.Lock()
 	f.observed = append(f.observed, e)
 	f.mu.Unlock()
 }
 func (f *fakeSensor) set(r Reading) {
 	f.mu.Lock()
-	r.Sensor = f.name
+	r.sensor = f.name
 	f.reading = r
 	f.mu.Unlock()
 }
@@ -74,4 +74,4 @@ func (f *fakeSensor) sampleCount() int {
 }
 
 // restricted reports whether a single reading limits anything.
-func restricted(r Reading) bool { return Compose([]Reading{r}).Restricted() }
+func restricted(r Reading) bool { return Compose([]Reading{r}).restricted() }

@@ -10,73 +10,73 @@ import (
 )
 
 func TestPresetsAreValidAndUnboundedRestrictsNothing(t *testing.T) {
-	for _, name := range PresetNames() {
-		c, err := Resolve(name)
+	for _, name := range presetNames() {
+		c, err := resolve(name)
 		if err != nil {
 			t.Fatalf("%s: %v", name, err)
 		}
-		if err = c.Validate(); err != nil {
+		if err = c.validate(); err != nil {
 			t.Fatalf("%s is invalid: %v", name, err)
 		}
 	}
-	c, _ := Resolve("unbounded")
-	if c.Active() {
+	c, _ := resolve("unbounded")
+	if c.active() {
 		t.Fatal("unbounded must not be active: a run without --admission has to behave exactly as before")
 	}
-	if b, _ := Resolve("balanced"); !b.Active() || b.Power == nil || b.Network == nil {
+	if b, _ := resolve("balanced"); !b.active() || b.Power == nil || b.Network == nil {
 		t.Fatal("balanced should enable the power and network sensors")
 	}
 }
 
 func TestAllPresetsBuildTheirSensorsAndOffpeakHasAWindow(t *testing.T) {
-	for _, name := range PresetNames() {
-		cfg, _ := Resolve(name)
-		if !cfg.Active() {
+	for _, name := range presetNames() {
+		cfg, _ := resolve(name)
+		if !cfg.active() {
 			continue
 		}
-		e, err := NewRunEvaluator(t.TempDir(), cfg, 6, newFakeClock(), true, Deps{DiagnoseLimit: func(string, string, int, time.Time) (LimitEvidence, error) { return LimitEvidence{}, nil }})
+		e, err := newRunEvaluator(t.TempDir(), cfg, 6, newFakeClock(), true, Deps{DiagnoseLimit: func(string, string, int, time.Time) (LimitEvidence, error) { return LimitEvidence{}, nil }})
 		if err != nil || e == nil {
 			t.Fatalf("%s: %v", name, err)
 		}
 		e.Close()
 	}
-	o, _ := Resolve("offpeak")
+	o, _ := resolve("offpeak")
 	if o.OffPeak == nil || o.OffPeak.Window != "22:00-07:00" {
 		t.Fatalf("offpeak preset: %+v", o.OffPeak)
 	}
-	if q, _ := Resolve("quiet"); q.Presence == nil {
+	if q, _ := resolve("quiet"); q.Presence == nil {
 		t.Fatal("quiet should yield to a user who is present")
 	}
 }
 
 func TestRateLimitSensorIsNotRegisteredWithoutADiagnoser(t *testing.T) {
-	cfg, _ := Resolve("balanced")
-	e, err := NewRunEvaluator(t.TempDir(), cfg, 6, newFakeClock(), true, Deps{})
+	cfg, _ := resolve("balanced")
+	e, err := newRunEvaluator(t.TempDir(), cfg, 6, newFakeClock(), true, Deps{})
 	if err != nil {
 		t.Fatal(err)
 	}
 	for _, en := range e.entries {
-		if _, ok := en.reg.Sensor.(*RateLimit); ok {
+		if _, ok := en.reg.sensor.(*rateLimit); ok {
 			t.Fatal("the rate-limit sensor needs a diagnoser and must not be registered without one")
 		}
 	}
 }
 
 func TestPhase3AndTierConfigValidation(t *testing.T) {
-	good, _ := Resolve("offpeak")
-	bad := map[string]func(c *Config){
-		"window":       func(c *Config) { c.OffPeak.Window = "late" },
-		"signal path":  func(c *Config) { c.OffPeak.SignalFile = "relative.json" },
-		"disk order":   func(c *Config) { c.Disk = &DiskConfig{LowFreeMB: 100, CriticalFreeMB: 500} },
-		"swap percent": func(c *Config) { c.Memory = &MemoryConfig{SwapUsedPercentLimit: 150} },
-		"presence":     func(c *Config) { c.Presence = &PresenceConfig{ActiveWithinSeconds: -1} },
-		"breaker alpha": func(c *Config) {
-			c.Breaker = &BreakerConfig{Alpha: 2, Threshold: .5, MinOutcomes: 1, IntervalSeconds: 1, OpenSeconds: 1, HalfLifeSeconds: 1}
+	good, _ := resolve("offpeak")
+	bad := map[string]func(c *config){
+		"window":       func(c *config) { c.OffPeak.Window = "late" },
+		"signal path":  func(c *config) { c.OffPeak.SignalFile = "relative.json" },
+		"disk order":   func(c *config) { c.Disk = &diskConfig{LowFreeMB: 100, CriticalFreeMB: 500} },
+		"swap percent": func(c *config) { c.Memory = &memoryConfig{SwapUsedPercentLimit: 150} },
+		"presence":     func(c *config) { c.Presence = &presenceConfig{ActiveWithinSeconds: -1} },
+		"breaker alpha": func(c *config) {
+			c.Breaker = &breakerConfig{Alpha: 2, Threshold: .5, MinOutcomes: 1, IntervalSeconds: 1, OpenSeconds: 1, HalfLifeSeconds: 1}
 		},
-		"rate cooldown": func(c *Config) { c.RateLimit = &RateLimitConfig{DefaultCooldownSeconds: 100, MaxCooldownSeconds: 10} },
-		"profile tier":  func(c *Config) { c.ProfileTiers = map[string]string{"p": "huge"} },
-		"battery tier":  func(c *Config) { c.Power.OnBatteryMaxTier = "tiny" },
-		"empty profile": func(c *Config) { c.ProfileTiers = map[string]string{"": "full"} },
+		"rate cooldown": func(c *config) { c.RateLimit = &rateLimitConfig{DefaultCooldownSeconds: 100, MaxCooldownSeconds: 10} },
+		"profile tier":  func(c *config) { c.ProfileTiers = map[string]string{"p": "huge"} },
+		"battery tier":  func(c *config) { c.Power.OnBatteryMaxTier = "tiny" },
+		"empty profile": func(c *config) { c.ProfileTiers = map[string]string{"": "full"} },
 	}
 	for name, mutate := range bad {
 		c := good
@@ -84,13 +84,13 @@ func TestPhase3AndTierConfigValidation(t *testing.T) {
 		off := *good.OffPeak
 		c.Power, c.OffPeak = &power, &off
 		mutate(&c)
-		if err := c.Validate(); err == nil {
+		if err := c.validate(); err == nil {
 			t.Errorf("%s: an invalid config was accepted", name)
 		}
 	}
 	ok := good
 	ok.ProfileTiers = map[string]string{"heavy": "full", "light": "minimal"}
-	if err := ok.Validate(); err != nil {
+	if err := ok.validate(); err != nil {
 		t.Fatalf("a valid tier map was rejected: %v", err)
 	}
 }
@@ -105,7 +105,7 @@ func TestResolveReadsAConfigFileAndRejectsUnknownFieldsAndBadValues(t *testing.T
 		return p
 	}
 	ok := write("ok.json", `{"schema":"irrigator.admission/v1","exit_dwell_seconds":5,"override":true}`)
-	if c, err := Resolve(ok); err != nil || c.Preset != "custom" || !c.Override {
+	if c, err := resolve(ok); err != nil || c.Preset != "custom" || !c.Override {
 		t.Fatalf("valid file: %+v %v", c, err)
 	}
 	for name, body := range map[string]string{
@@ -115,11 +115,11 @@ func TestResolveReadsAConfigFileAndRejectsUnknownFieldsAndBadValues(t *testing.T
 		"floor":   `{"schema":"irrigator.admission/v1","power":{"battery_floor_percent":150}}`,
 		"slots":   `{"schema":"irrigator.admission/v1","power":{"on_battery_local_slots":-5}}`,
 	} {
-		if _, err := Resolve(write(name+".json", body)); err == nil {
+		if _, err := resolve(write(name+".json", body)); err == nil {
 			t.Errorf("%s: an invalid config was accepted", name)
 		}
 	}
-	if _, err := Resolve("no-such-preset-or-file"); err == nil || !strings.Contains(err.Error(), "preset") {
+	if _, err := resolve("no-such-preset-or-file"); err == nil || !strings.Contains(err.Error(), "preset") {
 		t.Errorf("an unknown spec should explain the choices: %v", err)
 	}
 }
@@ -133,7 +133,7 @@ func TestLoadRunPersistsAnExplicitSpecAndReloadsIt(t *testing.T) {
 	if err != nil || e == nil {
 		t.Fatalf("quiet: %v %v", e, err)
 	}
-	var saved Config
+	var saved config
 	raw, err := os.ReadFile(filepath.Join(root, ConfigFile))
 	if err != nil || json.Unmarshal(raw, &saved) != nil || saved.Preset != "quiet" {
 		t.Fatalf("admission.json was not saved: %v %s", err, raw)
@@ -163,9 +163,9 @@ func TestLoadRunRejectsACorruptSavedConfig(t *testing.T) {
 
 func TestOverrideSensor(t *testing.T) {
 	path := filepath.Join(t.TempDir(), OverrideFile)
-	o := NewOverride(path)
-	sample := func() Reading { return o.Sample(nil, RunSnapshot{}) } //nolint:staticcheck
-	if r := sample(); r.Hold != HoldNone || r.Probe != ProbeOK || r.MaxLocalSlots != Unlimited {
+	o := newOverride(path)
+	sample := func() Reading { return o.sample(nil, runSnapshot{}) } //nolint:staticcheck
+	if r := sample(); r.hold != holdNone || r.probe != probeOK || r.MaxLocalSlots != Unlimited {
 		t.Fatalf("no file means no opinion: %+v", r)
 	}
 	write := func(body string) {
@@ -174,20 +174,20 @@ func TestOverrideSensor(t *testing.T) {
 		}
 	}
 	write(`{"hold":"transient","reason":"demo in progress"}`)
-	if r := sample(); r.Hold != HoldTransient || r.Reason != "demo in progress" || r.Severity != Hard {
+	if r := sample(); r.hold != HoldTransient || r.Reason != "demo in progress" || r.severity != hard {
 		t.Fatalf("hold: %+v", r)
 	}
 	write(`{"max_local_slots":2,"allow_remote":false}`)
-	if r := sample(); r.MaxLocalSlots != 2 || r.AllowRemote || r.Hold != HoldNone {
+	if r := sample(); r.MaxLocalSlots != 2 || r.allowRemote || r.hold != holdNone {
 		t.Fatalf("limits: %+v", r)
 	}
 	write(`{"hold":"permanent"}`)
-	if r := sample(); r.Hold != HoldPermanent {
+	if r := sample(); r.hold != HoldPermanent {
 		t.Fatalf("permanent: %+v", r)
 	}
 	for _, body := range []string{`{"hold":"sometimes"}`, `{"nope":1}`, `not json`} {
 		write(body)
-		if r := sample(); r.Probe != ProbeFailed {
+		if r := sample(); r.probe != probeFailed {
 			t.Fatalf("%q should fail the probe (and so fail closed), got %+v", body, r)
 		}
 	}

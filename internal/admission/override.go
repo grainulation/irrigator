@@ -8,21 +8,21 @@ import (
 	"os"
 )
 
-// Override lets an operator throttle or hold a run by hand: it reads
+// override lets an operator throttle or hold a run by hand: it reads
 // RUN/admission-override.json on each sample. A missing file means no opinion;
 // a file that exists but cannot be read or parsed fails closed, so a typo in a
 // hold request is visible instead of silently ignored. Fields that are absent
 // are no opinion.
-type Override struct{ name, path string }
+type override struct{ name, path string }
 
-// NewOverride returns the override sensor for the file at path.
-func NewOverride(path string) *Override { return &Override{name: "override", path: path} }
+// newOverride returns the override sensor for the file at path.
+func newOverride(path string) *override { return &override{name: "override", path: path} }
 
-// NewOverrideNamed returns a sensor with the same file format under another name,
+// newOverrideNamed returns a sensor with the same file format under another name,
 // for an external hook such as an off-peak or carbon signal.
-func NewOverrideNamed(name, path string) *Override { return &Override{name: name, path: path} }
+func newOverrideNamed(name, path string) *override { return &override{name: name, path: path} }
 
-func (o *Override) Name() string { return o.name }
+func (o *override) sensorName() string { return o.name }
 
 type overrideFile struct {
 	Hold           *string `json:"hold"` // none, transient or permanent
@@ -33,24 +33,24 @@ type overrideFile struct {
 	Reason         string  `json:"reason"`
 }
 
-func (o *Override) Sample(_ context.Context, _ RunSnapshot) Reading {
-	r := OpenReading(o.Name())
+func (o *override) sample(_ context.Context, _ runSnapshot) Reading {
+	r := OpenReading(o.sensorName())
 	raw, err := os.ReadFile(o.path)
 	if os.IsNotExist(err) {
 		return r
 	}
 	if err != nil {
-		r.Probe, r.ProbeErr = ProbeFailed, err.Error()
+		r.probe, r.probeErr = probeFailed, err.Error()
 		return r
 	}
 	var f overrideFile
 	dec := json.NewDecoder(bytes.NewReader(raw))
 	dec.DisallowUnknownFields()
 	if err = dec.Decode(&f); err != nil {
-		r.Probe, r.ProbeErr = ProbeFailed, "invalid override file: "+err.Error()
+		r.probe, r.probeErr = probeFailed, "invalid override file: "+err.Error()
 		return r
 	}
-	r.Severity, r.Reason = Hard, f.Reason
+	r.severity, r.Reason = hard, f.Reason
 	if r.Reason == "" {
 		r.Reason = "operator override"
 	}
@@ -58,11 +58,11 @@ func (o *Override) Sample(_ context.Context, _ RunSnapshot) Reading {
 		switch *f.Hold {
 		case "none":
 		case "transient":
-			r.Hold = HoldTransient
+			r.hold = HoldTransient
 		case "permanent":
-			r.Hold = HoldPermanent
+			r.hold = HoldPermanent
 		default:
-			r.Probe, r.ProbeErr = ProbeFailed, fmt.Sprintf("override hold %q must be none, transient or permanent", *f.Hold)
+			r.probe, r.probeErr = probeFailed, fmt.Sprintf("override hold %q must be none, transient or permanent", *f.Hold)
 			return r
 		}
 	}
@@ -70,18 +70,18 @@ func (o *Override) Sample(_ context.Context, _ RunSnapshot) Reading {
 		r.MaxLocalSlots = *f.MaxLocalSlots
 	}
 	if f.MaxRemoteSlots != nil && *f.MaxRemoteSlots >= 0 {
-		r.MaxRemoteSlots = *f.MaxRemoteSlots
+		r.maxRemoteSlots = *f.MaxRemoteSlots
 	}
 	if f.AllowRemote != nil {
-		r.AllowRemote = *f.AllowRemote
+		r.allowRemote = *f.AllowRemote
 	}
 	if f.MaxTier != nil {
-		t, err := ParseTier(*f.MaxTier)
+		t, err := parseTier(*f.MaxTier)
 		if err != nil {
-			r.Probe, r.ProbeErr = ProbeFailed, err.Error()
+			r.probe, r.probeErr = probeFailed, err.Error()
 			return r
 		}
-		r.ModelTier = t
+		r.modelTier = t
 	}
 	return r
 }

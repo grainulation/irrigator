@@ -1,6 +1,6 @@
 package admission
 
-// AIMD is an additive-increase multiplicative-decrease limit, the shape of a
+// aimd is an additive-increase multiplicative-decrease limit, the shape of a
 // rate-limit cooldown: it grows by one after a success and halves after a limit
 // signal. It exists to show and test the anti-windup rule that every stateful
 // sensor must follow.
@@ -11,11 +11,11 @@ package admission
 // above what was last known to be safe. So the limit is clamped to the envelope
 // that actually applies plus Headroom, and it does not decay or grow while that
 // envelope admits nothing.
-type AIMD struct {
-	Limit    int // current limit; starts at Max
-	Max      int
-	Min      int
-	Headroom int
+type aimd struct {
+	limit    int // current limit; starts at Max
+	max      int
+	min      int
+	headroom int
 	// frozen is set while the effective envelope admits nothing for this
 	// locality: successes that finish meanwhile must not grow the limit back.
 	frozen bool
@@ -24,37 +24,37 @@ type AIMD struct {
 	ceil int
 }
 
-// NewAIMD starts at max.
-func NewAIMD(max, min, headroom int) *AIMD {
-	return &AIMD{Limit: max, Max: max, Min: min, Headroom: headroom}
+// newAIMD starts at max.
+func newAIMD(max, min, headroom int) *aimd {
+	return &aimd{limit: max, max: max, min: min, headroom: headroom}
 }
 
-// OnSuccess grows the limit by one, up to Max, unless the envelope currently
+// onSuccess grows the limit by one, up to Max, unless the envelope currently
 // admits nothing for this locality.
-func (a *AIMD) OnSuccess() {
+func (a *aimd) onSuccess() {
 	if a.frozen {
 		return
 	}
-	if a.Limit < a.Max && (a.ceil == 0 || a.Limit < a.ceil) {
-		a.Limit++
+	if a.limit < a.max && (a.ceil == 0 || a.limit < a.ceil) {
+		a.limit++
 	}
 }
 
-// OnLimit halves the limit, down to Min.
-func (a *AIMD) OnLimit() {
-	a.Limit /= 2
-	if a.Limit < a.Min {
-		a.Limit = a.Min
+// onLimit halves the limit, down to Min.
+func (a *aimd) onLimit() {
+	a.limit /= 2
+	if a.limit < a.min {
+		a.limit = a.min
 	}
 }
 
-// Observe clamps the limit to what the effective envelope allows for loc.
-func (a *AIMD) Observe(env Envelope, loc Locality) {
+// observe clamps the limit to what the effective envelope allows for loc.
+func (a *aimd) observe(env Envelope, loc locality) {
 	effective := env.MaxLocalSlots
-	if loc == Remote {
+	if loc == remote {
 		effective = env.MaxRemoteSlots
 	}
-	a.frozen = env.Hold != HoldNone || effective <= 0 || (loc == Remote && !env.AllowRemote)
+	a.frozen = env.Hold != holdNone || effective <= 0 || (loc == remote && !env.AllowRemote)
 	if a.frozen {
 		return // admits nothing: freeze, neither decay nor growth
 	}
@@ -62,12 +62,12 @@ func (a *AIMD) Observe(env Envelope, loc Locality) {
 		a.ceil = 0
 		return
 	}
-	ceiling := effective + a.Headroom
+	ceiling := effective + a.headroom
 	a.ceil = ceiling
-	if a.Limit > ceiling {
-		a.Limit = ceiling
+	if a.limit > ceiling {
+		a.limit = ceiling
 	}
-	if a.Limit < a.Min {
-		a.Limit = a.Min
+	if a.limit < a.min {
+		a.limit = a.min
 	}
 }

@@ -44,7 +44,7 @@ func signature(e Envelope) string {
 	return fmt.Sprintf("%d|%d|%t|%d|%s|%v|%v", e.MaxLocalSlots, e.MaxRemoteSlots, e.AllowRemote, e.ModelTier, e.Hold, e.Bindings, e.Degraded)
 }
 
-func (w *statusWriter) observe(now time.Time, env Envelope, snap RunSnapshot, workers int) {
+func (w *statusWriter) observe(now time.Time, env Envelope, snap runSnapshot, workers int) {
 	if w.path == "" {
 		return
 	}
@@ -59,7 +59,7 @@ func (w *statusWriter) observe(now time.Time, env Envelope, snap RunSnapshot, wo
 	case !holdChanged && now.Sub(w.wroteAt) < w.debounce:
 		return
 	}
-	st := Status{Schema: "irrigator.admission-status/v1", Preset: w.preset, UpdatedAt: now.UTC(), ControllerPID: os.Getpid(), Workers: workers, Summary: env.Summary(workers), Envelope: env, LocalBusy: snap.LocalBusy, RemoteBusy: snap.RemoteBusy}
+	st := Status{Schema: "irrigator.admission-status/v1", Preset: w.preset, UpdatedAt: now.UTC(), ControllerPID: os.Getpid(), Workers: workers, Summary: env.summary(workers), Envelope: env, LocalBusy: snap.localBusy, RemoteBusy: snap.remoteBusy}
 	if w.Err = jsonio.AtomicJSON(w.path, st); w.Err != nil {
 		// Keep what was last written (and so what differs from it) and try again
 		// after the debounce, instead of treating the new envelope as on disk.

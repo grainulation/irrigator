@@ -17,22 +17,22 @@ func tasks(ids ...string) *model.State {
 }
 
 // locality by name: ids starting with "r" are remote, everything else local.
-func byName(_ *model.State, id string) Locality {
+func byName(_ *model.State, id string) locality {
 	if id[0] == 'r' {
-		return Remote
+		return remote
 	}
-	return Local
+	return local
 }
 
 func filterEval(clk *fakeClock, workers int, s *fakeSensor) *Evaluator {
-	return NewEvaluator(Options{Clock: clk, Workers: workers, ExitDwell: time.Second, RampThrottle: time.Second, Sync: true, Locality: byName},
-		Registration{Sensor: s, Policy: FailOpen, TTL: time.Hour})
+	return newEvaluator(options{clock: clk, workers: workers, exitDwell: time.Second, rampThrottle: time.Second, sync: true, locality: byName},
+		registration{sensor: s, policy: failOpen, ttl: time.Hour})
 }
 
 func TestAdmitOpenEnvelopeAdmitsReadyTasksInOrderUpToTheSlots(t *testing.T) {
 	e := filterEval(newFakeClock(), 4, newFake("s"))
 	got, env := e.Admit(tasks("l1", "r1", "l2", "r2", "l3"), []string{"l1", "r1", "l2", "r2", "l3"}, map[string]bool{}, 3)
-	if env.Restricted() || len(got) != 3 || got[0] != "l1" || got[1] != "r1" || got[2] != "l2" {
+	if env.restricted() || len(got) != 3 || got[0] != "l1" || got[1] != "r1" || got[2] != "l2" {
 		t.Fatalf("admitted %v under %+v", got, env)
 	}
 }
@@ -76,7 +76,7 @@ func TestAdmitRemoteOffStopsRemoteOnlyAndLetsLocalWorkProceed(t *testing.T) {
 	clk := newFakeClock()
 	s := newFake("net")
 	r := OpenReading("net")
-	r.AllowRemote, r.Severity, r.Reason = false, Hard, "offline"
+	r.allowRemote, r.severity, r.Reason = false, hard, "offline"
 	s.set(r)
 	e := filterEval(clk, 4, s)
 	got, env := e.Admit(tasks("r1", "l1", "r2", "l2"), []string{"r1", "l1", "r2", "l2"}, map[string]bool{}, 4)
@@ -92,7 +92,7 @@ func TestAdmitHoldAdmitsNothingAndNeverRebindsAnything(t *testing.T) {
 	clk := newFakeClock()
 	s := newFake("power")
 	r := OpenReading("power")
-	r.Hold, r.Reason = HoldTransient, "battery 9%"
+	r.hold, r.Reason = HoldTransient, "battery 9%"
 	s.set(r)
 	e := filterEval(clk, 4, s)
 	st := tasks("l1", "l2")
@@ -110,10 +110,10 @@ func TestAdmitRecoversByRampingAfterAHold(t *testing.T) {
 	clk := newFakeClock()
 	s := newFake("power")
 	hold := OpenReading("power")
-	hold.Hold = HoldTransient
+	hold.hold = HoldTransient
 	s.set(hold)
-	e := NewEvaluator(Options{Clock: clk, Workers: 3, ExitDwell: 5 * time.Second, RampThrottle: 2 * time.Second, Sync: true, Locality: byName},
-		Registration{Sensor: s, Policy: FailOpen, TTL: time.Second})
+	e := newEvaluator(options{clock: clk, workers: 3, exitDwell: 5 * time.Second, rampThrottle: 2 * time.Second, sync: true, locality: byName},
+		registration{sensor: s, policy: failOpen, ttl: time.Second})
 	st := tasks("l1", "l2", "l3")
 	ready := []string{"l1", "l2", "l3"}
 	if got, _ := e.Admit(st, ready, map[string]bool{}, 3); len(got) != 0 {
@@ -137,16 +137,16 @@ func TestAdmitRecoversByRampingAfterAHold(t *testing.T) {
 }
 
 func TestClassifierLegacyBackendsAndMissingRows(t *testing.T) {
-	c := NewClassifier()
+	c := newClassifier()
 	mock := &model.State{Backend: "mock", Tasks: map[string]*model.TaskState{"a": {}}}
 	haiku := &model.State{Backend: "haiku", Tasks: map[string]*model.TaskState{"a": {}}}
-	if c.Locality(mock, "a") != Local {
+	if c.locality(mock, "a") != local {
 		t.Error("a mock run is local")
 	}
-	if c.Locality(haiku, "a") != Remote {
+	if c.locality(haiku, "a") != remote {
 		t.Error("the paid haiku backend is remote")
 	}
-	if c.Locality(mock, "missing") != Remote {
+	if c.locality(mock, "missing") != remote {
 		t.Error("an unknown task is classified conservatively as remote")
 	}
 }
@@ -155,7 +155,7 @@ func TestEvaluateReturnsWithinTheCallerContext(t *testing.T) {
 	e := filterEval(newFakeClock(), 2, newFake("s"))
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	if env := e.Evaluate(ctx, RunSnapshot{}); env.Restricted() {
+	if env := e.evaluate(ctx, runSnapshot{}); env.restricted() {
 		t.Fatalf("a cancelled context restricted the run: %+v", env)
 	}
 }

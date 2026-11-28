@@ -20,29 +20,29 @@ func rows(spec map[string]model.TaskState) *model.State {
 }
 
 func TestTrackerReportsEachFinishedAttemptOnceAndSkipsHistory(t *testing.T) {
-	tr := NewTracker()
-	loc := func(id string) Locality {
+	tr := newTracker()
+	loc := func(id string) locality {
 		if id[0] == 'r' {
-			return Remote
+			return remote
 		}
-		return Local
+		return local
 	}
 	s := rows(map[string]model.TaskState{"l1": {Status: "verified", Attempt: 1}, "r1": {Status: "running", Attempt: 1}})
-	if outs := tr.Observe(s, time.Now(), loc); len(outs) != 0 {
+	if outs := tr.observe(s, time.Now(), loc); len(outs) != 0 {
 		t.Fatalf("attempts finished before the controller started are history, got %v", outs)
 	}
 	s.Tasks["r1"].Status = "failed"
 	s.Tasks["l1"].Status, s.Tasks["l1"].Attempt = "running", 2 // retried
-	outs := tr.Observe(s, time.Now(), loc)
-	if len(outs) != 1 || outs[0].Task != "r1" || outs[0].Kind != OutcomeFailure || outs[0].Locality != Remote || outs[0].Attempt != 1 {
+	outs := tr.observe(s, time.Now(), loc)
+	if len(outs) != 1 || outs[0].task != "r1" || outs[0].kind != outcomeFailure || outs[0].locality != remote || outs[0].attempt != 1 {
 		t.Fatalf("outcomes = %+v", outs)
 	}
-	if outs = tr.Observe(s, time.Now(), loc); len(outs) != 0 {
+	if outs = tr.observe(s, time.Now(), loc); len(outs) != 0 {
 		t.Fatalf("an unchanged row was reported again: %+v", outs)
 	}
 	s.Tasks["l1"].Status = "verified"
 	s.Tasks["r1"].Status, s.Tasks["r1"].Attempt = "uncertain", 2
-	outs = tr.Observe(s, time.Now(), loc)
+	outs = tr.observe(s, time.Now(), loc)
 	if len(outs) != 2 {
 		t.Fatalf("a retried attempt that finishes is a new outcome: %+v", outs)
 	}
@@ -50,20 +50,20 @@ func TestTrackerReportsEachFinishedAttemptOnceAndSkipsHistory(t *testing.T) {
 
 func TestRunCapMakesTheSizingCapVisibleAsABinding(t *testing.T) {
 	clk := newFakeClock()
-	rc := NewRunCap()
-	e := NewEvaluator(Options{Clock: clk, Workers: 6, ExitDwell: time.Second, RampThrottle: time.Second, Sync: true, Locality: byName},
-		Registration{Sensor: rc, Policy: FailOpen, Inline: true})
-	if env := e.Evaluate(context.Background(), RunSnapshot{}); env.Restricted() {
+	rc := newRunCap()
+	e := newEvaluator(options{clock: clk, workers: 6, exitDwell: time.Second, rampThrottle: time.Second, sync: true, locality: byName},
+		registration{sensor: rc, policy: failOpen, inline: true})
+	if env := e.evaluate(context.Background(), runSnapshot{}); env.restricted() {
 		t.Fatalf("no cap yet: %+v", env)
 	}
 	e.NoteSizing(2, "plan sizing caps concurrency")
-	env := e.Evaluate(context.Background(), RunSnapshot{})
+	env := e.evaluate(context.Background(), runSnapshot{})
 	if env.MaxLocalSlots != 2 || env.MaxRemoteSlots != 2 {
 		t.Fatalf("sizing cap not reflected: %+v", env)
 	}
 	found := false
 	for _, b := range env.Bindings {
-		found = found || (b.Sensor == "sizing" && b.Severity == Hard)
+		found = found || (b.Sensor == "sizing" && b.Severity == hard)
 	}
 	if !found {
 		t.Fatalf("the sizing sensor should be named as the binding constraint: %+v", env.Bindings)
@@ -84,34 +84,34 @@ func (f *limitFake) diagnose(_, task string, attempt int, _ time.Time) (LimitEvi
 	return f.evidence, f.err
 }
 
-func newRateLimit(clk *fakeClock, f *limitFake) *RateLimit {
-	return NewRateLimit("/run", RateLimitConfig{DefaultCooldownSeconds: 60, MaxCooldownSeconds: 600, Headroom: 1}, 6, clk, f.diagnose)
+func newTestRateLimit(clk *fakeClock, f *limitFake) *rateLimit {
+	return newRateLimit("/run", rateLimitConfig{DefaultCooldownSeconds: 60, MaxCooldownSeconds: 600, Headroom: 1}, 6, clk, f.diagnose)
 }
 
 func TestRateLimitCoolsDownRemoteAdmissionAndRecoversByAIMD(t *testing.T) {
 	clk := newFakeClock()
 	f := &limitFake{evidence: LimitEvidence{Limited: true}}
-	r := newRateLimit(clk, f)
+	r := newTestRateLimit(clk, f)
 	defer r.Close()
-	if got := r.Sample(context.Background(), RunSnapshot{}); got.MaxRemoteSlots != Unlimited {
+	if got := r.sample(context.Background(), runSnapshot{}); got.maxRemoteSlots != Unlimited {
 		t.Fatalf("no signal yet: %+v", got)
 	}
-	r.ObserveOutcomes([]Outcome{{Task: "r1", Attempt: 1, Kind: OutcomeFailure, Locality: Remote}}, clk.Now())
+	r.observeOutcomes([]outcome{{task: "r1", attempt: 1, kind: outcomeFailure, locality: remote}}, clk.Now())
 	waitUntil(t, r.idle)
-	got := r.Sample(context.Background(), RunSnapshot{})
-	if got.MaxRemoteSlots != 0 || got.MaxLocalSlots != Unlimited {
+	got := r.sample(context.Background(), runSnapshot{})
+	if got.maxRemoteSlots != 0 || got.MaxLocalSlots != Unlimited {
 		t.Fatalf("a rate limit must stop new remote admission only: %+v", got)
 	}
 	clk.Advance(61 * time.Second)
-	got = r.Sample(context.Background(), RunSnapshot{})
-	if got.MaxRemoteSlots != 3 {
-		t.Fatalf("after the cooldown the limit should have halved from 6 to 3, got %d", got.MaxRemoteSlots)
+	got = r.sample(context.Background(), runSnapshot{})
+	if got.maxRemoteSlots != 3 {
+		t.Fatalf("after the cooldown the limit should have halved from 6 to 3, got %d", got.maxRemoteSlots)
 	}
 	for i := 0; i < 3; i++ {
-		r.ObserveOutcomes([]Outcome{{Task: "r2", Kind: OutcomeSuccess, Locality: Remote}}, clk.Now())
+		r.observeOutcomes([]outcome{{task: "r2", kind: outcomeSuccess, locality: remote}}, clk.Now())
 	}
-	if got = r.Sample(context.Background(), RunSnapshot{}); got.MaxRemoteSlots != Unlimited {
-		t.Fatalf("successes should grow the limit back to unlimited, got %d", got.MaxRemoteSlots)
+	if got = r.sample(context.Background(), runSnapshot{}); got.maxRemoteSlots != Unlimited {
+		t.Fatalf("successes should grow the limit back to unlimited, got %d", got.maxRemoteSlots)
 	}
 }
 
@@ -119,16 +119,16 @@ func TestRateLimitUsesTheProvidersStatedResetAndCapsIt(t *testing.T) {
 	clk := newFakeClock()
 	reset := clk.Now().Add(5 * time.Minute)
 	f := &limitFake{evidence: LimitEvidence{Limited: true, ResetAt: &reset}}
-	r := newRateLimit(clk, f)
+	r := newTestRateLimit(clk, f)
 	defer r.Close()
-	r.ObserveOutcomes([]Outcome{{Task: "r1", Attempt: 1, Kind: OutcomeFailure, Locality: Remote}}, clk.Now())
+	r.observeOutcomes([]outcome{{task: "r1", attempt: 1, kind: outcomeFailure, locality: remote}}, clk.Now())
 	waitUntil(t, r.idle)
 	clk.Advance(4 * time.Minute)
-	if got := r.Sample(context.Background(), RunSnapshot{}); got.MaxRemoteSlots != 0 {
+	if got := r.sample(context.Background(), runSnapshot{}); got.maxRemoteSlots != 0 {
 		t.Fatalf("still before the stated reset: %+v", got)
 	}
 	clk.Advance(2 * time.Minute)
-	if got := r.Sample(context.Background(), RunSnapshot{}); got.MaxRemoteSlots == 0 {
+	if got := r.sample(context.Background(), runSnapshot{}); got.maxRemoteSlots == 0 {
 		t.Fatal("cooldown should end after the stated reset")
 	}
 	// A reset far in the future is capped by max_cooldown_seconds.
@@ -136,10 +136,10 @@ func TestRateLimitUsesTheProvidersStatedResetAndCapsIt(t *testing.T) {
 	f.mu.Lock()
 	f.evidence = LimitEvidence{Limited: true, ResetAt: &far}
 	f.mu.Unlock()
-	r.ObserveOutcomes([]Outcome{{Task: "r2", Attempt: 1, Kind: OutcomeFailure, Locality: Remote}}, clk.Now())
+	r.observeOutcomes([]outcome{{task: "r2", attempt: 1, kind: outcomeFailure, locality: remote}}, clk.Now())
 	waitUntil(t, r.idle)
 	clk.Advance(11 * time.Minute)
-	if got := r.Sample(context.Background(), RunSnapshot{}); got.MaxRemoteSlots == 0 {
+	if got := r.sample(context.Background(), runSnapshot{}); got.maxRemoteSlots == 0 {
 		t.Fatal("a cooldown must never exceed max_cooldown_seconds (10 minutes here)")
 	}
 }
@@ -147,9 +147,9 @@ func TestRateLimitUsesTheProvidersStatedResetAndCapsIt(t *testing.T) {
 func TestRateLimitIgnoresLocalFailuresAndFailuresWithoutLimitEvidence(t *testing.T) {
 	clk := newFakeClock()
 	f := &limitFake{evidence: LimitEvidence{Limited: false}}
-	r := newRateLimit(clk, f)
+	r := newTestRateLimit(clk, f)
 	defer r.Close()
-	r.ObserveOutcomes([]Outcome{{Task: "l1", Attempt: 1, Kind: OutcomeFailure, Locality: Local}, {Task: "r1", Attempt: 1, Kind: OutcomeFailure, Locality: Remote}}, clk.Now())
+	r.observeOutcomes([]outcome{{task: "l1", attempt: 1, kind: outcomeFailure, locality: local}, {task: "r1", attempt: 1, kind: outcomeFailure, locality: remote}}, clk.Now())
 	waitUntil(t, r.idle)
 	f.mu.Lock()
 	calls := append([]string(nil), f.calls...)
@@ -157,7 +157,7 @@ func TestRateLimitIgnoresLocalFailuresAndFailuresWithoutLimitEvidence(t *testing
 	if len(calls) != 1 || calls[0] != "r1" {
 		t.Fatalf("only the remote failure should be diagnosed, got %v", calls)
 	}
-	if got := r.Sample(context.Background(), RunSnapshot{}); got.MaxRemoteSlots != Unlimited {
+	if got := r.sample(context.Background(), runSnapshot{}); got.maxRemoteSlots != Unlimited {
 		t.Fatalf("a failure with no limit evidence must not throttle: %+v", got)
 	}
 }
@@ -167,8 +167,8 @@ func TestRateLimitIgnoresLocalFailuresAndFailuresWithoutLimitEvidence(t *testing
 func TestRateLimitNeverTouchesTheStateItObserves(t *testing.T) {
 	clk := newFakeClock()
 	f := &limitFake{evidence: LimitEvidence{Limited: true}}
-	e := NewEvaluator(Options{Clock: clk, Workers: 4, ExitDwell: time.Second, RampThrottle: time.Second, Sync: true, Locality: func(*model.State, string) Locality { return Remote }},
-		Registration{Sensor: newRateLimit(clk, f), Policy: FailOpen, Inline: true})
+	e := newEvaluator(options{clock: clk, workers: 4, exitDwell: time.Second, rampThrottle: time.Second, sync: true, locality: func(*model.State, string) locality { return remote }},
+		registration{sensor: newTestRateLimit(clk, f), policy: failOpen, inline: true})
 	defer e.Close()
 	s := rows(map[string]model.TaskState{"f1": {Status: "running", Attempt: 1}, "p1": {Status: "pending"}})
 	e.Admit(s, []string{"p1"}, map[string]bool{"f1": true}, 3) // seeds the tracker
@@ -177,7 +177,7 @@ func TestRateLimitNeverTouchesTheStateItObserves(t *testing.T) {
 	before := *s.Tasks["f1"]
 	pending := *s.Tasks["p1"]
 	e.Admit(s, []string{"p1"}, map[string]bool{}, 3) // the failure is read and queued for diagnosis
-	rl := e.entries[0].reg.Sensor.(*RateLimit)
+	rl := e.entries[0].reg.sensor.(*rateLimit)
 	waitUntil(t, rl.idle)
 	got, env := e.Admit(s, []string{"p1"}, map[string]bool{}, 3)
 	if len(got) != 0 || env.MaxRemoteSlots != 0 {
@@ -193,54 +193,54 @@ func TestRateLimitNeverTouchesTheStateItObserves(t *testing.T) {
 
 func TestRateLimitKeepsItsLimitInsideTheEffectiveEnvelope(t *testing.T) {
 	clk := newFakeClock()
-	r := newRateLimit(clk, &limitFake{})
+	r := newTestRateLimit(clk, &limitFake{})
 	defer r.Close()
-	tight := Open()
+	tight := open()
 	tight.MaxRemoteSlots = 1
 	for i := 0; i < 20; i++ {
-		r.ObserveOutcomes([]Outcome{{Task: "r", Kind: OutcomeSuccess, Locality: Remote}}, clk.Now())
-		r.ObserveEffective(tight)
+		r.observeOutcomes([]outcome{{task: "r", kind: outcomeSuccess, locality: remote}}, clk.Now())
+		r.observeEffective(tight)
 	}
 	r.mu.Lock()
-	limit := r.aimd.Limit
+	limit := r.aimd.limit
 	r.mu.Unlock()
 	if limit > 2 {
 		t.Fatalf("the limiter wound up to %d under a remote cap of 1 plus headroom 1", limit)
 	}
 }
 
-func fail(n int) []Outcome {
-	var o []Outcome
+func fail(n int) []outcome {
+	var o []outcome
 	for i := 0; i < n; i++ {
-		o = append(o, Outcome{Kind: OutcomeFailure})
+		o = append(o, outcome{kind: outcomeFailure})
 	}
 	return o
 }
 
-func ok(n int) []Outcome {
-	var o []Outcome
+func ok(n int) []outcome {
+	var o []outcome
 	for i := 0; i < n; i++ {
-		o = append(o, Outcome{Kind: OutcomeSuccess})
+		o = append(o, outcome{kind: outcomeSuccess})
 	}
 	return o
 }
 
-func newBreaker(clk *fakeClock) *Breaker {
-	return NewBreaker(BreakerConfig{Alpha: 0.3, Threshold: 0.5, MinOutcomes: 5, IntervalSeconds: 20, OpenSeconds: 60, HalfLifeSeconds: 60}, 4, clk)
+func newTestBreaker(clk *fakeClock) *breaker {
+	return newBreaker(breakerConfig{Alpha: 0.3, Threshold: 0.5, MinOutcomes: 5, IntervalSeconds: 20, OpenSeconds: 60, HalfLifeSeconds: 60}, 4, clk)
 }
 
 func TestBreakerIgnoresABriefBadPatchAndSmallSamples(t *testing.T) {
 	clk := newFakeClock()
-	b := newBreaker(clk)
-	b.ObserveOutcomes(fail(3), clk.Now()) // too few outcomes to judge
-	if got := b.Sample(context.Background(), RunSnapshot{}); restricted(got) {
+	b := newTestBreaker(clk)
+	b.observeOutcomes(fail(3), clk.Now()) // too few outcomes to judge
+	if got := b.sample(context.Background(), runSnapshot{}); restricted(got) {
 		t.Fatalf("tripped on a tiny sample: %+v", got)
 	}
-	b.ObserveOutcomes(ok(10), clk.Now())
-	b.ObserveOutcomes(fail(2), clk.Now())
+	b.observeOutcomes(ok(10), clk.Now())
+	b.observeOutcomes(fail(2), clk.Now())
 	for i := 0; i < 5; i++ {
 		clk.Advance(10 * time.Second)
-		if got := b.Sample(context.Background(), RunSnapshot{}); got.MaxLocalSlots != Unlimited || got.Hold != HoldNone {
+		if got := b.sample(context.Background(), runSnapshot{}); got.MaxLocalSlots != Unlimited || got.hold != holdNone {
 			t.Fatalf("a brief bad patch shed capacity: %+v", got)
 		}
 	}
@@ -248,15 +248,15 @@ func TestBreakerIgnoresABriefBadPatchAndSmallSamples(t *testing.T) {
 
 func TestBreakerShedsSlotsBeforeTrippingAndRecoversWhenTheRateFalls(t *testing.T) {
 	clk := newFakeClock()
-	b := newBreaker(clk)
-	b.ObserveOutcomes(ok(6), clk.Now())
-	b.ObserveOutcomes(fail(10), clk.Now())
+	b := newTestBreaker(clk)
+	b.observeOutcomes(ok(6), clk.Now())
+	b.observeOutcomes(fail(10), clk.Now())
 	var slots []int
 	held := false
 	for i := 0; i < 120 && !held; i++ {
-		b.ObserveOutcomes(fail(1), clk.Now()) // sustained: failures keep arriving
-		got := b.Sample(context.Background(), RunSnapshot{})
-		if got.Hold == HoldTransient {
+		b.observeOutcomes(fail(1), clk.Now()) // sustained: failures keep arriving
+		got := b.sample(context.Background(), runSnapshot{})
+		if got.hold == HoldTransient {
 			held = true
 			break
 		}
@@ -278,12 +278,12 @@ func TestBreakerShedsSlotsBeforeTrippingAndRecoversWhenTheRateFalls(t *testing.T
 	}
 	// While open it holds, then half-opens to a single probe slot.
 	clk.Advance(61 * time.Second)
-	if got := b.Sample(context.Background(), RunSnapshot{}); got.Hold != HoldNone || got.MaxLocalSlots != 1 {
+	if got := b.sample(context.Background(), runSnapshot{}); got.hold != holdNone || got.MaxLocalSlots != 1 {
 		t.Fatalf("after the open period one probe slot should be allowed: %+v", got)
 	}
 	// Successes bring the rate under half the threshold and the breaker resets.
-	b.ObserveOutcomes(ok(30), clk.Now())
-	if got := b.Sample(context.Background(), RunSnapshot{}); restricted(got) {
+	b.observeOutcomes(ok(30), clk.Now())
+	if got := b.sample(context.Background(), runSnapshot{}); restricted(got) {
 		t.Fatalf("the breaker should close once the failure rate is low: %+v", got)
 	}
 }
@@ -293,27 +293,27 @@ func TestBreakerShedsSlotsBeforeTrippingAndRecoversWhenTheRateFalls(t *testing.T
 // outcomes) can reopen.
 func TestBreakerRateDecaysWhenNoOutcomesArrive(t *testing.T) {
 	clk := newFakeClock()
-	b := newBreaker(clk)
-	b.ObserveOutcomes(fail(12), clk.Now())
-	b.Sample(context.Background(), RunSnapshot{})
+	b := newTestBreaker(clk)
+	b.observeOutcomes(fail(12), clk.Now())
+	b.sample(context.Background(), runSnapshot{})
 	clk.Advance(21 * time.Second)
-	if got := b.Sample(context.Background(), RunSnapshot{}); got.MaxLocalSlots >= Unlimited {
+	if got := b.sample(context.Background(), runSnapshot{}); got.MaxLocalSlots >= Unlimited {
 		t.Fatalf("a sustained failure rate should have shed a slot: %+v", got)
 	}
 	clk.Advance(5 * time.Minute)
-	if got := b.Sample(context.Background(), RunSnapshot{}); restricted(got) {
+	if got := b.sample(context.Background(), runSnapshot{}); restricted(got) {
 		t.Fatalf("five minutes with no outcomes should have decayed the rate and closed the breaker: %+v", got)
 	}
 }
 
 func TestSizeOfTheBreakerReadingNamesTheRate(t *testing.T) {
 	clk := newFakeClock()
-	b := newBreaker(clk)
-	b.ObserveOutcomes(fail(12), clk.Now())
-	b.Sample(context.Background(), RunSnapshot{})
+	b := newTestBreaker(clk)
+	b.observeOutcomes(fail(12), clk.Now())
+	b.sample(context.Background(), runSnapshot{})
 	clk.Advance(21 * time.Second)
-	got := b.Sample(context.Background(), RunSnapshot{})
-	if got.Reason == "" || got.Sensor != "failure-rate" && b.Name() != "failure-rate" {
+	got := b.sample(context.Background(), runSnapshot{})
+	if got.Reason == "" || got.sensor != "failure-rate" && b.sensorName() != "failure-rate" {
 		t.Fatalf("a restriction must say why: %+v", got)
 	}
 }

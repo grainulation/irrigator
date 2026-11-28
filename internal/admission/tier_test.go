@@ -7,18 +7,18 @@ import (
 	"github.com/grainulation/irrigator/internal/model"
 )
 
-func tierEval(clk *fakeClock, s *fakeSensor, tiers func(*model.State, string) (Tier, bool)) *Evaluator {
-	return NewEvaluator(Options{Clock: clk, Workers: 4, ExitDwell: time.Second, RampThrottle: time.Second, Sync: true, Locality: byName, Tier: tiers},
-		Registration{Sensor: s, Policy: FailOpen, TTL: time.Hour})
+func tierEval(clk *fakeClock, s *fakeSensor, tiers func(*model.State, string) (tier, bool)) *Evaluator {
+	return newEvaluator(options{clock: clk, workers: 4, exitDwell: time.Second, rampThrottle: time.Second, sync: true, locality: byName, tier: tiers},
+		registration{sensor: s, policy: failOpen, ttl: time.Hour})
 }
 
 func TestTierFiltersOnlyTasksThatDeclareOne(t *testing.T) {
-	declared := map[string]Tier{"big": TierFull, "mid": TierReduced, "small": TierMinimal}
-	lookup := func(_ *model.State, id string) (Tier, bool) { t, ok := declared[id]; return t, ok }
+	declared := map[string]tier{"big": tierFull, "mid": tierReduced, "small": tierMinimal}
+	lookup := func(_ *model.State, id string) (tier, bool) { t, ok := declared[id]; return t, ok }
 	clk := newFakeClock()
 	s := newFake("power")
 	r := OpenReading("power")
-	r.ModelTier, r.Reason = TierReduced, "thermal serious"
+	r.modelTier, r.Reason = tierReduced, "thermal serious"
 	s.set(r)
 	e := tierEval(clk, s, lookup)
 	st := tasks("big", "mid", "small", "untagged")
@@ -38,7 +38,7 @@ func TestTierWithNoLookupFiltersNothing(t *testing.T) {
 	clk := newFakeClock()
 	s := newFake("power")
 	r := OpenReading("power")
-	r.ModelTier = TierMinimal
+	r.modelTier = tierMinimal
 	s.set(r)
 	got, _ := tierEval(clk, s, nil).Admit(tasks("a", "b"), []string{"a", "b"}, map[string]bool{}, 4)
 	if len(got) != 2 {
@@ -50,11 +50,11 @@ func TestTierNeverRebindsATask(t *testing.T) {
 	clk := newFakeClock()
 	s := newFake("power")
 	r := OpenReading("power")
-	r.ModelTier = TierMinimal
+	r.modelTier = tierMinimal
 	s.set(r)
 	st := tasks("big")
 	st.Tasks["big"].BindingDigest, st.Tasks["big"].OperationID = "digest", "op"
-	tierEval(clk, s, func(*model.State, string) (Tier, bool) { return TierFull, true }).Admit(st, []string{"big"}, map[string]bool{}, 4)
+	tierEval(clk, s, func(*model.State, string) (tier, bool) { return tierFull, true }).Admit(st, []string{"big"}, map[string]bool{}, 4)
 	if st.Tasks["big"].BindingDigest != "digest" || st.Tasks["big"].OperationID != "op" {
 		t.Fatal("tier filtering changed a task's binding")
 	}
@@ -67,19 +67,19 @@ func TestProfileTiersReadsTheDeclaredTierOfATasksManagedProfile(t *testing.T) {
 		"b": {Spec: model.Task{ID: "b", Profile: "light"}},  // declared light
 		"c": {Spec: model.Task{ID: "c", Profile: "custom"}}, // not declared
 	}}
-	lookup := ProfileTiers(map[string]Tier{"heavy": TierFull, "light": TierMinimal})
+	lookup := profileTiers(map[string]tier{"heavy": tierFull, "light": tierMinimal})
 	for id, want := range map[string]struct {
-		tier     Tier
+		tier     tier
 		declared bool
-	}{"a": {TierFull, true}, "b": {TierMinimal, true}, "c": {0, false}} {
+	}{"a": {tierFull, true}, "b": {tierMinimal, true}, "c": {0, false}} {
 		if got, ok := lookup(st, id); ok != want.declared || (ok && got != want.tier) {
 			t.Errorf("%s: got (%d,%v), want (%d,%v)", id, got, ok, want.tier, want.declared)
 		}
 	}
-	if ProfileTiers(nil) != nil {
+	if profileTiers(nil) != nil {
 		t.Error("no declared tiers should mean no filter at all")
 	}
-	if _, err := ParseTier("giant"); err == nil {
+	if _, err := parseTier("giant"); err == nil {
 		t.Error("an unknown tier name was accepted")
 	}
 }

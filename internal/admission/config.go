@@ -21,17 +21,17 @@ import (
 const (
 	ConfigFile   = "admission.json"
 	OverrideFile = "admission-override.json"
-	ConfigSchema = "irrigator.admission/v1"
+	configSchema = "irrigator.admission/v1"
 )
 
 // ActiveSpec is the --admission value of this process, a preset name or a config
 // file path. It follows the same pattern as the sizing path.
 var ActiveSpec string
 
-// PowerConfig sets what the power and thermal sensor does. A limit of -1 means no
+// powerConfig sets what the power and thermal sensor does. A limit of -1 means no
 // limit and 0 means none may start. A tier field, when set, caps the model tier
 // that may start while that condition holds.
-type PowerConfig struct {
+type powerConfig struct {
 	BatteryFloorPercent      int    `json:"battery_floor_percent"`
 	OnBatteryLocalSlots      int    `json:"on_battery_local_slots"`
 	LowPowerLocalSlots       int    `json:"low_power_local_slots"`
@@ -42,14 +42,14 @@ type PowerConfig struct {
 	ThermalSeriousMaxTier    string `json:"thermal_serious_max_tier,omitempty"`
 }
 
-// NetworkConfig sets what the network sensor does. MeteredRemoteSlots applies to
+// networkConfig sets what the network sensor does. MeteredRemoteSlots applies to
 // a hotspot or other metered link; an offline link always stops remote work.
-type NetworkConfig struct {
+type networkConfig struct {
 	MeteredRemoteSlots int `json:"metered_remote_slots"`
 }
 
-// Config is the contents of admission.json.
-type Config struct {
+// config is the contents of admission.json.
+type config struct {
 	Schema              string  `json:"schema"`
 	Preset              string  `json:"preset"`
 	ExitDwellSeconds    float64 `json:"exit_dwell_seconds"`
@@ -58,15 +58,15 @@ type Config struct {
 	// operator can throttle or hold a run by hand.
 	Override bool `json:"override"`
 
-	Power    *PowerConfig    `json:"power,omitempty"`
-	Network  *NetworkConfig  `json:"network,omitempty"`
-	Memory   *MemoryConfig   `json:"memory,omitempty"`
-	Disk     *DiskConfig     `json:"disk,omitempty"`
-	Presence *PresenceConfig `json:"presence,omitempty"`
-	OffPeak  *OffPeakConfig  `json:"offpeak,omitempty"`
+	Power    *powerConfig    `json:"power,omitempty"`
+	Network  *networkConfig  `json:"network,omitempty"`
+	Memory   *memoryConfig   `json:"memory,omitempty"`
+	Disk     *diskConfig     `json:"disk,omitempty"`
+	Presence *presenceConfig `json:"presence,omitempty"`
+	OffPeak  *offPeakConfig  `json:"offpeak,omitempty"`
 	// RateLimit and Breaker learn from how this run's own attempts end.
-	RateLimit *RateLimitConfig `json:"rate_limit,omitempty"`
-	Breaker   *BreakerConfig   `json:"failure_breaker,omitempty"`
+	RateLimit *rateLimitConfig `json:"rate_limit,omitempty"`
+	Breaker   *breakerConfig   `json:"failure_breaker,omitempty"`
 	// ProfileTiers declares, per managed profile name, the model tier of that
 	// profile: minimal, reduced or full. Only declared profiles are ever filtered
 	// by tier, and nothing is inferred from model names.
@@ -74,42 +74,42 @@ type Config struct {
 }
 
 var (
-	defaultRateLimit = RateLimitConfig{DefaultCooldownSeconds: 60, MaxCooldownSeconds: 900, Headroom: 1}
-	defaultBreaker   = BreakerConfig{Alpha: 0.2, Threshold: 0.5, MinOutcomes: 5, IntervalSeconds: 20, OpenSeconds: 60, HalfLifeSeconds: 120}
-	defaultDisk      = DiskConfig{LowFreeMB: 5120, CriticalFreeMB: 1024, LowLocalSlots: 1}
+	defaultRateLimit = rateLimitConfig{DefaultCooldownSeconds: 60, MaxCooldownSeconds: 900, Headroom: 1}
+	defaultBreaker   = breakerConfig{Alpha: 0.2, Threshold: 0.5, MinOutcomes: 5, IntervalSeconds: 20, OpenSeconds: 60, HalfLifeSeconds: 120}
+	defaultDisk      = diskConfig{LowFreeMB: 5120, CriticalFreeMB: 1024, LowLocalSlots: 1}
 )
 
 // Presets are the named configurations. unbounded restricts nothing and is the
 // default: a run without --admission behaves exactly as it always has.
-var presets = map[string]Config{
-	"unbounded": {Schema: ConfigSchema, Preset: "unbounded"},
-	"balanced": {Schema: ConfigSchema, Preset: "balanced", ExitDwellSeconds: 30, RampThrottleSeconds: 10, Override: true,
-		Power:     &PowerConfig{BatteryFloorPercent: 15, OnBatteryLocalSlots: -1, LowPowerLocalSlots: 2, ThermalFairLocalSlots: -1, ThermalSeriousLocalSlots: 1, ThermalCriticalHold: true},
-		Network:   &NetworkConfig{MeteredRemoteSlots: 2},
-		Memory:    &MemoryConfig{WarnLocalSlots: 2, CriticalHold: true},
+var presets = map[string]config{
+	"unbounded": {Schema: configSchema, Preset: "unbounded"},
+	"balanced": {Schema: configSchema, Preset: "balanced", ExitDwellSeconds: 30, RampThrottleSeconds: 10, Override: true,
+		Power:     &powerConfig{BatteryFloorPercent: 15, OnBatteryLocalSlots: -1, LowPowerLocalSlots: 2, ThermalFairLocalSlots: -1, ThermalSeriousLocalSlots: 1, ThermalCriticalHold: true},
+		Network:   &networkConfig{MeteredRemoteSlots: 2},
+		Memory:    &memoryConfig{WarnLocalSlots: 2, CriticalHold: true},
 		Disk:      &defaultDisk,
 		RateLimit: &defaultRateLimit,
 		Breaker:   &defaultBreaker},
-	"quiet": {Schema: ConfigSchema, Preset: "quiet", ExitDwellSeconds: 60, RampThrottleSeconds: 15, Override: true,
-		Power:     &PowerConfig{BatteryFloorPercent: 30, OnBatteryLocalSlots: 2, LowPowerLocalSlots: 1, ThermalFairLocalSlots: 2, ThermalSeriousLocalSlots: 1, ThermalCriticalHold: true},
-		Network:   &NetworkConfig{MeteredRemoteSlots: 0},
-		Memory:    &MemoryConfig{WarnLocalSlots: 1, CriticalHold: true, SwapUsedPercentLimit: 60, SwapLocalSlots: 1},
+	"quiet": {Schema: configSchema, Preset: "quiet", ExitDwellSeconds: 60, RampThrottleSeconds: 15, Override: true,
+		Power:     &powerConfig{BatteryFloorPercent: 30, OnBatteryLocalSlots: 2, LowPowerLocalSlots: 1, ThermalFairLocalSlots: 2, ThermalSeriousLocalSlots: 1, ThermalCriticalHold: true},
+		Network:   &networkConfig{MeteredRemoteSlots: 0},
+		Memory:    &memoryConfig{WarnLocalSlots: 1, CriticalHold: true, SwapUsedPercentLimit: 60, SwapLocalSlots: 1},
 		Disk:      &defaultDisk,
-		Presence:  &PresenceConfig{ActiveWithinSeconds: 120, ActiveLocalSlots: 1},
+		Presence:  &presenceConfig{ActiveWithinSeconds: 120, ActiveLocalSlots: 1},
 		RateLimit: &defaultRateLimit,
 		Breaker:   &defaultBreaker},
-	"offpeak": {Schema: ConfigSchema, Preset: "offpeak", ExitDwellSeconds: 30, RampThrottleSeconds: 10, Override: true,
-		Power:     &PowerConfig{BatteryFloorPercent: 15, OnBatteryLocalSlots: -1, LowPowerLocalSlots: 2, ThermalFairLocalSlots: -1, ThermalSeriousLocalSlots: 1, ThermalCriticalHold: true},
-		Network:   &NetworkConfig{MeteredRemoteSlots: 2},
-		Memory:    &MemoryConfig{WarnLocalSlots: 2, CriticalHold: true},
+	"offpeak": {Schema: configSchema, Preset: "offpeak", ExitDwellSeconds: 30, RampThrottleSeconds: 10, Override: true,
+		Power:     &powerConfig{BatteryFloorPercent: 15, OnBatteryLocalSlots: -1, LowPowerLocalSlots: 2, ThermalFairLocalSlots: -1, ThermalSeriousLocalSlots: 1, ThermalCriticalHold: true},
+		Network:   &networkConfig{MeteredRemoteSlots: 2},
+		Memory:    &memoryConfig{WarnLocalSlots: 2, CriticalHold: true},
 		Disk:      &defaultDisk,
-		OffPeak:   &OffPeakConfig{Window: "22:00-07:00", OutsideLocalSlots: 1, OutsideRemoteSlots: 1},
+		OffPeak:   &offPeakConfig{Window: "22:00-07:00", OutsideLocalSlots: 1, OutsideRemoteSlots: 1},
 		RateLimit: &defaultRateLimit,
 		Breaker:   &defaultBreaker},
 }
 
-// PresetNames lists the built-in presets.
-func PresetNames() []string { return []string{"unbounded", "balanced", "quiet", "offpeak"} }
+// presetNames lists the built-in presets.
+func presetNames() []string { return []string{"unbounded", "balanced", "quiet", "offpeak"} }
 
 func checkSlots(name string, v int) error {
 	if v < -1 || v > 1024 {
@@ -122,16 +122,16 @@ func checkTier(name, v string) error {
 	if v == "" {
 		return nil
 	}
-	if _, err := ParseTier(v); err != nil {
+	if _, err := parseTier(v); err != nil {
 		return fmt.Errorf("%s: %w", name, err)
 	}
 	return nil
 }
 
-// Validate rejects a configuration that cannot be enforced.
-func (c Config) Validate() error {
-	if c.Schema != ConfigSchema {
-		return fmt.Errorf("admission config schema must be %q", ConfigSchema)
+// validate rejects a configuration that cannot be enforced.
+func (c config) validate() error {
+	if c.Schema != configSchema {
+		return fmt.Errorf("admission config schema must be %q", configSchema)
 	}
 	for name, v := range c.numbers() {
 		if math.IsNaN(v) || math.IsInf(v, 0) {
@@ -197,7 +197,7 @@ func (c Config) Validate() error {
 		}
 	}
 	if o := c.OffPeak; o != nil {
-		if _, _, err := ParseWindow(o.Window); err != nil {
+		if _, _, err := parseWindow(o.Window); err != nil {
 			return err
 		}
 		if err := checkSlots("outside_local_slots", o.OutsideLocalSlots); err != nil {
@@ -224,7 +224,7 @@ func (c Config) Validate() error {
 		if profile == "" {
 			return errors.New("profile_tiers has an empty profile name")
 		}
-		if _, err := ParseTier(tier); err != nil {
+		if _, err := parseTier(tier); err != nil {
 			return fmt.Errorf("profile_tiers[%q]: %w", profile, err)
 		}
 	}
@@ -233,7 +233,7 @@ func (c Config) Validate() error {
 
 // numbers lists the fractional settings, which a JSON file cannot make
 // non-finite but a program could.
-func (c Config) numbers() map[string]float64 {
+func (c config) numbers() map[string]float64 {
 	m := map[string]float64{"exit_dwell_seconds": c.ExitDwellSeconds, "ramp_throttle_seconds": c.RampThrottleSeconds}
 	if p := c.Presence; p != nil {
 		m["active_within_seconds"] = p.ActiveWithinSeconds
@@ -247,36 +247,36 @@ func (c Config) numbers() map[string]float64 {
 	return m
 }
 
-// Active reports whether the configuration restricts anything.
-func (c Config) Active() bool {
+// active reports whether the configuration restricts anything.
+func (c config) active() bool {
 	return c.Power != nil || c.Network != nil || c.Override || c.Memory != nil || c.Disk != nil ||
 		c.Presence != nil || c.OffPeak != nil || c.RateLimit != nil || c.Breaker != nil
 }
 
-// Resolve turns a --admission value into a validated configuration: a preset
+// resolve turns a --admission value into a validated configuration: a preset
 // name, or the path of a JSON file with unknown fields rejected.
-func Resolve(spec string) (Config, error) {
+func resolve(spec string) (config, error) {
 	if c, ok := presets[spec]; ok {
 		return c, nil
 	}
 	raw, err := os.ReadFile(spec)
 	if err != nil {
-		return Config{}, fmt.Errorf("--admission %q is neither a preset (%v) nor a readable file: %w", spec, PresetNames(), err)
+		return config{}, fmt.Errorf("--admission %q is neither a preset (%v) nor a readable file: %w", spec, presetNames(), err)
 	}
-	var c Config
+	var c config
 	dec := json.NewDecoder(bytes.NewReader(raw))
 	dec.DisallowUnknownFields()
 	if err = dec.Decode(&c); err != nil {
-		return Config{}, fmt.Errorf("invalid admission config %s: %w", spec, err)
+		return config{}, fmt.Errorf("invalid admission config %s: %w", spec, err)
 	}
 	if c.Preset == "" {
 		c.Preset = "custom"
 	}
-	if err = c.Validate(); err != nil {
-		return Config{}, err
+	if err = c.validate(); err != nil {
+		return config{}, err
 	}
-	if !c.Active() && c.Preset != "unbounded" {
-		return Config{}, fmt.Errorf("admission config %s limits nothing: a preset name (%v) is given on the command line, not as a \"preset\" field; add sections, or use unbounded to run without limits", spec, PresetNames())
+	if !c.active() && c.Preset != "unbounded" {
+		return config{}, fmt.Errorf("admission config %s limits nothing: a preset name (%v) is given on the command line, not as a \"preset\" field; add sections, or use unbounded to run without limits", spec, presetNames())
 	}
 	return c, nil
 }
@@ -295,7 +295,7 @@ func limit(v int) int {
 type Deps struct {
 	// DiagnoseLimit inspects one finished attempt's captured provider output.
 	// Without it the rate-limit sensor is not registered.
-	DiagnoseLimit LimitDiagnoser
+	DiagnoseLimit limitDiagnoser
 }
 
 // LoadRun opens the admission configuration of a run. An explicit spec is saved
@@ -308,9 +308,9 @@ func LoadRun(root, spec string, workers int, deps Deps) (*Evaluator, error) {
 	// a status while the lock is held, which would otherwise make it look current.
 	_ = os.Remove(filepath.Join(root, StatusFile))
 	side := filepath.Join(root, ConfigFile)
-	var cfg Config
+	var cfg config
 	if spec != "" {
-		c, err := Resolve(spec)
+		c, err := resolve(spec)
 		if err != nil {
 			return nil, err
 		}
@@ -331,14 +331,14 @@ func LoadRun(root, spec string, workers int, deps Deps) (*Evaluator, error) {
 		if err = dec.Decode(&cfg); err != nil {
 			return nil, fmt.Errorf("invalid %s: %w", side, err)
 		}
-		if err = cfg.Validate(); err != nil {
+		if err = cfg.validate(); err != nil {
 			return nil, err
 		}
 	}
-	if !cfg.Active() {
+	if !cfg.active() {
 		return nil, nil
 	}
-	return NewRunEvaluator(root, cfg, workers, clock.ActiveClock, false, deps)
+	return newRunEvaluator(root, cfg, workers, clock.ActiveClock, false, deps)
 }
 
 // capTier lowers r's tier ceiling to the named tier when one is configured.
@@ -346,14 +346,14 @@ func capTier(r *Reading, name string) {
 	if name == "" {
 		return
 	}
-	if t, err := ParseTier(name); err == nil && t < r.ModelTier {
-		r.ModelTier = t
+	if t, err := parseTier(name); err == nil && t < r.modelTier {
+		r.modelTier = t
 	}
 }
 
 // lockWaitProbe measures how long the checkpoint lock takes to become available
 // to a reader, polling without blocking, up to two seconds.
-func lockWaitProbe(root string) LockWaitProbe {
+func lockWaitProbe(root string) lockWaitFn {
 	return func(ctx context.Context) (time.Duration, error) {
 		f, err := os.OpenFile(filepath.Join(root, "state.lock"), os.O_RDONLY|syscall.O_NOFOLLOW, 0)
 		if err != nil {
@@ -378,58 +378,58 @@ func lockWaitProbe(root string) LockWaitProbe {
 	}
 }
 
-// NewRunEvaluator builds the evaluator for cfg. sync samples inline (tests).
-func NewRunEvaluator(root string, cfg Config, workers int, clk clock.Clock, sync bool, deps Deps) (*Evaluator, error) {
-	var regs []Registration
-	add := func(s Sensor, p FailurePolicy, ttl time.Duration, inline bool) {
-		regs = append(regs, Registration{Sensor: s, Policy: p, TTL: ttl, Inline: inline})
+// newRunEvaluator builds the evaluator for cfg. sync samples inline (tests).
+func newRunEvaluator(root string, cfg config, workers int, clk clock.Clock, sync bool, deps Deps) (*Evaluator, error) {
+	var regs []registration
+	add := func(s sensor, p failurePolicy, ttl time.Duration, inline bool) {
+		regs = append(regs, registration{sensor: s, policy: p, ttl: ttl, inline: inline})
 	}
-	add(NewRunCap(), FailOpen, 0, true)
+	add(newRunCap(), failOpen, 0, true)
 	if cfg.Power != nil {
-		add(NewPowerThermal(*cfg.Power, hostPowerProbe), FailOpen, 15*time.Second, false)
+		add(newPowerThermal(*cfg.Power, hostPowerProbe), failOpen, 15*time.Second, false)
 	}
 	if cfg.Network != nil {
-		add(NewNetwork(*cfg.Network, hostNetworkProbe), FailOpen, 10*time.Second, false)
+		add(newNetwork(*cfg.Network, hostNetworkProbe), failOpen, 10*time.Second, false)
 	}
 	if cfg.Memory != nil {
-		add(NewMemory(*cfg.Memory, hostMemoryProbe), FailOpen, 10*time.Second, false)
+		add(newMemory(*cfg.Memory, hostMemoryProbe), failOpen, 10*time.Second, false)
 	}
 	if cfg.Disk != nil {
-		add(NewDisk(*cfg.Disk, DiskStatfs(root)), FailClosed, 30*time.Second, false)
+		add(newDisk(*cfg.Disk, diskStatfs(root)), failClosed, 30*time.Second, false)
 		if cfg.Disk.LockWaitMS > 0 {
-			add(NewLockWait(*cfg.Disk, lockWaitProbe(root)), FailOpen, 10*time.Second, false)
+			add(newLockWait(*cfg.Disk, lockWaitProbe(root)), failOpen, 10*time.Second, false)
 		}
 	}
 	if cfg.Presence != nil {
-		add(NewPresence(*cfg.Presence, hostPresenceProbe), FailOpen, 5*time.Second, false)
+		add(newPresence(*cfg.Presence, hostPresenceProbe), failOpen, 5*time.Second, false)
 	}
 	if cfg.OffPeak != nil {
-		sensor, err := NewOffPeak(*cfg.OffPeak, clk)
+		sensor, err := newOffPeak(*cfg.OffPeak, clk)
 		if err != nil {
 			return nil, err
 		}
-		add(sensor, FailOpen, 0, true)
+		add(sensor, failOpen, 0, true)
 		if cfg.OffPeak.SignalFile != "" {
-			add(NewOverrideNamed("offpeak-signal", cfg.OffPeak.SignalFile), FailOpen, 30*time.Second, false)
+			add(newOverrideNamed("offpeak-signal", cfg.OffPeak.SignalFile), failOpen, 30*time.Second, false)
 		}
 	}
 	if cfg.RateLimit != nil && deps.DiagnoseLimit != nil {
-		add(NewRateLimit(root, *cfg.RateLimit, workers, clk, deps.DiagnoseLimit), FailOpen, 0, true)
+		add(newRateLimit(root, *cfg.RateLimit, workers, clk, deps.DiagnoseLimit), failOpen, 0, true)
 	}
 	if cfg.Breaker != nil {
-		add(NewBreaker(*cfg.Breaker, workers, clk), FailOpen, 0, true)
+		add(newBreaker(*cfg.Breaker, workers, clk), failOpen, 0, true)
 	}
 	if cfg.Override {
-		add(NewOverride(filepath.Join(root, OverrideFile)), FailClosed, 2*time.Second, false)
+		add(newOverride(filepath.Join(root, OverrideFile)), failClosed, 2*time.Second, false)
 	}
-	tiers := map[string]Tier{}
+	tiers := map[string]tier{}
 	for profile, name := range cfg.ProfileTiers {
-		t, err := ParseTier(name)
+		t, err := parseTier(name)
 		if err != nil {
 			return nil, err
 		}
 		tiers[profile] = t
 	}
-	return NewEvaluator(Options{Clock: clk, Workers: workers, ExitDwell: seconds(cfg.ExitDwellSeconds), RampThrottle: seconds(cfg.RampThrottleSeconds),
-		Preset: cfg.Preset, StatusPath: filepath.Join(root, StatusFile), Sync: sync, Tier: ProfileTiers(tiers)}, regs...), nil
+	return newEvaluator(options{clock: clk, workers: workers, exitDwell: seconds(cfg.ExitDwellSeconds), rampThrottle: seconds(cfg.RampThrottleSeconds),
+		preset: cfg.Preset, statusPath: filepath.Join(root, StatusFile), sync: sync, tier: profileTiers(tiers)}, regs...), nil
 }

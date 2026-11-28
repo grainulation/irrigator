@@ -10,48 +10,48 @@ import (
 // strongest hold. Every field that ends up restricted records the sensors that
 // bound it, so a status display can say why.
 func Compose(readings []Reading) Envelope {
-	env := Open()
+	env := open()
 	for _, r := range readings {
 		if r.MaxLocalSlots < env.MaxLocalSlots {
 			env.MaxLocalSlots = r.MaxLocalSlots
 		}
-		if r.MaxRemoteSlots < env.MaxRemoteSlots {
-			env.MaxRemoteSlots = r.MaxRemoteSlots
+		if r.maxRemoteSlots < env.MaxRemoteSlots {
+			env.MaxRemoteSlots = r.maxRemoteSlots
 		}
-		env.AllowRemote = env.AllowRemote && r.AllowRemote
-		if r.ModelTier < env.ModelTier {
-			env.ModelTier = r.ModelTier
+		env.AllowRemote = env.AllowRemote && r.allowRemote
+		if r.modelTier < env.ModelTier {
+			env.ModelTier = r.modelTier
 		}
-		if r.MinPoll > env.MinPoll {
-			env.MinPoll = r.MinPoll
+		if r.minPoll > env.MinPoll {
+			env.MinPoll = r.minPoll
 		}
-		if r.Hold > env.Hold {
-			env.Hold = r.Hold
+		if r.hold > env.Hold {
+			env.Hold = r.hold
 		}
-		if r.Probe == ProbeFailed || r.Probe == ProbeStale {
-			env.Degraded = append(env.Degraded, r.Sensor)
+		if r.probe == probeFailed || r.probe == probeStale {
+			env.Degraded = append(env.Degraded, r.sensor)
 		}
 	}
 	bind := func(field string, r Reading) {
-		env.Bindings = append(env.Bindings, BindingReason{Field: field, Sensor: r.Sensor, Reason: r.Reason, Severity: r.Severity})
+		env.Bindings = append(env.Bindings, bindingReason{Field: field, Sensor: r.sensor, Reason: r.Reason, Severity: r.severity})
 	}
 	for _, r := range readings {
 		if r.MaxLocalSlots == env.MaxLocalSlots && r.MaxLocalSlots < Unlimited {
 			bind("max_local_slots", r)
 		}
-		if r.MaxRemoteSlots == env.MaxRemoteSlots && r.MaxRemoteSlots < Unlimited {
+		if r.maxRemoteSlots == env.MaxRemoteSlots && r.maxRemoteSlots < Unlimited {
 			bind("max_remote_slots", r)
 		}
-		if !r.AllowRemote {
+		if !r.allowRemote {
 			bind("allow_remote", r)
 		}
-		if r.ModelTier == env.ModelTier && r.ModelTier < TierFull {
+		if r.modelTier == env.ModelTier && r.modelTier < tierFull {
 			bind("model_tier", r)
 		}
-		if r.MinPoll > 0 && r.MinPoll == env.MinPoll {
+		if r.minPoll > 0 && r.minPoll == env.MinPoll {
 			bind("min_poll", r)
 		}
-		if r.Hold != HoldNone && r.Hold == env.Hold {
+		if r.hold != holdNone && r.hold == env.Hold {
 			bind("hold", r)
 		}
 	}
@@ -65,11 +65,11 @@ func Compose(readings []Reading) Envelope {
 	return env
 }
 
-// Summary is a one-line description of what binds the envelope, for status
+// summary is a one-line description of what binds the envelope, for status
 // output, such as "local 2/6 (power: thermal serious); remote paused (network:
 // offline)".
-func (e Envelope) Summary(workers int) string {
-	if !e.Restricted() {
+func (e Envelope) summary(workers int) string {
+	if !e.restricted() {
 		return "open"
 	}
 	reason := func(field string) string {
@@ -80,7 +80,7 @@ func (e Envelope) Summary(workers int) string {
 		}
 		return ""
 	}
-	if e.Hold != HoldNone {
+	if e.Hold != holdNone {
 		return fmt.Sprintf("hold %s (%s)", e.Hold, reason("hold"))
 	}
 	out := ""
@@ -98,7 +98,7 @@ func (e Envelope) Summary(workers int) string {
 	} else if e.MaxRemoteSlots < Unlimited {
 		add(fmt.Sprintf("remote %d/%d (%s)", e.MaxRemoteSlots, workers, reason("max_remote_slots")))
 	}
-	if e.ModelTier < TierFull {
+	if e.ModelTier < tierFull {
 		add(fmt.Sprintf("tier %d (%s)", e.ModelTier, reason("model_tier")))
 	}
 	if out == "" {
