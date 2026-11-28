@@ -106,7 +106,14 @@ func (f FileCheckpointStore) Update(ctx context.Context, options CheckpointUpdat
 	if before == nil {
 		before = cloneCheckpoint(s)
 	}
+	planGuard, err := guardSharedPlan(f.Root, base)
+	if err != nil {
+		return err
+	}
 	if err := fn(s); err != nil {
+		if gerr := planGuard(); gerr != nil {
+			return gerr
+		}
 		if errors.Is(err, ErrUnchanged) {
 			checkpointNoops.Add(1)
 			return nil
@@ -114,6 +121,9 @@ func (f FileCheckpointStore) Update(ctx context.Context, options CheckpointUpdat
 		return err
 	}
 	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if err := planGuard(); err != nil {
 		return err
 	}
 	phasetrace.Emit("ckpt", "upd_callback_done", "")

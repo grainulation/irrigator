@@ -72,7 +72,7 @@ func benchmarkWorkerPattern(b *testing.B, backend string, tasks int, mode string
 	}
 }
 
-func workerPatternRun(b *testing.B, backend string, tasks int) string {
+func workerPatternRun(b testing.TB, backend string, tasks int) string {
 	b.Helper()
 	if backend == "managed" {
 		p := sharedProfileState(b, tasks, false).Plan

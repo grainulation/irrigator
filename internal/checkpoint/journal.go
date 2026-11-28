@@ -219,7 +219,7 @@ func readPlainCheckpoint(root string, raw []byte) (*model.State, error) {
 // lock. Cache identities include actual snapshot and committed log bytes, not
 // just mtimes; external corruption is never hidden by a warm cache.
 func readJournalModel(root string, raw []byte) (*model.State, error) {
-	s, _, err := readJournalModelWithBase(root, raw)
+	s, _, err := readJournalModelWithBase(root, raw, false)
 	return s, err
 }
 
@@ -227,12 +227,12 @@ func readJournalModel(root string, raw []byte) (*model.State, error) {
 // returned one before the caller changes it, or nil when none is retained. base
 // is the cache's own immutable entry: the caller may compare against it but
 // must never modify it, which saves a whole-state clone per commit.
-func readJournalModelWithBase(root string, raw []byte) (*model.State, *model.State, error) {
+func readJournalModelWithBase(root string, raw []byte, sharePlan bool) (*model.State, *model.State, error) {
 	in, err := loadJournalInputs(root, raw)
 	if err != nil {
 		return nil, nil, err
 	}
-	return decodeJournalInputs(root, in)
+	return decodeJournalInputs(root, in, sharePlan)
 }
 
 // journalInputs are the committed bytes of one journal generation, read while
@@ -263,7 +263,11 @@ func loadJournalInputs(root string, raw []byte) (journalInputs, error) {
 
 // decodeJournalInputs verifies, replays and validates inputs read by
 // loadJournalInputs. It needs no state lock.
-func decodeJournalInputs(root string, in journalInputs) (*model.State, *model.State, error) {
+func decodeJournalInputs(root string, in journalInputs, sharePlan bool) (*model.State, *model.State, error) {
+	clone := cloneCheckpoint
+	if sharePlan {
+		clone = cloneSharingPlan
+	}
 	raw, h, snapshot, log := in.raw, in.head, in.snapshot, in.log
 	if digestCheckpoint(snapshot) != h.Storage.SnapshotSHA256 {
 		return nil, nil, errors.New("journal snapshot digest mismatch")
@@ -286,7 +290,7 @@ func decodeJournalInputs(root string, in journalInputs) (*model.State, *model.St
 	defer committedCache.Unlock()
 	prior, ok := committedCache.entries[key]
 	if ok && reflect.DeepEqual(prior.head, h) && prior.prefixSHA256 == prefix {
-		s := cloneCheckpoint(prior.state)
+		s := clone(prior.state)
 		if err := validateRecoveryCheckpoint(root, s); err != nil {
 			return nil, nil, err
 		}
@@ -306,7 +310,7 @@ func decodeJournalInputs(root string, in journalInputs) (*model.State, *model.St
 			return log, nil
 		}
 		return nil, errors.New("unknown journal file")
-	}, cached, &tail)
+	}, cached, &tail, sharePlan)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -337,7 +341,7 @@ func decodeJournalInputs(root string, in journalInputs) (*model.State, *model.St
 						break
 					}
 				}
-				base = cloneCheckpoint(validated)
+				base = clone(validated)
 				committedCache.entries[key] = journalCacheEntry{h, base, prefix}
 			}
 			return validated, base, nil
@@ -355,7 +359,7 @@ func decodeJournalInputs(root string, in journalInputs) (*model.State, *model.St
 				break
 			}
 		}
-		base = cloneCheckpoint(validated)
+		base = clone(validated)
 		committedCache.entries[key] = journalCacheEntry{h, base, prefix}
 	}
 	return validated, base, nil
@@ -364,12 +368,12 @@ func decodeJournalInputs(root string, in journalInputs) (*model.State, *model.St
 // expandJournal reconstructs only committed transactions and checks the entire
 // hash chain. The caller holds state.lock, or supplies immutable backup bytes.
 func expandJournal(data []byte, read func(string) ([]byte, error), cached *journalCacheEntry) (*model.State, error) {
-	return expandJournalInto(data, read, cached, nil)
+	return expandJournalInto(data, read, cached, nil, false)
 }
 
 // expandJournalInto is expandJournal that also records, when tail is non-nil,
 // each patch it applies on top of the cached state.
-func expandJournalInto(data []byte, read func(string) ([]byte, error), cached *journalCacheEntry, tail *replayTail) (*model.State, error) {
+func expandJournalInto(data []byte, read func(string) ([]byte, error), cached *journalCacheEntry, tail *replayTail, sharePlan bool) (*model.State, error) {
 	h, err := parseJournalHead(data)
 	if err != nil {
 		return nil, err
@@ -379,7 +383,11 @@ func expandJournalInto(data []byte, read func(string) ([]byte, error), cached *j
 	offset, sequence, chain := int64(0), p.SnapshotSequence, p.SnapshotSHA256
 	if cached != nil && cached.head.Storage.Snapshot == p.Snapshot && cached.head.Storage.Journal == p.Journal &&
 		cached.head.Storage.Sequence <= p.Sequence && cached.head.Storage.Bytes <= p.Bytes && cached.head.Storage.SnapshotSHA256 == p.SnapshotSHA256 {
-		s = cloneCheckpoint(cached.state)
+		if sharePlan {
+			s = cloneSharingPlan(cached.state)
+		} else {
+			s = cloneCheckpoint(cached.state)
+		}
 		offset, sequence, chain = cached.head.Storage.Bytes, cached.head.Storage.Sequence, cached.head.Storage.SHA256
 	} else {
 		b, e := read(p.Snapshot)
@@ -530,7 +538,7 @@ func readCheckpointForUpdate(root string) (*model.State, []byte, *model.State, e
 		return nil, nil, nil, err
 	}
 	if isJournalCheckpoint(b) {
-		s, base, readErr := readJournalModelWithBase(root, b)
+		s, base, readErr := readJournalModelWithBase(root, b, true)
 		return s, b, base, readErr
 	}
 	s, err := readPlainCheckpoint(root, b)
@@ -548,7 +556,7 @@ func readCurrentJournal(root string) (*model.State, error) {
 	if journalReadHook != nil {
 		journalReadHook()
 	}
-	s, _, err := decodeJournalInputs(root, in)
+	s, _, err := decodeJournalInputs(root, in, false)
 	return s, err
 }
 
@@ -762,6 +770,34 @@ func EnableJournal(root string) error {
 
 func cloneCheckpoint(s *model.State) *model.State {
 	return cloneValue(reflect.ValueOf(s)).Interface().(*model.State)
+}
+
+// cloneSharingPlan is cloneCheckpoint except that the copy shares the original's
+// Plan contents instead of duplicating them. The plan is immutable provenance
+// (see model.State), is about 13% of the work of a whole-state clone and equality
+// walk on a large run, and never changes between graph revisions, which are
+// recorded in ActiveTasks and Revisions rather than by editing the plan.
+//
+// Sharing is only sound while nothing writes through State.Plan after a read.
+// Replacing the whole field is fine. Writing into its slices, maps or pointers
+// would silently change the cache. Update guards against that in the dual verify
+// mode used by the tests (checkPlanUnchanged).
+func cloneSharingPlan(s *model.State) *model.State {
+	without := *s
+	without.Plan = model.Plan{}
+	c := cloneCheckpoint(&without)
+	c.Plan = s.Plan
+	return c
+}
+
+// planDigest identifies a plan's content independently of pointer identity, so
+// it can see a write that an equality check between aliased copies cannot.
+func planDigest(p model.Plan) (string, error) {
+	b, err := json.Marshal(p)
+	if err != nil {
+		return "", err
+	}
+	return digestCheckpoint(b), nil
 }
 
 func cloneValue(v reflect.Value) reflect.Value {

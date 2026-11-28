@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"reflect"
 	"strings"
 	"sync"
@@ -178,4 +179,34 @@ func roundTrip(v, out any) bool {
 		return false
 	}
 	return json.Unmarshal(b, out) == nil
+}
+
+// guardSharedPlan returns a check to run after the callback that the plan the
+// state shares with the commit cache was not written through. It costs a plan
+// marshal, so it runs only in the dual verify mode; otherwise it does nothing.
+func guardSharedPlan(root string, base *model.State) (func() error, error) {
+	if journalVerifyMode != journalVerifyDual || base == nil {
+		return func() error { return nil }, nil
+	}
+	want, err := planDigest(base.Plan)
+	if err != nil {
+		return nil, err
+	}
+	return func() error {
+		got, err := planDigest(base.Plan)
+		if err != nil {
+			return err
+		}
+		if got != want {
+			// The write already reached the cached copy: drop it so no later commit
+			// in this process starts from the changed plan.
+			if key, kerr := filepath.Abs(root); kerr == nil {
+				committedCache.Lock()
+				delete(committedCache.entries, key)
+				committedCache.Unlock()
+			}
+			return errors.New("checkpoint callback mutated the shared plan; the plan is immutable provenance")
+		}
+		return nil
+	}, nil
 }

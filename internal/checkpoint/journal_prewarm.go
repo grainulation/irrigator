@@ -49,5 +49,5 @@ func prewarmJournal(root string) {
 	if current {
 		return
 	}
-	_, _, _ = readJournalModelWithBase(root, raw)
+	_, _, _ = readJournalModelWithBase(root, raw, true)
 }
