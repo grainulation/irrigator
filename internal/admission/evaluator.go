@@ -70,7 +70,6 @@ type Evaluator struct {
 	entries  []*entry
 	smoother *smoother
 	classify *classifier
-	last     Envelope
 	status   statusWriter
 	warm     sync.Once
 	tracker  *tracker
@@ -97,7 +96,7 @@ func newEvaluator(opts options, regs ...registration) *Evaluator {
 	if opts.statusDebounce <= 0 {
 		opts.statusDebounce = 2 * time.Second
 	}
-	e := &Evaluator{opts: opts, smoother: newSmoother(opts.clock, opts.exitDwell, opts.rampThrottle), classify: newClassifier(), last: open(), tracker: newTracker()}
+	e := &Evaluator{opts: opts, smoother: newSmoother(opts.clock, opts.exitDwell, opts.rampThrottle), classify: newClassifier(), tracker: newTracker()}
 	e.life, e.cancel = context.WithCancel(context.Background())
 	for i := range regs {
 		if !regs[i].inline && regs[i].ttl <= 0 {
@@ -164,7 +163,6 @@ func (e *Evaluator) evaluate(ctx context.Context, snap runSnapshot) Envelope {
 	}
 	target := Compose(readings)
 	eff := e.smoother.apply(target, e.opts.workers)
-	e.last = eff
 	for _, en := range e.entries {
 		if st, ok := en.reg.sensor.(statefulSensor); ok {
 			st.observeEffective(eff)
@@ -279,13 +277,6 @@ func effectiveReading(en *entry, now time.Time) Reading {
 		return bad(probeStale, "reading is stale")
 	}
 	return en.reading
-}
-
-// latest returns the most recent envelope.
-func (e *Evaluator) latest() Envelope {
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	return e.last
 }
 
 // Admit evaluates the envelope and returns which of ready may start, in order,
