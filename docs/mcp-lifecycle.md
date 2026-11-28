@@ -51,7 +51,7 @@ Pass the run identity fields above, a new `request_id`, an explicit `directory`,
 the selected `nodes` array and the result `field` containing a JSON file map.
 
 The destination must be outside the durable run, and its parent must already
-exist. Relative paths resolve under the MCP server's `--workspace`. File maps
+exist. Relative paths resolve under the `--workspace` of `irrigator mcp`. File maps
 are validated for path traversal, conflicting contents and file/directory
 collisions. An existing destination must carry the matching manifest and exact
 source contents. Assembly preserves existing checker failure or interruption

@@ -53,7 +53,7 @@ Off macOS the host probes are not implemented and report a degraded probe, which
 
 ### Provider rate limits
 
-When a remote attempt fails and its saved output shows rate-limit evidence (the same diagnosis as `irrigator provider-limit`), new remote admissions stop until the reset time the provider stated, or a default, never longer than `max_cooldown_seconds`. They then resume under an additive-increase multiplicative-decrease limit that cannot wind up behind another sensor's constraint. The sensor only lowers how many pending remote tasks may start. It never retries, resets or touches a failed cell.
+When a remote attempt fails and its saved output shows rate-limit evidence (the same diagnosis as `irrigator quota`), new remote admissions stop until the reset time the provider stated, or a default, never longer than `max_cooldown_seconds`. They then resume under an additive-increase multiplicative-decrease limit that cannot wind up behind another sensor's constraint. The sensor only lowers how many pending remote tasks may start. It never retries, resets or touches a failed cell.
 
 ### Failure-rate breaker
 
