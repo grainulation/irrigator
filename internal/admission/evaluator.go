@@ -53,7 +53,15 @@ type entry struct {
 	at       time.Time
 	have     bool
 	inflight bool
+	started  time.Time // when the in-flight sample began
 }
+
+// failedProbeRetry is how soon a probe that failed is tried again, so one
+// transient failure does not hold or hide a sensor for a whole TTL.
+const failedProbeRetry = 2 * time.Second
+
+// defaultTTL is the freshness of a background sensor registered without one.
+const defaultTTL = 10 * time.Second
 
 // Evaluator turns sensors into the envelope that governs new admission.
 type Evaluator struct {
@@ -64,9 +72,15 @@ type Evaluator struct {
 	classify *Classifier
 	last     Envelope
 	status   statusWriter
-	warmed   bool
+	warm     sync.Once
 	tracker  *Tracker
 	runCap   *RunCap
+	// observers are the sensors that learn from finished attempts, found once.
+	observers []OutcomeObserver
+	// life bounds the background sampling goroutines; Close cancels and waits.
+	life   context.Context
+	cancel context.CancelFunc
+	wg     sync.WaitGroup
 }
 
 // NewEvaluator builds an evaluator over regs.
@@ -81,9 +95,16 @@ func NewEvaluator(opts Options, regs ...Registration) *Evaluator {
 		opts.StatusDebounce = 2 * time.Second
 	}
 	e := &Evaluator{opts: opts, smoother: NewSmoother(opts.Clock, opts.ExitDwell, opts.RampThrottle), classify: NewClassifier(), last: Open(), tracker: NewTracker()}
-	for _, r := range regs {
-		if rc, ok := r.Sensor.(*RunCap); ok {
+	e.life, e.cancel = context.WithCancel(context.Background())
+	for i := range regs {
+		if !regs[i].Inline && regs[i].TTL <= 0 {
+			regs[i].TTL = defaultTTL // a background sensor must always have a staleness bound
+		}
+		if rc, ok := regs[i].Sensor.(*RunCap); ok {
 			e.runCap = rc
+		}
+		if ob, ok := regs[i].Sensor.(OutcomeObserver); ok {
+			e.observers = append(e.observers, ob)
 		}
 	}
 	for _, r := range regs {
@@ -101,7 +122,11 @@ func (e *Evaluator) Evaluate(ctx context.Context, snap RunSnapshot) Envelope {
 	now := e.opts.Clock.Now()
 	var due []*entry
 	for _, en := range e.entries {
-		if !en.have || en.reg.Inline || now.Sub(en.at) >= en.reg.TTL {
+		fresh := en.reg.TTL
+		if en.have && en.reading.Probe == ProbeFailed && failedProbeRetry < fresh {
+			fresh = failedProbeRetry // retry a failed probe soon, not a whole TTL later
+		}
+		if !en.have || en.reg.Inline || now.Sub(en.at) >= fresh {
 			due = append(due, en)
 		}
 	}
@@ -114,11 +139,15 @@ func (e *Evaluator) Evaluate(ctx context.Context, snap RunSnapshot) Envelope {
 		}
 		e.mu.Lock()
 		start := !en.inflight
-		en.inflight = true
+		if start {
+			en.inflight, en.started = true, now
+		}
 		e.mu.Unlock()
 		if start {
+			e.wg.Add(1)
 			go func(en *entry) {
-				e.refresh(context.Background(), en, snap)
+				defer e.wg.Done()
+				e.refresh(e.life, en, snap)
 				e.mu.Lock()
 				en.inflight = false
 				e.mu.Unlock()
@@ -152,34 +181,40 @@ func (e *Evaluator) Evaluate(ctx context.Context, snap RunSnapshot) Envelope {
 const warmUpWait = 500 * time.Millisecond
 
 func (e *Evaluator) warmUp(ctx context.Context, snap RunSnapshot) {
-	e.mu.Lock()
-	if e.warmed || e.opts.Sync {
-		e.mu.Unlock()
+	if e.opts.Sync {
 		return
 	}
-	e.warmed = true
-	pending := append([]*entry(nil), e.entries...)
-	for _, en := range pending {
-		en.inflight = true
-	}
-	e.mu.Unlock()
-	var wg sync.WaitGroup
-	for _, en := range pending {
-		wg.Add(1)
-		go func(en *entry) {
-			defer wg.Done()
-			e.refresh(ctx, en, snap)
-			e.mu.Lock()
-			en.inflight = false
-			e.mu.Unlock()
-		}(en)
-	}
-	done := make(chan struct{})
-	go func() { wg.Wait(); close(done) }()
-	select {
-	case <-done:
-	case <-time.After(warmUpWait):
-	}
+	e.warm.Do(func() {
+		e.mu.Lock()
+		var pending []*entry
+		for _, en := range e.entries {
+			if !en.reg.Inline { // inline sensors are sampled by Evaluate itself
+				pending = append(pending, en)
+				en.inflight, en.started = true, e.opts.Clock.Now()
+			}
+		}
+		e.mu.Unlock()
+		var wg sync.WaitGroup
+		for _, en := range pending {
+			wg.Add(1)
+			e.wg.Add(1)
+			go func(en *entry) {
+				defer wg.Done()
+				defer e.wg.Done()
+				e.refresh(e.life, en, snap)
+				e.mu.Lock()
+				en.inflight = false
+				e.mu.Unlock()
+			}(en)
+		}
+		done := make(chan struct{})
+		go func() { wg.Wait(); close(done) }()
+		select {
+		case <-done:
+		case <-e.opts.Clock.After(warmUpWait):
+		case <-ctx.Done():
+		}
+	})
 }
 
 func (e *Evaluator) refresh(ctx context.Context, en *entry, snap RunSnapshot) {
@@ -204,9 +239,24 @@ func sampleSafely(ctx context.Context, s Sensor, snap RunSnapshot) (r Reading) {
 	return r
 }
 
+// staleAfter is how old a reading may get before it is distrusted: three TTLs,
+// and never less than two probe timeouts, so a slow but healthy probe is not
+// declared stale while it is still being waited for.
+func staleAfter(en *entry) time.Duration {
+	limit := 3 * en.reg.TTL
+	if min := 2 * sampleTimeout; limit < min {
+		limit = min
+	}
+	return limit
+}
+
 // effectiveReading applies the failure policy. A sensor that has not reported yet,
 // has gone stale, or failed is not trusted: a fail-open sensor then says nothing
-// and is reported as degraded, a fail-closed one holds new admission.
+// and is shown as degraded, a fail-closed one holds new admission.
+//
+// A reading that has merely aged because the controller made no pass for a while
+// (a machine that slept, say) is not stale while a refresh is in flight and still
+// within its timeout: the last reading stands until the new one lands.
 func effectiveReading(en *entry, now time.Time) Reading {
 	name := en.reg.Sensor.Name()
 	bad := func(status ProbeStatus, why string) Reading {
@@ -222,7 +272,10 @@ func effectiveReading(en *entry, now time.Time) Reading {
 		return bad(ProbePending, "no reading yet")
 	case en.reading.Probe == ProbeFailed:
 		return bad(ProbeFailed, en.reading.ProbeErr)
-	case en.reg.TTL > 0 && now.Sub(en.at) > 3*en.reg.TTL:
+	case !en.reg.Inline && now.Sub(en.at) > staleAfter(en):
+		if en.inflight && now.Sub(en.started) <= sampleTimeout {
+			return en.reading
+		}
 		return bad(ProbeStale, "reading is stale")
 	}
 	return en.reading
@@ -258,22 +311,17 @@ func (e *Evaluator) Admit(s *model.State, ready []string, busy map[string]bool, 
 }
 
 // observeOutcomes finds the attempts that finished since the last pass and tells
-// each sensor that learns from them.
+// each sensor that learns from them. With no such sensor it does no work at all.
 func (e *Evaluator) observeOutcomes(s *model.State) {
-	e.mu.Lock()
-	var observers []OutcomeObserver
-	for _, en := range e.entries {
-		if ob, ok := en.reg.Sensor.(OutcomeObserver); ok {
-			observers = append(observers, ob)
-		}
+	if len(e.observers) == 0 {
+		return
 	}
-	e.mu.Unlock()
 	now := e.opts.Clock.Now()
 	outs := e.tracker.Observe(s, now, func(id string) Locality { return e.locality(s, id) })
 	if len(outs) == 0 {
 		return
 	}
-	for _, ob := range observers {
+	for _, ob := range e.observers {
 		ob.ObserveOutcomes(outs, now)
 	}
 }
@@ -286,8 +334,11 @@ func (e *Evaluator) NoteSizing(totalCap int, reason string) {
 	}
 }
 
-// Close releases sensors that run background work.
+// Close stops background sampling, waits for it to finish, and then releases
+// sensors that run background work of their own.
 func (e *Evaluator) Close() {
+	e.cancel()
+	e.wg.Wait()
 	for _, en := range e.entries {
 		if c, ok := en.reg.Sensor.(interface{ Close() }); ok {
 			c.Close()

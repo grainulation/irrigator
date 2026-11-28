@@ -102,6 +102,11 @@ func TestEvaluatorTreatsAReadingOlderThanThreeTTLsAsStale(t *testing.T) {
 	s.mu.Unlock()
 	defer close(release)
 	clk.Advance(40 * time.Second)
+	// A refresh has only just started: the last reading stands until it lands.
+	if during := e.Evaluate(context.Background(), RunSnapshot{}); during.AllowRemote {
+		t.Fatalf("a reading was dropped while its refresh was still within its timeout: %+v", during)
+	}
+	clk.Advance(2 * sampleTimeout) // the probe is hung well past its timeout
 	got := e.Evaluate(context.Background(), RunSnapshot{})
 	if len(got.Degraded) != 1 || got.Degraded[0] != "net" {
 		t.Fatalf("a stale reading should be shown degraded: %+v", got)

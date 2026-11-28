@@ -54,11 +54,12 @@ func (s *Smoother) Apply(target Envelope, ceiling int) Envelope {
 	if out.AllowRemote != target.AllowRemote {
 		out.Bindings = append(out.Bindings, BindingReason{Field: "allow_remote", Sensor: "dwell", Reason: "waiting out the exit dwell", Severity: Soft})
 	}
-	// Report unlimited as unlimited once the ramp has reached the ceiling.
-	if target.MaxLocalSlots >= Unlimited && out.MaxLocalSlots >= ceiling {
+	// A limit at or above the worker ceiling limits nothing: report it as no
+	// limit once the ramp has reached the ceiling.
+	if target.MaxLocalSlots >= ceiling && out.MaxLocalSlots >= ceiling {
 		out.MaxLocalSlots = Unlimited
 	}
-	if target.MaxRemoteSlots >= Unlimited && out.MaxRemoteSlots >= ceiling {
+	if target.MaxRemoteSlots >= ceiling && out.MaxRemoteSlots >= ceiling {
 		out.MaxRemoteSlots = Unlimited
 	}
 	return out

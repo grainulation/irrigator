@@ -16,6 +16,9 @@ type AIMD struct {
 	Max      int
 	Min      int
 	Headroom int
+	// frozen is set while the effective envelope admits nothing for this
+	// locality: successes that finish meanwhile must not grow the limit back.
+	frozen bool
 }
 
 // NewAIMD starts at max.
@@ -23,8 +26,12 @@ func NewAIMD(max, min, headroom int) *AIMD {
 	return &AIMD{Limit: max, Max: max, Min: min, Headroom: headroom}
 }
 
-// OnSuccess grows the limit by one, up to Max.
+// OnSuccess grows the limit by one, up to Max, unless the envelope currently
+// admits nothing for this locality.
 func (a *AIMD) OnSuccess() {
+	if a.frozen {
+		return
+	}
 	if a.Limit < a.Max {
 		a.Limit++
 	}
@@ -44,7 +51,8 @@ func (a *AIMD) Observe(env Envelope, loc Locality) {
 	if loc == Remote {
 		effective = env.MaxRemoteSlots
 	}
-	if env.Hold != HoldNone || effective <= 0 {
+	a.frozen = env.Hold != HoldNone || effective <= 0 || (loc == Remote && !env.AllowRemote)
+	if a.frozen {
 		return // admits nothing: freeze, neither decay nor growth
 	}
 	if effective >= Unlimited {

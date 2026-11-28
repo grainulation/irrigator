@@ -1,6 +1,7 @@
 package admission
 
 import (
+	"sync"
 	"time"
 
 	"github.com/grainulation/irrigator/internal/model"
@@ -40,6 +41,7 @@ type seenRow struct {
 // what it saw last time. The first observation only records the present: attempts
 // that finished before this controller started are history, not signal.
 type Tracker struct {
+	mu     sync.Mutex
 	seen   map[string]seenRow
 	seeded bool
 }
@@ -61,6 +63,8 @@ func kindOf(status string) (OutcomeKind, bool) {
 
 // Observe returns the outcomes that appeared since the previous call.
 func (t *Tracker) Observe(s *model.State, now time.Time, locality func(id string) Locality) []Outcome {
+	t.mu.Lock()
+	defer t.mu.Unlock()
 	var out []Outcome
 	for id, row := range s.Tasks {
 		if row == nil {
@@ -68,8 +72,11 @@ func (t *Tracker) Observe(s *model.State, now time.Time, locality func(id string
 		}
 		cur := seenRow{attempt: row.Attempt, status: row.Status}
 		prev, known := t.seen[id]
+		if known && prev == cur {
+			continue // unchanged: no write, no work
+		}
 		t.seen[id] = cur
-		if !t.seeded || (known && prev == cur) {
+		if !t.seeded {
 			continue
 		}
 		if kind, done := kindOf(row.Status); done && row.Attempt > 0 {

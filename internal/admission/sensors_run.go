@@ -78,27 +78,33 @@ type RateLimit struct {
 	until     time.Time
 	resetAt   time.Time
 	queue     chan Outcome
+	stop      chan struct{}
+	done      chan struct{}
 	pending   int
 	diagnosed int
 }
 
 // NewRateLimit returns the sensor. clk supplies the time.
 func NewRateLimit(root string, cfg RateLimitConfig, workers int, clk interface{ Now() time.Time }, diagnose LimitDiagnoser) *RateLimit {
-	r := &RateLimit{root: root, cfg: cfg, diagnose: diagnose, workers: workers, clk: clk, aimd: NewAIMD(workers, 1, cfg.Headroom), queue: make(chan Outcome, 256)}
-	go r.drain(r.queue)
+	r := &RateLimit{root: root, cfg: cfg, diagnose: diagnose, workers: workers, clk: clk, aimd: NewAIMD(workers, 1, cfg.Headroom), queue: make(chan Outcome, 256), stop: make(chan struct{}), done: make(chan struct{})}
+	go r.drain(r.queue, r.stop, r.done)
 	return r
 }
 
 func (r *RateLimit) Name() string { return "provider-limit" }
 
-// Close stops the background diagnosis goroutine.
+// Close stops the background diagnosis goroutine and waits for it: queued
+// attempts that have not been diagnosed yet are dropped, and no diagnosis starts
+// after Close returns.
 func (r *RateLimit) Close() {
 	r.mu.Lock()
-	defer r.mu.Unlock()
 	if r.queue != nil {
+		close(r.stop)
 		close(r.queue)
 		r.queue = nil
 	}
+	r.mu.Unlock()
+	<-r.done
 }
 
 func (r *RateLimit) idle() bool {
@@ -114,36 +120,42 @@ func (r *RateLimit) ObserveOutcomes(outs []Outcome, _ time.Time) {
 		if o.Locality != Remote {
 			continue
 		}
+		r.mu.Lock()
 		switch o.Kind {
 		case OutcomeSuccess:
-			r.mu.Lock()
-			r.aimd.OnSuccess()
-			r.mu.Unlock()
+			// Successes that finish during a cooldown are attempts started before
+			// the limit; they say nothing about whether the limit has lifted.
+			if !r.clk.Now().Before(r.until) {
+				r.aimd.OnSuccess()
+			}
 		case OutcomeFailure, OutcomeUncertain:
-			r.mu.Lock()
-			q := r.queue
-			if q != nil {
-				r.pending++
-			}
-			r.mu.Unlock()
-			if q == nil {
-				continue
-			}
-			select {
-			case q <- o:
-			default: // a flood of failures: drop the overflow rather than block the pass
-				r.mu.Lock()
-				r.pending--
-				r.mu.Unlock()
+			// The send never blocks (it has a default) and happens under the lock,
+			// so it cannot race Close, which closes the channel under the same lock.
+			if r.queue != nil {
+				select {
+				case r.queue <- o:
+					r.pending++
+				default: // a flood of failures: drop the overflow rather than block the pass
+				}
 			}
 		}
+		r.mu.Unlock()
 	}
 }
 
 // drain owns its channel: Close closes it and clears the field, and the loop must
 // not read the field.
-func (r *RateLimit) drain(queue <-chan Outcome) {
+func (r *RateLimit) drain(queue <-chan Outcome, stop <-chan struct{}, done chan<- struct{}) {
+	defer close(done)
 	for o := range queue {
+		select {
+		case <-stop:
+			r.mu.Lock()
+			r.pending--
+			r.mu.Unlock()
+			continue
+		default:
+		}
 		now := r.clk.Now()
 		ev, err := r.diagnose(r.root, o.Task, o.Attempt, now)
 		r.mu.Lock()
@@ -273,17 +285,32 @@ func (b *Breaker) Sample(context.Context, RunSnapshot) Reading {
 	switch {
 	case b.n >= b.cfg.MinOutcomes && rate > b.cfg.Threshold:
 		if b.above.IsZero() {
-			b.above, b.nextShed = now, now.Add(interval)
+			// The shed clock starts when the rate first goes bad, and restarts
+			// from here each time it comes back over the threshold.
+			b.above = now
+			b.nextShed = now.Add(time.Duration(float64(interval) / math.Sqrt(float64(b.shed+1))))
 		}
 		for b.shed < b.workers && !now.Before(b.nextShed) {
 			b.shed++
 			b.nextShed = b.nextShed.Add(time.Duration(float64(interval) / math.Sqrt(float64(b.shed+1))))
 		}
-		if b.shed >= b.workers && b.openUntil.IsZero() {
-			b.openUntil = now.Add(seconds(b.cfg.OpenSeconds))
+		if b.shed >= b.workers {
+			switch {
+			case b.openUntil.IsZero():
+				b.openUntil = now.Add(seconds(b.cfg.OpenSeconds))
+			case !now.Before(b.openUntil) && b.lastAt.After(b.openUntil):
+				// A half-open probe finished after the open period and the rate is
+				// still bad: open again rather than staying half-open forever.
+				b.openUntil = now.Add(seconds(b.cfg.OpenSeconds))
+			}
 		}
 	case rate < b.cfg.Threshold/2 || b.n < b.cfg.MinOutcomes:
 		b.above, b.shed, b.openUntil = time.Time{}, 0, time.Time{}
+	default:
+		// In the band between half the threshold and the threshold: keep what has
+		// been shed, but stop the shed clock so a later crossing does not replay
+		// the steps that were missed while the rate was acceptable.
+		b.above = time.Time{}
 	}
 	why := fmt.Sprintf("failure rate %.0f%% over recent attempts", rate*100)
 	switch {

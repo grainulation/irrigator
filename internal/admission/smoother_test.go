@@ -166,3 +166,16 @@ func TestSmootherTierTightensAtOnceAndRecoversOneStepPerDwell(t *testing.T) {
 		t.Fatalf("expected full tier, got %d", got.ModelTier)
 	}
 }
+
+func TestSmootherReportsALimitAtOrAboveTheWorkerCountAsNoLimit(t *testing.T) {
+	clk := newFakeClock()
+	s := NewSmoother(clk, time.Second, time.Second)
+	for _, limit := range []int{4, 9, 1000} {
+		if got := s.Apply(target(limit), 4); got.MaxLocalSlots != Unlimited {
+			t.Fatalf("a limit of %d with 4 workers restricts nothing, reported as %d", limit, got.MaxLocalSlots)
+		}
+	}
+	if got := s.Apply(target(3), 4); got.MaxLocalSlots != 3 {
+		t.Fatalf("a limit below the worker count must still apply: %d", got.MaxLocalSlots)
+	}
+}
