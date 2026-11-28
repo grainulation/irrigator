@@ -289,9 +289,25 @@ func decodeJournalInputs(root string, in journalInputs, sharePlan bool) (*model.
 	committedCache.Lock()
 	defer committedCache.Unlock()
 	prior, ok := committedCache.entries[key]
+	// Replay and validation work on a copy that shares the plan and event details
+	// with the cache entry; in the dual verify mode, prove they leave them alone.
+	sharedIntact := func() error { return nil }
+	if sharePlan && ok && journalVerifyMode == journalVerifyDual {
+		same := snapshotShared(prior.state)
+		sharedIntact = func() error {
+			if same() {
+				return nil
+			}
+			delete(committedCache.entries, key)
+			return errors.New("journal replay or validation wrote through state shared with the commit cache")
+		}
+	}
 	if ok && reflect.DeepEqual(prior.head, h) && prior.prefixSHA256 == prefix {
 		s := clone(prior.state)
 		if err := validateRecoveryCheckpoint(root, s); err != nil {
+			return nil, nil, err
+		}
+		if err := sharedIntact(); err != nil {
 			return nil, nil, err
 		}
 		return s, prior.state, nil
@@ -344,6 +360,9 @@ func decodeJournalInputs(root string, in journalInputs, sharePlan bool) (*model.
 				base = clone(validated)
 				committedCache.entries[key] = journalCacheEntry{h, base, prefix}
 			}
+			if err := sharedIntact(); err != nil {
+				return nil, nil, err
+			}
 			return validated, base, nil
 		}
 	}
@@ -361,6 +380,9 @@ func decodeJournalInputs(root string, in journalInputs, sharePlan bool) (*model.
 		}
 		base = clone(validated)
 		committedCache.entries[key] = journalCacheEntry{h, base, prefix}
+	}
+	if err := sharedIntact(); err != nil {
+		return nil, nil, err
 	}
 	return validated, base, nil
 }

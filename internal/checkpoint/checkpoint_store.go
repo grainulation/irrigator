@@ -106,10 +106,7 @@ func (f FileCheckpointStore) Update(ctx context.Context, options CheckpointUpdat
 	if before == nil {
 		before = cloneCheckpoint(s)
 	}
-	sharedGuard, err := guardSharedState(f.Root, base)
-	if err != nil {
-		return err
-	}
+	sharedGuard := guardSharedState(f.Root, base)
 	if err := fn(s); err != nil {
 		if gerr := sharedGuard(); gerr != nil {
 			return gerr
@@ -120,10 +117,12 @@ func (f FileCheckpointStore) Update(ctx context.Context, options CheckpointUpdat
 		}
 		return err
 	}
-	if err := ctx.Err(); err != nil {
+	// The guard runs before anything that can return early: a callback that wrote
+	// through shared data has already changed the cache.
+	if err := sharedGuard(); err != nil {
 		return err
 	}
-	if err := sharedGuard(); err != nil {
+	if err := ctx.Err(); err != nil {
 		return err
 	}
 	phasetrace.Emit("ckpt", "upd_callback_done", "")

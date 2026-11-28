@@ -206,3 +206,33 @@ func TestACallbackThatEditsAnExistingEventDetailIsRefusedAndEvicted(t *testing.T
 		t.Fatalf("appending after a refusal failed: %v", err)
 	}
 }
+
+func TestAWriteThroughThePlanIsRefusedEvenWhenTheContextEndsFirst(t *testing.T) {
+	old := journalVerifyMode
+	journalVerifyMode = journalVerifyDual
+	t.Cleanup(func() { journalVerifyMode = old })
+	root := workerPatternRun(t, "managed", 20)
+	store := FileCheckpointStore{Root: root}
+	if err := store.Update(context.Background(), CheckpointUpdateOptions{}, func(s *model.State) error {
+		s.Tasks["task_00001"].Attempt = 1
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	err := store.Update(ctx, CheckpointUpdateOptions{}, func(s *model.State) error {
+		s.Plan.Tasks[0].Prompt += " tampered"
+		cancel()
+		return nil
+	})
+	if err == nil || !strings.Contains(err.Error(), "shared plan") {
+		t.Fatalf("expected the shared-plan refusal ahead of the context error, got %v", err)
+	}
+	key, _ := filepath.Abs(root)
+	committedCache.Lock()
+	_, cached := committedCache.entries[key]
+	committedCache.Unlock()
+	if cached {
+		t.Fatal("the poisoned cache entry was kept")
+	}
+}

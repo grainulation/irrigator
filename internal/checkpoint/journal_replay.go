@@ -181,33 +181,36 @@ func roundTrip(v, out any) bool {
 	return json.Unmarshal(b, out) == nil
 }
 
+// snapshotShared deep-copies the data cloneSharingPlan shares and returns a check
+// that it is still equal to the live data. A deep copy is needed because the live
+// copies share pointers, so comparing two shared copies could never see a write.
+func snapshotShared(s *model.State) func() bool {
+	snap := cloneCheckpoint(&model.State{Plan: s.Plan, Events: s.Events})
+	return func() bool {
+		return reflect.DeepEqual(snap.Plan, s.Plan) && reflect.DeepEqual(snap.Events, s.Events)
+	}
+}
+
 // guardSharedState returns a check to run after the callback that the plan and
 // event details the state shares with the commit cache were not written through.
-// It costs a marshal of both, so it runs only in the dual verify mode; otherwise
-// it does nothing.
-func guardSharedState(root string, base *model.State) (func() error, error) {
+// It costs a deep copy of both, so it runs only in the dual verify mode;
+// otherwise it does nothing.
+func guardSharedState(root string, base *model.State) func() error {
 	if journalVerifyMode != journalVerifyDual || base == nil {
-		return func() error { return nil }, nil
+		return func() error { return nil }
 	}
-	want, err := sharedDigest(base)
-	if err != nil {
-		return nil, err
-	}
+	same := snapshotShared(base)
 	return func() error {
-		got, err := sharedDigest(base)
-		if err != nil {
-			return err
+		if same() {
+			return nil
 		}
-		if got != want {
-			// The write already reached the cached copy: drop it so no later commit
-			// in this process starts from the changed data.
-			if key, kerr := filepath.Abs(root); kerr == nil {
-				committedCache.Lock()
-				delete(committedCache.entries, key)
-				committedCache.Unlock()
-			}
-			return errors.New("checkpoint callback mutated the shared plan or an existing event's detail; both are immutable once committed")
+		// The write already reached the cached copy: drop it so no later commit
+		// in this process starts from the changed data.
+		if key, err := filepath.Abs(root); err == nil {
+			committedCache.Lock()
+			delete(committedCache.entries, key)
+			committedCache.Unlock()
 		}
-		return nil
-	}, nil
+		return errors.New("checkpoint callback mutated the shared plan or an existing event's detail; both are immutable once committed")
+	}
 }
