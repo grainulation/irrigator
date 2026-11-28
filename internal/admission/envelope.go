@@ -107,19 +107,17 @@ func (p ProbeStatus) String() string {
 // Reading is one sensor's opinion over the envelope fields. The zero Reading is
 // not neutral; use OpenReading for "no opinion".
 type Reading struct {
-	Sensor          string
-	MaxLocalSlots   int
-	MaxRemoteSlots  int
-	AllowRemote     bool
-	ModelTier       Tier
-	MinPoll         time.Duration
-	Hold            HoldKind
-	Severity        Severity
-	Reason          string
-	Probe           ProbeStatus
-	ProbeErr        string
-	policyDegraded  bool
-	policyFailClose bool
+	Sensor         string
+	MaxLocalSlots  int
+	MaxRemoteSlots int
+	AllowRemote    bool
+	ModelTier      Tier
+	MinPoll        time.Duration
+	Hold           HoldKind
+	Severity       Severity
+	Reason         string
+	Probe          ProbeStatus
+	ProbeErr       string
 }
 
 // OpenReading is a reading with no opinion on any field.

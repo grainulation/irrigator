@@ -215,18 +215,17 @@ func readPlainCheckpoint(root string, raw []byte) (*model.State, error) {
 	return s, nil
 }
 
-// readJournalModel is called only while holding the shared/exclusive state
-// lock. Cache identities include actual snapshot and committed log bytes, not
-// just mtimes; external corruption is never hidden by a warm cache.
-func readJournalModel(root string, raw []byte) (*model.State, error) {
-	s, _, err := readJournalModelWithBase(root, raw, false)
-	return s, err
-}
-
-// readJournalModelWithBase also returns base, a read-only state equal to the
-// returned one before the caller changes it, or nil when none is retained. base
-// is the cache's own immutable entry: the caller may compare against it but
-// must never modify it, which saves a whole-state clone per commit.
+// readJournalModelWithBase is called only while holding the shared/exclusive
+// state lock. Cache identities include actual snapshot and committed log bytes,
+// not just mtimes; external corruption is never hidden by a warm cache. It also
+// returns base, a read-only state equal to the returned one before the caller
+// changes it, or nil when none is retained. base is the cache's own immutable
+// entry: the caller may compare against it but must never modify it, which
+// saves a whole-state clone per commit.
+//
+// sharePlan lets the returned state share its plan and event details with the
+// cache entry (see cloneSharingPlan). Only Update and the prewarm, which discards
+// the state, pass true; anything that hands a state to a reader passes false.
 func readJournalModelWithBase(root string, raw []byte, sharePlan bool) (*model.State, *model.State, error) {
 	in, err := loadJournalInputs(root, raw)
 	if err != nil {
@@ -823,20 +822,6 @@ func cloneSharingPlan(s *model.State) *model.State {
 		copy(c.Events, s.Events)
 	}
 	return c
-}
-
-// sharedDigest identifies the content of the data cloneSharingPlan shares,
-// independently of pointer identity, so it can see a write that an equality
-// check between aliased copies cannot.
-func sharedDigest(s *model.State) (string, error) {
-	b, err := json.Marshal(struct {
-		Plan   model.Plan    `json:"plan"`
-		Events []model.Event `json:"events"`
-	}{s.Plan, s.Events})
-	if err != nil {
-		return "", err
-	}
-	return digestCheckpoint(b), nil
 }
 
 func cloneValue(v reflect.Value) reflect.Value {

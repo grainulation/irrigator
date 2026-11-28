@@ -101,7 +101,7 @@ func codexAuthStatus(path string, deadline time.Duration) string {
 	if stdout.Overflow || stderr.Overflow {
 		return "provider_error"
 	}
-	text := strings.ToLower(strings.TrimSpace(string(stdout.Bytes()) + "\n" + string(stderr.Bytes())))
+	text := strings.ToLower(strings.TrimSpace(stdout.String() + "\n" + stderr.String()))
 	if strings.HasPrefix(text, "not logged in") || strings.HasPrefix(text, "not authenticated") {
 		return "not_authenticated"
 	}

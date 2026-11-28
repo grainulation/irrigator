@@ -34,7 +34,7 @@ func dropJournalCache(t *testing.T, root string) {
 
 // staleRead commits change from a warm cache, then reads the result while the
 // cache still holds the previous head, which is exactly what a warm replay is.
-func staleRead(t *testing.T, root string, change func(*model.State)) (*model.State, error, uint64) {
+func staleRead(t *testing.T, root string, change func(*model.State)) (*model.State, uint64, error) {
 	t.Helper()
 	if _, err := ReadState(root); err != nil {
 		t.Fatalf("warm read: %v", err)
@@ -44,7 +44,7 @@ func staleRead(t *testing.T, root string, change func(*model.State)) (*model.Sta
 	}
 	before := checkpointIncrementalReplays.Load()
 	s, err := ReadState(root)
-	return s, err, checkpointIncrementalReplays.Load() - before
+	return s, checkpointIncrementalReplays.Load() - before, err
 }
 
 func coldRead(t *testing.T, root string) (*model.State, error) {
@@ -76,7 +76,7 @@ func TestIncrementalReplayMatchesColdDecode(t *testing.T) {
 	root := journalFixture(t)
 	for _, step := range steps {
 		t.Run(step.name, func(t *testing.T) {
-			got, err, replays := staleRead(t, root, step.change)
+			got, replays, err := staleRead(t, root, step.change)
 			if err != nil {
 				t.Fatalf("incremental read: %v", err)
 			}
@@ -153,7 +153,7 @@ func TestIncrementalReplayRejectsWhatFullValidationRejects(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			root := managedJournalRoot(t)
-			got, err, replays := staleRead(t, root, tc.change)
+			got, replays, err := staleRead(t, root, tc.change)
 			if err != nil && strings.Contains(err.Error(), "diverged") {
 				t.Fatalf("incremental and full validation disagree: %v", err)
 			}
@@ -177,7 +177,7 @@ func TestIncrementalReplayRejectsWhatFullValidationRejects(t *testing.T) {
 func TestJournalVerifyFullNeverTakesIncrementalPath(t *testing.T) {
 	withVerifyMode(t, journalVerifyFull)
 	root := journalFixture(t)
-	_, err, replays := staleRead(t, root, func(s *model.State) { s.Control = "pause" })
+	_, replays, err := staleRead(t, root, func(s *model.State) { s.Control = "pause" })
 	if err != nil || replays != 0 {
 		t.Fatalf("strict mode took the incremental path (replays=%d err=%v)", replays, err)
 	}

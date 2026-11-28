@@ -176,7 +176,7 @@ func TestRateLimitNeverTouchesTheStateItObserves(t *testing.T) {
 	s.Tasks["f1"].Error = "429 too many requests"
 	before := *s.Tasks["f1"]
 	pending := *s.Tasks["p1"]
-	got, _ := e.Admit(s, []string{"p1"}, map[string]bool{}, 3)
+	e.Admit(s, []string{"p1"}, map[string]bool{}, 3) // the failure is read and queued for diagnosis
 	rl := e.entries[0].reg.Sensor.(*RateLimit)
 	waitUntil(t, rl.idle)
 	got, env := e.Admit(s, []string{"p1"}, map[string]bool{}, 3)
