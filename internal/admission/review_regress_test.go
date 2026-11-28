@@ -289,3 +289,54 @@ func TestOutcomeTrackingCostsNothingWithoutObservers(t *testing.T) {
 		t.Fatal("the tracker scanned the run although no sensor learns from outcomes")
 	}
 }
+
+// Anti-windup handoff, end to end through the evaluator: while a tight thermal
+// limit binds remote work, the rate-limit sensor's successes must not wind its
+// own limit up, so that when the thermal limit and a cooldown release together
+// admission recovers from what was last known to be safe, not from the maximum.
+func TestAntiWindupHandoffWhenAThermalLimitAndACooldownReleaseTogether(t *testing.T) {
+	clk := newFakeClock()
+	thermal := newFake("thermal")
+	hot := OpenReading("thermal")
+	hot.MaxRemoteSlots, hot.Reason = 1, "thermal serious"
+	thermal.set(hot)
+	f := &limitFake{evidence: LimitEvidence{Limited: true}}
+	rl := NewRateLimit("/run", RateLimitConfig{DefaultCooldownSeconds: 30, MaxCooldownSeconds: 600, Headroom: 1}, 6, clk, f.diagnose)
+	e := NewEvaluator(Options{Clock: clk, Workers: 6, ExitDwell: 5 * time.Second, RampThrottle: time.Second, Sync: true},
+		Registration{Sensor: thermal, Policy: FailOpen, TTL: time.Second},
+		Registration{Sensor: rl, Policy: FailOpen, Inline: true})
+	defer e.Close()
+
+	// A long stretch under the thermal limit with remote attempts succeeding.
+	for i := 0; i < 60; i++ {
+		rl.ObserveOutcomes([]Outcome{{Task: "r", Kind: OutcomeSuccess, Locality: Remote}}, clk.Now())
+		e.Evaluate(context.Background(), RunSnapshot{})
+		clk.Advance(time.Second)
+	}
+	rl.mu.Lock()
+	wound := rl.aimd.Limit
+	rl.mu.Unlock()
+	if wound > 2 {
+		t.Fatalf("the limiter wound up to %d behind a thermal limit of 1 plus headroom 1", wound)
+	}
+
+	// A provider limit starts a cooldown just as the thermal limit clears.
+	rl.ObserveOutcomes([]Outcome{{Task: "r1", Attempt: 1, Kind: OutcomeFailure, Locality: Remote}}, clk.Now())
+	waitUntil(t, rl.idle)
+	thermal.set(OpenReading("thermal"))
+	clk.Advance(35 * time.Second) // both constraints are over
+	var after []int
+	for i := 0; i < 25; i++ {
+		env := e.Evaluate(context.Background(), RunSnapshot{})
+		after = append(after, env.MaxRemoteSlots)
+		clk.Advance(time.Second)
+	}
+	for _, slots := range after {
+		if slots > 3 && slots != Unlimited {
+			t.Fatalf("remote admission jumped to %d after the release; it must recover from the limiter's own safe limit: %v", slots, after)
+		}
+	}
+	if after[0] == Unlimited {
+		t.Fatalf("remote admission was fully open the moment both constraints released: %v", after)
+	}
+}
