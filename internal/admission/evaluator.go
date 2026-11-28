@@ -81,6 +81,9 @@ type Evaluator struct {
 	life   context.Context
 	cancel context.CancelFunc
 	wg     sync.WaitGroup
+	// closed is set under mu by Close, and no goroutine starts after it: a start
+	// is decided, and counted in wg, under the same lock.
+	closed bool
 }
 
 // NewEvaluator builds an evaluator over regs.
@@ -138,13 +141,13 @@ func (e *Evaluator) Evaluate(ctx context.Context, snap RunSnapshot) Envelope {
 			continue
 		}
 		e.mu.Lock()
-		start := !en.inflight
+		start := !en.inflight && !e.closed
 		if start {
 			en.inflight, en.started = true, now
+			e.wg.Add(1)
 		}
 		e.mu.Unlock()
 		if start {
-			e.wg.Add(1)
 			go func(en *entry) {
 				defer e.wg.Done()
 				e.refresh(e.life, en, snap)
@@ -188,16 +191,16 @@ func (e *Evaluator) warmUp(ctx context.Context, snap RunSnapshot) {
 		e.mu.Lock()
 		var pending []*entry
 		for _, en := range e.entries {
-			if !en.reg.Inline { // inline sensors are sampled by Evaluate itself
+			if !en.reg.Inline && !e.closed { // inline sensors are sampled by Evaluate itself
 				pending = append(pending, en)
 				en.inflight, en.started = true, e.opts.Clock.Now()
+				e.wg.Add(1)
 			}
 		}
 		e.mu.Unlock()
 		var wg sync.WaitGroup
 		for _, en := range pending {
 			wg.Add(1)
-			e.wg.Add(1)
 			go func(en *entry) {
 				defer wg.Done()
 				defer e.wg.Done()
@@ -337,6 +340,9 @@ func (e *Evaluator) NoteSizing(totalCap int, reason string) {
 // Close stops background sampling, waits for it to finish, and then releases
 // sensors that run background work of their own.
 func (e *Evaluator) Close() {
+	e.mu.Lock()
+	e.closed = true
+	e.mu.Unlock()
 	e.cancel()
 	e.wg.Wait()
 	for _, en := range e.entries {

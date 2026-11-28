@@ -440,7 +440,10 @@ func Run(root string, opts model.Options) (code int, runErr error) {
 		phasetrace.Emit("ctl", "wait_start", "")
 		watch.Refresh = controllerIdleRefresh
 		if minPoll > watch.Refresh {
-			watch.Refresh = minPoll // a sensor asked for slower polling
+			// A sensor asked for slower polling, but polling is also how an external
+			// pause or cancel is noticed, and the control plane is never gated, so
+			// the request is honored only up to a bound.
+			watch.Refresh = min(minPoll, maxAdmissionPoll)
 		}
 		if waitForWork(clock.ActiveClock, &watch, wakeup, signals, func(now time.Time) {
 			if ui != nil {
@@ -489,6 +492,9 @@ func markHeldLeases(root string, tasks []model.Task, busy map[string]bool) error
 // controllerIdleRefresh bounds how long an idle controller goes without a full
 // scheduling pass when nothing wakes it.
 const controllerIdleRefresh = time.Second
+
+// maxAdmissionPoll is the longest an admission sensor can stretch the idle poll.
+const maxAdmissionPoll = 5 * time.Second
 
 // waitForWork blocks between scheduling passes and reports whether a signal
 // ended the wait. A local child exit or a signal ends it at once. Otherwise it

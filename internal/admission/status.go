@@ -51,6 +51,8 @@ func (w *statusWriter) observe(now time.Time, env Envelope, snap RunSnapshot, wo
 	sig := signature(env)
 	holdChanged := w.wrote && env.Hold != w.hold
 	switch {
+	case !w.wrote && !w.wroteAt.IsZero() && now.Sub(w.wroteAt) < w.debounce:
+		return // the first write failed; try again after the debounce
 	case !w.wrote:
 	case sig == w.wroteSig:
 		return
@@ -58,6 +60,11 @@ func (w *statusWriter) observe(now time.Time, env Envelope, snap RunSnapshot, wo
 		return
 	}
 	st := Status{Schema: "irrigator.admission-status/v1", Preset: w.preset, UpdatedAt: now.UTC(), ControllerPID: os.Getpid(), Workers: workers, Summary: env.Summary(workers), Envelope: env, LocalBusy: snap.LocalBusy, RemoteBusy: snap.RemoteBusy}
-	w.Err = jsonio.AtomicJSON(w.path, st)
+	if w.Err = jsonio.AtomicJSON(w.path, st); w.Err != nil {
+		// Keep what was last written (and so what differs from it) and try again
+		// after the debounce, instead of treating the new envelope as on disk.
+		w.wroteAt = now
+		return
+	}
 	w.wrote, w.wroteAt, w.wroteSig, w.hold = true, now, sig, env.Hold
 }

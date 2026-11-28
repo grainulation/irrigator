@@ -78,8 +78,11 @@ func ParseSwapUsage(out string) int {
 	if m == nil {
 		return -1
 	}
-	total, _ := strconv.ParseFloat(m[1], 64)
-	used, _ := strconv.ParseFloat(m[2], 64)
+	total, err1 := strconv.ParseFloat(m[1], 64)
+	used, err2 := strconv.ParseFloat(m[2], 64)
+	if err1 != nil || err2 != nil {
+		return -1
+	}
 	if total <= 0 {
 		return 0
 	}

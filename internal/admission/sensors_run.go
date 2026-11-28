@@ -162,18 +162,23 @@ func (r *RateLimit) drain(queue <-chan Outcome, stop <-chan struct{}, done chan<
 		r.pending--
 		r.diagnosed++
 		if err == nil && ev.Limited {
-			r.aimd.OnLimit()
+			// Several in-flight attempts fail on one provider limit. While a cooldown
+			// is already running they are the same signal, not new ones, so they
+			// halve the limit once rather than once per attempt.
+			if !now.Before(r.until) {
+				r.aimd.OnLimit()
+			}
 			cooldown := seconds(r.cfg.DefaultCooldownSeconds)
 			if ev.ResetAt != nil {
-				if d := ev.ResetAt.Sub(now); d > 0 {
-					cooldown = d
-				}
+				// The provider said when it resets; a reset that has already passed
+				// leaves nothing to wait out.
+				cooldown = max(ev.ResetAt.Sub(now), 0)
 				r.resetAt = *ev.ResetAt
 			}
-			if max := seconds(r.cfg.MaxCooldownSeconds); max > 0 && cooldown > max {
-				cooldown = max
+			if limit := seconds(r.cfg.MaxCooldownSeconds); limit > 0 && cooldown > limit {
+				cooldown = limit
 			}
-			if until := now.Add(cooldown); until.After(r.until) {
+			if until := now.Add(cooldown); cooldown > 0 && until.After(r.until) {
 				r.until = until
 			}
 		}
@@ -235,6 +240,7 @@ type Breaker struct {
 	lastAt    time.Time
 	n         int
 	above     time.Time
+	lastBadAt time.Time // when the last failed or uncertain attempt finished
 	nextShed  time.Time
 	shed      int
 	openUntil time.Time
@@ -264,6 +270,7 @@ func (b *Breaker) ObserveOutcomes(outs []Outcome, _ time.Time) {
 		x := 0.0
 		if o.Kind != OutcomeSuccess {
 			x = 1
+			b.lastBadAt = now
 		}
 		if b.n == 0 {
 			b.ewma = x
@@ -298,9 +305,10 @@ func (b *Breaker) Sample(context.Context, RunSnapshot) Reading {
 			switch {
 			case b.openUntil.IsZero():
 				b.openUntil = now.Add(seconds(b.cfg.OpenSeconds))
-			case !now.Before(b.openUntil) && b.lastAt.After(b.openUntil):
-				// A half-open probe finished after the open period and the rate is
-				// still bad: open again rather than staying half-open forever.
+			case !now.Before(b.openUntil) && b.lastBadAt.After(b.openUntil):
+				// A half-open probe failed after the open period and the rate is
+				// still bad: open again rather than staying half-open forever. A
+				// probe that succeeded does not re-open it; the rate is falling.
 				b.openUntil = now.Add(seconds(b.cfg.OpenSeconds))
 			}
 		}

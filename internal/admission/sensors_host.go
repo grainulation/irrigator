@@ -60,6 +60,7 @@ func (p *PowerThermal) Sample(ctx context.Context, _ RunSnapshot) Reading {
 			return r
 		}
 		capLocal(0, fmt.Sprintf("thermal critical (CPU limited to %d%%)", info.ThermalLimitPct), Hard)
+		capTier(&r, p.cfg.ThermalSeriousMaxTier) // at least as strict as serious
 	case info.ThermalLimitPct >= 0 && info.ThermalLimitPct < 80:
 		capLocal(p.cfg.ThermalSeriousLocalSlots, fmt.Sprintf("thermal serious (CPU limited to %d%%)", info.ThermalLimitPct), Soft)
 		capTier(&r, p.cfg.ThermalSeriousMaxTier)
@@ -125,8 +126,8 @@ var (
 	battPercent = regexp.MustCompile(`(\d+)%`)
 	thermLimit  = regexp.MustCompile(`CPU_Speed_Limit\s*=\s*(\d+)`)
 	lowPower    = regexp.MustCompile(`(?m)^\s*lowpowermode\s+(\d)`)
-	routeGW     = regexp.MustCompile(`gateway:\s*(\S+)`)
-	routeIface  = regexp.MustCompile(`interface:\s*(\S+)`)
+	routeGW     = regexp.MustCompile(`gateway:[ \t]*(\S+)`)
+	routeIface  = regexp.MustCompile(`interface:[ \t]*(\S+)`)
 )
 
 // ParsePmsetBatt reads `pmset -g batt`.

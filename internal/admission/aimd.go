@@ -19,6 +19,9 @@ type AIMD struct {
 	// frozen is set while the effective envelope admits nothing for this
 	// locality: successes that finish meanwhile must not grow the limit back.
 	frozen bool
+	// ceil is the clamp from the last observation (0 for none), so successes that
+	// finish between two observations cannot wind the limit past it.
+	ceil int
 }
 
 // NewAIMD starts at max.
@@ -32,7 +35,7 @@ func (a *AIMD) OnSuccess() {
 	if a.frozen {
 		return
 	}
-	if a.Limit < a.Max {
+	if a.Limit < a.Max && (a.ceil == 0 || a.Limit < a.ceil) {
 		a.Limit++
 	}
 }
@@ -56,9 +59,12 @@ func (a *AIMD) Observe(env Envelope, loc Locality) {
 		return // admits nothing: freeze, neither decay nor growth
 	}
 	if effective >= Unlimited {
+		a.ceil = 0
 		return
 	}
-	if ceiling := effective + a.Headroom; a.Limit > ceiling {
+	ceiling := effective + a.Headroom
+	a.ceil = ceiling
+	if a.Limit > ceiling {
 		a.Limit = ceiling
 	}
 	if a.Limit < a.Min {

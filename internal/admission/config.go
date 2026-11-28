@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"os"
 	"path/filepath"
 	"syscall"
@@ -132,6 +133,11 @@ func (c Config) Validate() error {
 	if c.Schema != ConfigSchema {
 		return fmt.Errorf("admission config schema must be %q", ConfigSchema)
 	}
+	for name, v := range c.numbers() {
+		if math.IsNaN(v) || math.IsInf(v, 0) {
+			return fmt.Errorf("%s must be a finite number", name)
+		}
+	}
 	if c.ExitDwellSeconds < 0 || c.ExitDwellSeconds > 3600 || c.RampThrottleSeconds < 0 || c.RampThrottleSeconds > 3600 {
 		return errors.New("exit_dwell_seconds and ramp_throttle_seconds must be 0..3600")
 	}
@@ -172,6 +178,9 @@ func (c Config) Validate() error {
 		if d.CriticalFreeMB < 0 || d.LowFreeMB < d.CriticalFreeMB || d.LockWaitMS < 0 || d.LockWaitMS > 60000 {
 			return errors.New("disk: critical_free_mb must be >= 0, low_free_mb >= critical_free_mb, and lock_wait_ms 0..60000")
 		}
+		if d.CriticalFreeMB == 0 && d.LowFreeMB == 0 && d.LockWaitMS == 0 {
+			return errors.New("disk: set critical_free_mb, low_free_mb or lock_wait_ms, or leave the section out")
+		}
 		if err := checkSlots("low_local_slots", d.LowLocalSlots); err != nil {
 			return err
 		}
@@ -180,8 +189,8 @@ func (c Config) Validate() error {
 		}
 	}
 	if p := c.Presence; p != nil {
-		if p.ActiveWithinSeconds < 0 || p.ActiveWithinSeconds > 86400 {
-			return errors.New("active_within_seconds must be 0..86400")
+		if p.ActiveWithinSeconds <= 0 || p.ActiveWithinSeconds > 86400 {
+			return errors.New("presence: active_within_seconds must be 1..86400")
 		}
 		if err := checkSlots("active_local_slots", p.ActiveLocalSlots); err != nil {
 			return err
@@ -222,6 +231,22 @@ func (c Config) Validate() error {
 	return nil
 }
 
+// numbers lists the fractional settings, which a JSON file cannot make
+// non-finite but a program could.
+func (c Config) numbers() map[string]float64 {
+	m := map[string]float64{"exit_dwell_seconds": c.ExitDwellSeconds, "ramp_throttle_seconds": c.RampThrottleSeconds}
+	if p := c.Presence; p != nil {
+		m["active_within_seconds"] = p.ActiveWithinSeconds
+	}
+	if r := c.RateLimit; r != nil {
+		m["default_cooldown_seconds"], m["max_cooldown_seconds"] = r.DefaultCooldownSeconds, r.MaxCooldownSeconds
+	}
+	if b := c.Breaker; b != nil {
+		m["alpha"], m["threshold"], m["interval_seconds"], m["open_seconds"], m["half_life_seconds"] = b.Alpha, b.Threshold, b.IntervalSeconds, b.OpenSeconds, b.HalfLifeSeconds
+	}
+	return m
+}
+
 // Active reports whether the configuration restricts anything.
 func (c Config) Active() bool {
 	return c.Power != nil || c.Network != nil || c.Override || c.Memory != nil || c.Disk != nil ||
@@ -250,6 +275,9 @@ func Resolve(spec string) (Config, error) {
 	if err = c.Validate(); err != nil {
 		return Config{}, err
 	}
+	if !c.Active() && c.Preset != "unbounded" {
+		return Config{}, fmt.Errorf("admission config %s limits nothing: a preset name (%v) is given on the command line, not as a \"preset\" field; add sections, or use unbounded to run without limits", spec, PresetNames())
+	}
 	return c, nil
 }
 
@@ -275,6 +303,10 @@ type Deps struct {
 // returns nil when the run is unbounded, so the default costs the controller
 // nothing.
 func LoadRun(root, spec string, workers int, deps Deps) (*Evaluator, error) {
+	// The controller that starts holds the run's controller lock, so any status
+	// file already here belongs to a controller that is gone. Readers only show
+	// a status while the lock is held, which would otherwise make it look current.
+	_ = os.Remove(filepath.Join(root, StatusFile))
 	side := filepath.Join(root, ConfigFile)
 	var cfg Config
 	if spec != "" {

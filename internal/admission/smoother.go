@@ -79,7 +79,9 @@ type slotRamp struct {
 	init        bool
 	cur         int
 	looserSince time.Time
+	hasLooser   bool
 	lastStep    time.Time
+	hasStep     bool
 }
 
 func (r *slotRamp) step(now time.Time, target int, dwell, throttle time.Duration) int {
@@ -88,19 +90,22 @@ func (r *slotRamp) step(now time.Time, target int, dwell, throttle time.Duration
 		return r.cur
 	}
 	if target <= r.cur {
-		r.cur = target
-		r.looserSince = time.Time{}
+		r.cur, r.hasLooser = target, false
 		return r.cur
 	}
-	if r.looserSince.IsZero() {
-		r.looserSince = now
+	if !r.hasLooser {
+		r.hasLooser, r.looserSince = true, now
 	}
-	if now.Sub(r.looserSince) >= dwell && (r.lastStep.IsZero() || now.Sub(r.lastStep) >= throttle) {
+	if now.Sub(r.looserSince) >= dwell && (!r.hasStep || now.Sub(r.lastStep) >= throttle) {
 		r.cur++
 		if r.cur > target {
 			r.cur = target
 		}
-		r.lastStep = now
+		r.lastStep, r.hasStep = now, true
+		if r.cur >= target {
+			// Reached it: a later loosening is a new one and waits out its own dwell.
+			r.hasLooser = false
+		}
 	}
 	return r.cur
 }
