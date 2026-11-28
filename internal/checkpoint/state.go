@@ -47,6 +47,27 @@ func FileLock(path string, nonblock bool) (*os.File, error) {
 	return f, nil
 }
 func Unlock(f *os.File) { _ = syscall.Flock(int(f.Fd()), syscall.LOCK_UN); _ = f.Close() }
+
+// ProbeLease reports whether another holder has the lease at path, without
+// keeping it. It is FileLock(path, true) minus the recovery-authority walk, for a
+// caller that has made that check once for the whole run: FileLock repeats the
+// ancestor walk and symlink resolution twice per call, which dominates a scan
+// over every task of a large run. Like FileLock it creates the file if absent.
+func ProbeLease(path string) (held bool, err error) {
+	f, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR, 0600)
+	if err != nil {
+		return false, err
+	}
+	defer f.Close()
+	if err = syscall.Flock(int(f.Fd()), syscall.LOCK_EX|syscall.LOCK_NB); err != nil {
+		if errors.Is(err, syscall.EWOULDBLOCK) {
+			return true, nil
+		}
+		return false, err
+	}
+	_ = syscall.Flock(int(f.Fd()), syscall.LOCK_UN)
+	return false, nil
+}
 func ReadState(root string) (*model.State, error) {
 	return (FileCheckpointStore{root}).Read(context.Background())
 }

@@ -292,16 +292,8 @@ func Run(root string, opts model.Options) (code int, runErr error) {
 		for id := range children {
 			busy[id] = true
 		}
-		for _, spec := range s.AllTasks() {
-			lease, e := checkpoint.FileLock(filepath.Join(root, "cells", spec.ID, "lease"), true)
-			if errors.Is(e, syscall.EWOULDBLOCK) {
-				busy[spec.ID] = true
-				continue
-			}
-			if e != nil {
-				return 1, e
-			}
-			checkpoint.Unlock(lease)
+		if e := markHeldLeases(root, s.AllTasks(), busy); e != nil {
+			return 1, e
 		}
 		phasetrace.Emit("ctl", "pass_probe_done", "")
 		// A worker can commit and release its lease between reconcile and this
@@ -424,6 +416,27 @@ func Run(root string, opts model.Options) (code int, runErr error) {
 		}
 		phasetrace.Emit("ctl", "wait_end", "")
 	}
+}
+
+// markHeldLeases marks in busy every task whose cell lease is held by any
+// process, including workers this controller did not start. The recovery-
+// authority check is one walk for the whole run: repeating it inside every lease
+// probe cost about a second per pass at 10,000 tasks. Workers still make their
+// own full check when they take their lease.
+func markHeldLeases(root string, tasks []model.Task, busy map[string]bool) error {
+	if err := checkpoint.RejectRecoveryRun(root); err != nil {
+		return err
+	}
+	for _, spec := range tasks {
+		held, err := checkpoint.ProbeLease(filepath.Join(root, "cells", spec.ID, "lease"))
+		if err != nil {
+			return err
+		}
+		if held {
+			busy[spec.ID] = true
+		}
+	}
+	return nil
 }
 
 // controllerIdleRefresh bounds how long an idle controller goes without a full
